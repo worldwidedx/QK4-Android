@@ -1,0 +1,87 @@
+# Credentials and local configuration
+.env
+.env.*
+*.jks
+*.keystore
+android/local.properties
+local.properties
+
+# Proprietary/internal documents
+*.pdf
+CLAUDE.md
+**/CLAUDE.md
+
+# AI tool state that is not part of the repository skill
+.claude/
+.mcp.json
+tools/
+*AUDIT*.md
+HaliKey_QK4_Integration_Notes.md
+docs/generated/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Build artifacts
+/build/
+/build-host/
+/build-android-arm64/
+/build-android-arm64-release/
+/build-android-*/
+*.apk
+*.aab
+*.o
+*.d
+*.so
+*.dylib
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# Qt Creator / IDE
+.qtcreator/
+*.user
+*.user.*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# Debug captures created during phone testing
+/*.png
+/peak-ui.xml
+/ui-dump*.xml
+
+# macOS
+.DS_Store
+.AppleDouble
+
+# Qt generated
+moc_*.cpp
+qrc_*.cpp
+ui_*.h
+
+# Windows
+*.exe
+*.dll
+*.lib
+*.pdb
+*.ilk
+*.exp
+*.obj
+
+# Visual Studio
+.vs/
+*.vcxproj.user
+Debug/
+Release/
+x64/
+x86/
+out/
+

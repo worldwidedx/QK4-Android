@@ -1,0 +1,2 @@
+# Elecraft KPOD - allow non-root access to the USB HID device
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="04d8", ATTRS{idProduct}=="f12d", MODE="0666"

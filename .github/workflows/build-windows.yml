@@ -1,0 +1,88 @@
+name: Build Windows
+
+on:
+  workflow_dispatch:
+
+env:
+  CMAKE_BUILD_PARALLEL_LEVEL: 4
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            C:\vcpkg\installed
+            C:\vcpkg\packages
+          key: vcpkg-win-build-${{ hashFiles('.github/workflows/build-windows.yml') }}
+          restore-keys: |
+            vcpkg-win-build-
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.7.*'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2019_64'
+          modules: 'qtmultimedia qtshadertools qtserialport'
+          cache: true
+
+      - name: Setup vcpkg
+        run: |
+          cd C:\vcpkg
+          .\bootstrap-vcpkg.bat
+
+      - name: Install dependencies
+        run: |
+          vcpkg install opus:x64-windows hidapi:x64-windows openssl:x64-windows
+
+      - name: Setup MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Verify executable
+        run: |
+          if (Test-Path build/QK4.exe) {
+            Write-Host "Build successful"
+            exit 0
+          } else {
+            Write-Host "Build failed - executable not found"
+            exit 1
+          }
+
+      - name: Bundle dependencies
+        run: |
+          mkdir QK4-windows
+          copy build\QK4.exe QK4-windows\
+
+          # Use windeployqt to bundle Qt DLLs
+          windeployqt --release --no-translations QK4-windows\QK4.exe
+
+          # Copy vcpkg DLLs (opus, hidapi, openssl)
+          copy C:\vcpkg\installed\x64-windows\bin\opus.dll QK4-windows\
+          copy C:\vcpkg\installed\x64-windows\bin\hidapi.dll QK4-windows\
+          copy C:\vcpkg\installed\x64-windows\bin\libssl-3-x64.dll QK4-windows\
+          copy C:\vcpkg\installed\x64-windows\bin\libcrypto-3-x64.dll QK4-windows\
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: QK4-windows
+          path: QK4-windows/
+          retention-days: 7

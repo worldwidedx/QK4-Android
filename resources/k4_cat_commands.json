@@ -1,0 +1,3062 @@
+{
+  "metadata": {
+    "document": "K4 Programmer's Reference",
+    "revision": "D5",
+    "date": "April 23, 2025",
+    "totalCommands": 184
+  },
+  "commands": [
+    {
+      "command": "AB",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Copies or swaps VFO A and VFO B frequencies or all parameters",
+      "category": "VFO",
+      "setFormat": "ABn;",
+      "getFormat": null,
+      "respFormat": null,
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {
+          "name": "n",
+          "type": "integer",
+          "range": "0-5",
+          "description": "0=A freq to B, 1=B freq to A, 2=swap freq, 3=A all to B, 4=B all to A, 5=swap all"
+        }
+      ],
+      "notes": ["Cases 0-2 affect frequency only; cases 3-5 copy/swap all parameters", "RX antenna selections only copy/swap if VFOs are on different bands"]
+    },
+    {
+      "command": "ACM",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads RX antenna access mask for main receiver",
+      "category": "RX",
+      "setFormat": "ACMzabcdefg;",
+      "getFormat": "ACM;",
+      "respFormat": "ACMzabcdefg;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "z", "type": "integer", "range": "0-1", "description": "Enable all antennas flag"},
+        {"name": "a-g", "type": "integer", "range": "0-1", "description": "Enable flags for ANT1 through OPP TX ANT"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "ACS",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads RX antenna access mask for sub receiver",
+      "category": "RX",
+      "setFormat": "ACSzabcdefg;",
+      "getFormat": "ACS;",
+      "respFormat": "ACSzabcdefg;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "z", "type": "integer", "range": "0-1", "description": "Enable all antennas flag"},
+        {"name": "a-g", "type": "integer", "range": "0-1", "description": "Enable flags for ANT1 through OPP TX ANT"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "ACT",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads TX antenna access mask",
+      "category": "TX",
+      "setFormat": "ACTzabc;",
+      "getFormat": "ACT;",
+      "respFormat": "ACTzabc;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "z", "type": "integer", "range": "0-1", "description": "Enable ALL flag"},
+        {"name": "a-c", "type": "integer", "range": "0-1", "description": "Enable TX ANT1-3"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "ACN",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads antenna name label",
+      "category": "RX",
+      "setFormat": "ACNnssssss;",
+      "getFormat": "ACNn;",
+      "respFormat": "ACNnssssss;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "1-5", "description": "Antenna number"},
+        {"name": "ssssss", "type": "string", "range": "1-6 chars", "description": "Antenna label"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "AF",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets audio feedback tone mode",
+      "category": "AUDIO",
+      "setFormat": "AFn;",
+      "getFormat": "AF;",
+      "respFormat": "AFn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-2", "description": "0=off, 1=beep, 2=error tone"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "AG",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads AF (audio) gain level",
+      "category": "AUDIO",
+      "setFormat": "AG$nnn;",
+      "getFormat": "AG$;",
+      "respFormat": "AG$nnn;",
+      "toggleFormat": "AG/;",
+      "incrDecrFormat": ["AG+;", "AG-;", "AG+nnn;", "AG-nnn;"],
+      "parameters": [
+        {"name": "nnn", "type": "integer", "range": "000-060", "description": "AF gain level"}
+      ],
+      "notes": ["Toggle format alternates between last gain value and 0 (mute)", "When SUB AF knob is assigned to balance, AG$ returns same as AG"]
+    },
+    {
+      "command": "AI",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads auto-info mode for automatic status updates",
+      "category": "SYSTEM",
+      "setFormat": "AIn;",
+      "getFormat": "AI;",
+      "respFormat": "AIn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-5", "description": "0=off, 1=VFO/RIT periodic, 2=all periodic, 3=reserved, 4=immediate non-client, 5=immediate all"}
+      ],
+      "notes": ["AI4/AI5 modes risk serial port buffer overflow", "AI mode is per-client", "Use AID command to set delay (60-999ms)"]
+    },
+    {
+      "command": "AID",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets auto-info delay interval for AI modes 1 and 2",
+      "category": "SYSTEM",
+      "setFormat": "AIDxxx;",
+      "getFormat": "AID;",
+      "respFormat": "AIDxxx;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "xxx", "type": "integer", "range": "060-999", "description": "Delay in milliseconds (default 500)"}
+      ],
+      "notes": ["Only applies to AI1 and AI2 modes"]
+    },
+    {
+      "command": "AL",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads AF limiter level for ear protection when AGC is off",
+      "category": "AUDIO",
+      "setFormat": "ALnn;",
+      "getFormat": "AL;",
+      "respFormat": "ALnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nn", "type": "integer", "range": "01-30", "description": "AF limiter level"}
+      ],
+      "notes": ["Critical for protecting ears when AGC is disabled"]
+    },
+    {
+      "command": "AN",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads TX antenna selection",
+      "category": "TX",
+      "setFormat": "ANn;",
+      "getFormat": "AN;",
+      "respFormat": "ANn;",
+      "toggleFormat": "AN/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "1-3", "description": "TX antenna number"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "AP",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads Audio Peak Filter (APF) mode and bandwidth",
+      "category": "RX",
+      "setFormat": "AP$mb;",
+      "getFormat": "AP$;",
+      "respFormat": "AP$mb;",
+      "toggleFormat": "AP/;",
+      "incrDecrFormat": ["AP+;", "AP-;"],
+      "parameters": [
+        {"name": "m", "type": "integer", "range": "0-1", "description": "0=off, 1=on"},
+        {"name": "b", "type": "integer", "range": "0-2", "description": "Bandwidth setting"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "AR",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads RX antenna selection",
+      "category": "RX",
+      "setFormat": "AR$n;",
+      "getFormat": "AR$;",
+      "respFormat": "AR$n;",
+      "toggleFormat": "AR$/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-7", "description": "0=disconnected, 1=ext XVTR/RX ANT IN2, 2=TX antenna, 3=int XVTR, 4=RX ANT IN1, 5-7=ATU RX ANT 1-3"}
+      ],
+      "notes": ["Values 5-7 require KAT4 option"]
+    },
+    {
+      "command": "AT",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads ATU mode",
+      "category": "TX",
+      "setFormat": "ATn;",
+      "getFormat": "AT;",
+      "respFormat": "ATn;",
+      "toggleFormat": "AT/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-2", "description": "0=not installed, 1=bypass, 2=auto"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "BG",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Reads bar graph meter value",
+      "category": "TX",
+      "setFormat": null,
+      "getFormat": "BG;",
+      "respFormat": "BGnnx;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nn", "type": "integer", "range": "00", "description": "Meter value"},
+        {"name": "x", "type": "integer", "range": "0-1", "description": "0=RX, 1=TX"}
+      ],
+      "notes": ["GET only command"]
+    },
+    {
+      "command": "BI",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads band independence mode for VFO B",
+      "category": "VFO",
+      "setFormat": "BIn;",
+      "getFormat": "BI;",
+      "respFormat": "BIn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-1", "description": "1=enable band independence"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "BL",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads main/sub audio balance",
+      "category": "AUDIO",
+      "setFormat": "BLm+nn;",
+      "getFormat": "BL;",
+      "respFormat": "BLm+nn;",
+      "toggleFormat": "BL/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "m", "type": "integer", "range": "0-1", "description": "Mode"},
+        {"name": "+nn", "type": "integer", "range": "-50 to +50", "description": "Balance value"}
+      ],
+      "notes": ["Short forms: BL1; BL0; BL~;"]
+    },
+    {
+      "command": "BN",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads current band number",
+      "category": "VFO",
+      "setFormat": "BN$nn;",
+      "getFormat": "BN$;",
+      "respFormat": "BN$nn;",
+      "toggleFormat": "BN$/;",
+      "incrDecrFormat": ["BN$+;", "BN$-;"],
+      "parameters": [
+        {"name": "nn", "type": "integer", "range": "00-25", "description": "00=160m, 01=80m, 02=60m, 03=40m, 04=30m, 05=20m, 06=17m, 07=15m, 08=12m, 09=10m, 10=6m, 16-25=XVTR bands"}
+      ],
+      "notes": ["BN$^; or BN$>; recalls next band stack register", "VFO B band changes require VFO B Different Band set to YES"]
+    },
+    {
+      "command": "BR",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads serial port baud rate",
+      "category": "IO",
+      "setFormat": "BRpbbbbbb;",
+      "getFormat": "BRp;",
+      "respFormat": "BRpbbbbbb;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "p", "type": "integer", "range": "0-2", "description": "Port number"},
+        {"name": "bbbbbb", "type": "integer", "range": "4800-115200", "description": "Baud rate"}
+      ],
+      "notes": ["Alternate format: BRbbbbbb; without port number"]
+    },
+    {
+      "command": "BS",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads BSET (B SET button) state",
+      "category": "CTRLS",
+      "setFormat": "BSn;",
+      "getFormat": "BS;",
+      "respFormat": "BSn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-1", "description": "0=off, 1=on"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "BW",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads receive filter bandwidth",
+      "category": "RX",
+      "setFormat": "BW$nnnn;",
+      "getFormat": "BW$;",
+      "respFormat": "BW$nnnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nnnn", "type": "integer", "range": "varies by mode", "description": "Filter bandwidth in units of 10 Hz"}
+      ],
+      "notes": ["Example: BW$1200; = 12.00 kHz bandwidth"]
+    },
+    {
+      "command": "CC",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads remote client connection count",
+      "category": "REMOTE",
+      "setFormat": "CCn;",
+      "getFormat": "CC;",
+      "respFormat": "CCn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "-1 to n", "description": ">=1 server with n clients, -1=client, 0=neither"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "CP",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads speech compression level for SSB",
+      "category": "TX",
+      "setFormat": "CPnnn;",
+      "getFormat": "CP;",
+      "respFormat": "CPnnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nnn", "type": "integer", "range": "000-030", "description": "Compression level"}
+      ],
+      "notes": ["SSB mode only"]
+    },
+    {
+      "command": "CW",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads CW sidetone pitch",
+      "category": "TX",
+      "setFormat": "CWnn;",
+      "getFormat": "CW;",
+      "respFormat": "CWnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nn", "type": "integer", "range": "25-95", "description": "Pitch in units of 10 Hz (250-950 Hz)"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "DA",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Controls digital voice recorder for playback and recording",
+      "category": "TX",
+      "setFormat": "DA[subcommand];",
+      "getFormat": "DA;",
+      "respFormat": "DA[status];",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "subcommand", "type": "string", "range": "varies", "description": "0=stop, RC=clear, RM=record mic, RS=record speaker, PMnnnnn=play, MEm=erase, MSm=save, MPm=play msg"}
+      ],
+      "notes": ["GET returns: DA0 (idle), DAPWnnnnn (waiting), DARMnnnnnttttt (recording mic), DAPMnnnnntttttmsc (playing)"]
+    },
+    {
+      "command": "DB",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Reads audio level in dBV",
+      "category": "AUDIO",
+      "setFormat": "DB$0;",
+      "getFormat": "DB$;",
+      "respFormat": "DB$snnnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "s", "type": "string", "range": "+/-", "description": "Sign"},
+        {"name": "nnnn", "type": "integer", "range": "0-9999", "description": "Level value"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "DE",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets command processing delay between commands",
+      "category": "MISC",
+      "setFormat": "DEnnn;",
+      "getFormat": null,
+      "respFormat": null,
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nnn", "type": "integer", "range": "001-999", "description": "Delay in units of 10ms"}
+      ],
+      "notes": ["SET only command"]
+    },
+    {
+      "command": "DM",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sends DTMF tone",
+      "category": "FM",
+      "setFormat": "DMn;",
+      "getFormat": null,
+      "respFormat": null,
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "string", "range": "0-9, A-D, *, #", "description": "DTMF digit"}
+      ],
+      "notes": ["SET only command"]
+    },
+    {
+      "command": "DN",
+      "supportsSubRx": false,
+      "scope": "main",
+      "description": "Moves VFO A frequency down by one tuning step",
+      "category": "VFO",
+      "setFormat": "DN;",
+      "getFormat": null,
+      "respFormat": null,
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [],
+      "notes": ["SET only command", "Use DNB; for VFO B"]
+    },
+    {
+      "command": "DNB",
+      "supportsSubRx": false,
+      "scope": "sub",
+      "description": "Moves VFO B frequency down by one tuning step",
+      "category": "VFO",
+      "setFormat": "DNB;",
+      "getFormat": null,
+      "respFormat": null,
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [],
+      "notes": ["SET only command"]
+    },
+    {
+      "command": "DO",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads DIGOUT1 state on ACC jack pin 11",
+      "category": "IO",
+      "setFormat": "DOn;",
+      "getFormat": "DO;",
+      "respFormat": "DOn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-1", "description": "Output state"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "DR",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads data mode baud rate",
+      "category": "RX",
+      "setFormat": "DR$r;",
+      "getFormat": "DR$;",
+      "respFormat": "DR$r;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "r", "type": "integer", "range": "0-1", "description": "Baud rate ID"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "DT",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads DATA sub-mode",
+      "category": "RX",
+      "setFormat": "DT$n;",
+      "getFormat": "DT$;",
+      "respFormat": "DT$n;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-3", "description": "0=DATA A, 1=AFSK A, 2=FSK D, 3=PSK D"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "DV",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads diversity reception mode",
+      "category": "RX",
+      "setFormat": "DVn;",
+      "getFormat": "DV;",
+      "respFormat": "DVn;",
+      "toggleFormat": "DV\\;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-1", "description": "0=off, 1=on"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "DW",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads TX DATA bandwidth",
+      "category": "TX",
+      "setFormat": "DWnn;",
+      "getFormat": "DW;",
+      "respFormat": "DWnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nn", "type": "integer", "range": "20-40", "description": "Bandwidth in 100 Hz units (2.0-4.0 kHz)"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "EC",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Echoes command text to RS232 port",
+      "category": "IO",
+      "setFormat": "EC*ssss;",
+      "getFormat": null,
+      "respFormat": null,
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "*", "type": "string", "range": "* or x", "description": "Text mode (*) or hex mode (x)"},
+        {"name": "ssss", "type": "string", "range": "text", "description": "Text to echo"}
+      ],
+      "notes": ["SET only command"]
+    },
+    {
+      "command": "EE",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Initializes EEPROM to factory defaults",
+      "category": "SYSTEM",
+      "setFormat": "EE0;",
+      "getFormat": null,
+      "respFormat": null,
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [],
+      "notes": ["SET only command", "Performs factory reset"]
+    },
+    {
+      "command": "EM",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads audio encode mode for remote streaming",
+      "category": "REMOTE",
+      "setFormat": "EMn;",
+      "getFormat": "EM;",
+      "respFormat": "EMn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-3", "description": "Encode mode"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "ER",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads error reporting mode",
+      "category": "SYSTEM",
+      "setFormat": "ERn;",
+      "getFormat": "ER;",
+      "respFormat": "ERn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-1", "description": "0=code only, 1=code and string"}
+      ],
+      "notes": ["Error response format: ERnn:sss;"]
+    },
+    {
+      "command": "ES",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads TX SSB/ESSB mode and bandwidth",
+      "category": "TX",
+      "setFormat": "ESnbb;",
+      "getFormat": "ES;",
+      "respFormat": "ESnbb;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-1", "description": "0=SSB, 1=ESSB"},
+        {"name": "bb", "type": "integer", "range": "30-45", "description": "Bandwidth in 100 Hz units (3.0-4.5 kHz)"}
+      ],
+      "notes": ["Alternate short form: ESn;"]
+    },
+    {
+      "command": "FA",
+      "supportsSubRx": false,
+      "scope": "main",
+      "description": "Sets or reads VFO A frequency",
+      "category": "VFO",
+      "setFormat": "FAn...;",
+      "getFormat": "FA;",
+      "respFormat": "FAnnnnnnnnnnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n...", "type": "integer", "range": "1-11 digits", "description": "Frequency: 1-2 digits=MHz, 3-5=kHz, 6+=Hz"}
+      ],
+      "notes": ["Frequency range: 100 kHz to 54 MHz", "Response always 11 digits in Hz"]
+    },
+    {
+      "command": "FB",
+      "supportsSubRx": false,
+      "scope": "sub",
+      "description": "Sets or reads VFO B frequency",
+      "category": "VFO",
+      "setFormat": "FBn...;",
+      "getFormat": "FB;",
+      "respFormat": "FBnnnnnnnnnnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n...", "type": "integer", "range": "1-11 digits", "description": "Frequency: 1-2 digits=MHz, 3-5=kHz, 6+=Hz"}
+      ],
+      "notes": ["Frequency range: 100 kHz to 54 MHz", "Response always 11 digits in Hz"]
+    },
+    {
+      "command": "FC",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Centers panadapter on current VFO frequency",
+      "category": "PAN",
+      "setFormat": "FC$;",
+      "getFormat": null,
+      "respFormat": null,
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [],
+      "notes": ["SET only command", "FC+250; offsets center by 250 Hz"]
+    },
+    {
+      "command": "FI",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads IF center frequency",
+      "category": "RX",
+      "setFormat": "FI$n...;",
+      "getFormat": "FI$;",
+      "respFormat": "FI$nnnnnnnnnnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n...", "type": "integer", "range": "1-11 digits", "description": "IF frequency in Hz"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "FP",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads filter preset number",
+      "category": "RX",
+      "setFormat": "FP$n;",
+      "getFormat": "FP$;",
+      "respFormat": "FP$n;",
+      "toggleFormat": "FP~;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "1-3", "description": "Filter preset number"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "FR",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads receive VFO function",
+      "category": "VFO",
+      "setFormat": "FRn;",
+      "getFormat": "FR;",
+      "respFormat": "FRn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "digit", "description": "Receive function"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "FT",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads split mode",
+      "category": "VFO",
+      "setFormat": "FTn;",
+      "getFormat": "FT;",
+      "respFormat": "FTn;",
+      "toggleFormat": "FT/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-1", "description": "0=off, 1=on"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "FX",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads audio effects mode",
+      "category": "AUDIO",
+      "setFormat": "FXn;",
+      "getFormat": "FX;",
+      "respFormat": "FXn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-2", "description": "0=off, 1=delay, 2=pitch-map"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "GT",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads AGC mode",
+      "category": "RX AGC",
+      "setFormat": "GT$n;",
+      "getFormat": "GT$;",
+      "respFormat": "GT$n;",
+      "toggleFormat": "GT$/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-2", "description": "0=AGC off, 1=slow, 2=fast"}
+      ],
+      "notes": ["K3 compatibility: GTnnn; where 002=fast, 004=slow", "K2 extended: GTnnnx; where x=0/1", "When AGC is OFF, AF limiter must protect ears from strong signals"]
+    },
+    {
+      "command": "HD",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Controls HDR module mode",
+      "category": "RX",
+      "setFormat": null,
+      "getFormat": null,
+      "respFormat": null,
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [],
+      "notes": ["[Pending] - TBD"]
+    },
+    {
+      "command": "ID",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Returns radio identification string",
+      "category": "KRAD",
+      "setFormat": "IDs;",
+      "getFormat": "ID;",
+      "respFormat": "ID017;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "s", "type": "string", "range": "0 or text", "description": "K41: 0 or ID text; K40: returns ID017"}
+      ],
+      "notes": ["K40 is GET only, returns ID017"]
+    },
+    {
+      "command": "IF",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Returns basic radio information in single response",
+      "category": "KRAD",
+      "setFormat": null,
+      "getFormat": "IF;",
+      "respFormat": "IF[f]****+yyyyrx*00tm0spbd1*;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "f", "type": "integer", "range": "11 digits", "description": "Operating frequency in Hz"},
+        {"name": "yyyy", "type": "integer", "range": "-9999 to +9999", "description": "RIT/XIT offset in Hz"},
+        {"name": "r", "type": "integer", "range": "0-1", "description": "RIT status"},
+        {"name": "x", "type": "integer", "range": "0-1", "description": "XIT status"},
+        {"name": "t", "type": "integer", "range": "0-1", "description": "TX mode (1=TX, 0=RX)"},
+        {"name": "m", "type": "integer", "range": "0-9", "description": "Operating mode"},
+        {"name": "s", "type": "integer", "range": "0-1", "description": "Scan status"},
+        {"name": "p", "type": "integer", "range": "0-1", "description": "Split mode"},
+        {"name": "b", "type": "integer", "range": "0-1", "description": "K22 meta: band change flag"},
+        {"name": "d", "type": "integer", "range": "0-3", "description": "K31 meta: DATA sub-mode"}
+      ],
+      "notes": ["GET only command"]
+    },
+    {
+      "command": "IN",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Reports TX inhibit status",
+      "category": "TX",
+      "setFormat": null,
+      "getFormat": null,
+      "respFormat": "INn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-1", "description": "0=not inhibited, 1=inhibited"}
+      ],
+      "notes": ["Response only in AI modes"]
+    },
+    {
+      "command": "IP",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Returns radio IP address",
+      "category": "SYSTEM",
+      "setFormat": null,
+      "getFormat": "IP;",
+      "respFormat": "IPV4:aaa.bbb.ccc.ddd;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "aaa.bbb.ccc.ddd", "type": "string", "range": "IP address", "description": "IPv4 address"}
+      ],
+      "notes": ["GET only command"]
+    },
+    {
+      "command": "IS",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads IF center pitch",
+      "category": "RX",
+      "setFormat": "IS$nnnn;",
+      "getFormat": "IS$;",
+      "respFormat": "IS$nnnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nnnn", "type": "integer", "range": "pitch value", "description": "IF center pitch in 10 Hz units"}
+      ],
+      "notes": ["K3 format: IS nnnn; (with space) in Hz"]
+    },
+    {
+      "command": "K2",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets K2 meta-mode for legacy software compatibility",
+      "category": "KRAD",
+      "setFormat": "K2;",
+      "getFormat": null,
+      "respFormat": null,
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [],
+      "notes": ["SET only - enables K2 compatibility mode"]
+    },
+    {
+      "command": "K3",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets K3 meta-mode for legacy software compatibility",
+      "category": "KRAD",
+      "setFormat": "K3;",
+      "getFormat": null,
+      "respFormat": null,
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [],
+      "notes": ["SET only - enables K3 compatibility mode"]
+    },
+    {
+      "command": "K4",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets K4 native mode or extended K4 mode",
+      "category": "KRAD",
+      "setFormat": "K4n;",
+      "getFormat": "K4;",
+      "respFormat": "K4n;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-1", "description": "0=K4 mode, 1=extended K4 mode"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "KP",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads keyer paddle configuration and weight",
+      "category": "TX",
+      "setFormat": "KPionnn;",
+      "getFormat": "KP;",
+      "respFormat": "KPionnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "i", "type": "string", "range": "A/B", "description": "Iambic mode A or B"},
+        {"name": "o", "type": "string", "range": "N/R", "description": "Normal or Reversed paddles"},
+        {"name": "nnn", "type": "integer", "range": "090-125", "description": "Keying weight"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "KS",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads keyer speed in WPM",
+      "category": "TX",
+      "setFormat": "KSnnn;",
+      "getFormat": "KS;",
+      "respFormat": "KSnnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nnn", "type": "integer", "range": "008-100", "description": "Keyer speed in WPM"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "KY",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sends CW or DATA message text",
+      "category": "TX",
+      "setFormat": "KY*[text];",
+      "getFormat": "KY;",
+      "respFormat": "KYn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "*", "type": "string", "range": "BLANK/R/W", "description": "Mode: blank=send, R=repeat, W=wait"},
+        {"name": "text", "type": "string", "range": "0-60 chars", "description": "Message text"}
+      ],
+      "notes": ["Response: KY0=buffer empty, KY1=buffer has data"]
+    },
+    {
+      "command": "KZ",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sends remote paddle or key data stream",
+      "category": "REMOTE",
+      "setFormat": "KZssss;",
+      "getFormat": null,
+      "respFormat": null,
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "ssss", "type": "string", "range": "varies", "description": "Elements: . (dit), - (dah), Pnnnn (pause), Unnnn (key up), Dnnnn (key down)"}
+      ],
+      "notes": ["SET only command"]
+    },
+    {
+      "command": "KZL",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads remote paddle key-down initial delay",
+      "category": "REMOTE",
+      "setFormat": "KZLnnnn;",
+      "getFormat": "KZL;",
+      "respFormat": "KZLnnnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nnnn", "type": "integer", "range": "0-1000", "description": "Delay in milliseconds"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "KZF",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads remote paddle key fail-safe timeout",
+      "category": "REMOTE",
+      "setFormat": "KZFnn;",
+      "getFormat": "KZF;",
+      "respFormat": "KZFnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nn", "type": "integer", "range": "1-10", "description": "Timeout in minutes"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "LB",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Controls LPA bias calibration",
+      "category": "TX",
+      "setFormat": "LB1;",
+      "getFormat": "LB;",
+      "respFormat": "LBn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-2", "description": "Calibration status"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "LI",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads line input levels and source",
+      "category": "AUDIO",
+      "setFormat": "LIuuullls;",
+      "getFormat": "LI;",
+      "respFormat": "LIuuullls;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "uuu", "type": "integer", "range": "level", "description": "USB-B input level"},
+        {"name": "lll", "type": "integer", "range": "level", "description": "LINE IN jack level"},
+        {"name": "s", "type": "integer", "range": "0-1", "description": "0=sound card, 1=LINE IN jack"}
+      ],
+      "notes": ["Alternate formats: LInnns; LInnn; LIs;"]
+    },
+    {
+      "command": "LK",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads VFO lock state",
+      "category": "VFO",
+      "setFormat": "LK$n;",
+      "getFormat": "LK$;",
+      "respFormat": "LK$n;",
+      "toggleFormat": "LK$/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-1", "description": "0=unlocked, 1=locked"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "LN",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads VFO link mode",
+      "category": "VFO",
+      "setFormat": "LNn;",
+      "getFormat": "LN;",
+      "respFormat": "LNn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-1", "description": "0=unlinked, 1=linked"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "LO",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads line output levels",
+      "category": "AUDIO",
+      "setFormat": "LOlllrrrm;",
+      "getFormat": "LO;",
+      "respFormat": "LOlllrrrm;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "lll", "type": "integer", "range": "000-040", "description": "Left channel level"},
+        {"name": "rrr", "type": "integer", "range": "000-040", "description": "Right channel level"},
+        {"name": "m", "type": "integer", "range": "0-1", "description": "0=independent, 1=R follows L"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "LOG",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Logs diagnostic data to internal storage",
+      "category": "SYSTEM",
+      "setFormat": "LOG;",
+      "getFormat": null,
+      "respFormat": "LOGn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-1", "description": "0=success, 1=failure"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "MA",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Returns mode alternates bit flags",
+      "category": "RX",
+      "setFormat": null,
+      "getFormat": "MA$;",
+      "respFormat": "MA$xx;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "xx", "type": "string", "range": "hex", "description": "ASCII-hex bit flags for available modes"}
+      ],
+      "notes": ["GET only command"]
+    },
+    {
+      "command": "MB",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Controls message bank operations",
+      "category": "MEMORY",
+      "setFormat": null,
+      "getFormat": null,
+      "respFormat": null,
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [],
+      "notes": ["[Pending] - TBD"]
+    },
+    {
+      "command": "MC",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Controls memory channel operations",
+      "category": "MEMORY",
+      "setFormat": null,
+      "getFormat": null,
+      "respFormat": null,
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [],
+      "notes": ["[Pending] - TBD"]
+    },
+    {
+      "command": "MD",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads operating mode",
+      "category": "RX",
+      "setFormat": "MD$n;",
+      "getFormat": "MD$;",
+      "respFormat": "MD$n;",
+      "toggleFormat": "MD$/;",
+      "incrDecrFormat": ["MD$+;", "MD$-;"],
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "1-9", "description": "1=LSB, 2=USB, 3=CW, 4=FM, 5=AM, 6=DATA, 7=CW-R, 9=DATA-R"}
+      ],
+      "notes": ["Use DT command for DATA sub-mode selection"]
+    },
+    {
+      "command": "ME",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads menu parameter value",
+      "category": "SYSTEM",
+      "setFormat": "MEiiii.nnnn;",
+      "getFormat": "MEiiii.;",
+      "respFormat": "MEiiii.nnnn;",
+      "toggleFormat": "MEiiii./;",
+      "incrDecrFormat": ["MEiiii.+;", "MEiiii.-;"],
+      "parameters": [
+        {"name": "iiii", "type": "integer", "range": "0001-0114", "description": "Menu ID number"},
+        {"name": "nnnn", "type": "integer", "range": "varies", "description": "Parameter value"}
+      ],
+      "notes": ["See MEDF command for menu definitions"]
+    },
+    {
+      "command": "MEDF",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Returns menu entry definition",
+      "category": "SYSTEM",
+      "setFormat": null,
+      "getFormat": "MEDFiiii;",
+      "respFormat": "MEDFiiii...;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "iiii", "type": "integer", "range": "0001-0114", "description": "Menu ID number"}
+      ],
+      "notes": ["GET only command"]
+    },
+    {
+      "command": "MG",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads microphone gain",
+      "category": "TX",
+      "setFormat": "MGxxx;",
+      "getFormat": "MG;",
+      "respFormat": "MGxxx;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "xxx", "type": "integer", "range": "000-080", "description": "Mic gain level"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "MI",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads microphone input source",
+      "category": "TX",
+      "setFormat": "MIn;",
+      "getFormat": "MI;",
+      "respFormat": "MIn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-4", "description": "Input source selection"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "ML",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads transmit monitor level",
+      "category": "TX",
+      "setFormat": "MLmnnn;",
+      "getFormat": "MLm;",
+      "respFormat": "MLmnnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "m", "type": "integer", "range": "0-2", "description": "Mode selector"},
+        {"name": "nnn", "type": "integer", "range": "000-100", "description": "Monitor level"}
+      ],
+      "notes": ["K3 format: MLnnn;"]
+    },
+    {
+      "command": "MO",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Opens menu to specified entry",
+      "category": "SYSTEM",
+      "setFormat": "MOiiii;",
+      "getFormat": null,
+      "respFormat": null,
+      "toggleFormat": "MO/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "iiii", "type": "integer", "range": "menu ID", "description": "Menu ID to open"}
+      ],
+      "notes": ["MO0255; closes menu", "SET only command"]
+    },
+    {
+      "command": "MS",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads microphone setup parameters",
+      "category": "TX",
+      "setFormat": "MSabcde;",
+      "getFormat": "MS;",
+      "respFormat": "MSabcde;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "a-e", "type": "integer", "range": "varies", "description": "Mic setup parameters"}
+      ],
+      "notes": ["Extensions: MSAx; MSBx; MSCx; MSDx; MSEx;"]
+    },
+    {
+      "command": "MX",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads main/sub audio mix mode",
+      "category": "AUDIO",
+      "setFormat": "MXs;",
+      "getFormat": "MX;",
+      "respFormat": "MXs;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "s", "type": "string", "range": "mix code", "description": "A.B, AB.AB, A.-A, A.AB, AB.B, AB.A, B.AB, B.B, B.A, A.A"}
+      ],
+      "notes": ["A.B = main left/sub right (default)", "A.-A = binaural", "AB.AB = mono"]
+    },
+    {
+      "command": "NA",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads auto notch filter state",
+      "category": "RX AGC",
+      "setFormat": "NA$n;",
+      "getFormat": "NA$;",
+      "respFormat": "NA$n;",
+      "toggleFormat": "NA$/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-1", "description": "0=off, 1=on"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "NB",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads noise blanker level and state",
+      "category": "RX AGC",
+      "setFormat": "NB$nnm;",
+      "getFormat": "NB$;",
+      "respFormat": "NB$nnm;",
+      "toggleFormat": "NB$/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nn", "type": "integer", "range": "00-15", "description": "NB level"},
+        {"name": "m", "type": "integer", "range": "0-1", "description": "0=off, 1=on"}
+      ],
+      "notes": ["Alternate format: NB$m;"]
+    },
+    {
+      "command": "NM",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads manual notch filter frequency and state",
+      "category": "RX AGC",
+      "setFormat": "NM$nnnnm;",
+      "getFormat": "NM$;",
+      "respFormat": "NM$nnnnm;",
+      "toggleFormat": "NM$/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nnnn", "type": "integer", "range": "0150-5000", "description": "Notch frequency in Hz"},
+        {"name": "m", "type": "integer", "range": "0-1", "description": "0=off, 1=on"}
+      ],
+      "notes": ["Alternate format: NM$m;"]
+    },
+    {
+      "command": "NR",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads noise reduction level and state",
+      "category": "RX AGC",
+      "setFormat": "NR$nnm;",
+      "getFormat": "NR$;",
+      "respFormat": "NR$nnm;",
+      "toggleFormat": "NR$/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nn", "type": "integer", "range": "00-10", "description": "NR level"},
+        {"name": "m", "type": "integer", "range": "0-1", "description": "0=off, 1=on"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "OM",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Returns installed option module information",
+      "category": "KRAD",
+      "setFormat": null,
+      "getFormat": "OM;",
+      "respFormat": "OM APXSHML14---;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "flags", "type": "string", "range": "flag chars", "description": "A=ATU, P=PA, X=XVTR, S=SUB RX, H=HDR, M=Mini, L=linear, 1=KPA1500, 4=K4"}
+      ],
+      "notes": ["GET only command"]
+    },
+    {
+      "command": "OV",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Reports ADC overflow and COR relay status",
+      "category": "RX",
+      "setFormat": null,
+      "getFormat": null,
+      "respFormat": "OV$nc;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-1", "description": "ADC overflow flag"},
+        {"name": "c", "type": "string", "range": "char", "description": "COR relay status"}
+      ],
+      "notes": ["Response only - sent automatically"]
+    },
+    {
+      "command": "PA",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads preamp level",
+      "category": "RX",
+      "setFormat": "PA$nm;",
+      "getFormat": "PA$;",
+      "respFormat": "PA$nm;",
+      "toggleFormat": "PA$/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-3", "description": "0=off, 1=10dB, 2=18/20dB LNA, 3=10dB+20dB LNA (12-6m)"},
+        {"name": "m", "type": "integer", "range": "0-1", "description": "0=off, 1=on"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "PB",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Controls DVR message playback",
+      "category": "TX",
+      "setFormat": "PBn;",
+      "getFormat": "PB;",
+      "respFormat": "PBn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-8", "description": "0=cancel, 1-8=message number"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "PC",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads transmit power level and range",
+      "category": "TX",
+      "setFormat": "PCnnnr;",
+      "getFormat": "PC;",
+      "respFormat": "PCnnnr;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nnn", "type": "integer", "range": "varies", "description": "Power value"},
+        {"name": "r", "type": "string", "range": "L/H/X", "description": "L=0.1-10W, H=1-110W, X=0.1-10mW XVTR"}
+      ],
+      "notes": ["PCX; returns K4 format regardless of mode", "If r omitted, L assumed"]
+    },
+    {
+      "command": "PK",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads port keying configuration",
+      "category": "IO",
+      "setFormat": "PKnpf;",
+      "getFormat": "PKnp;",
+      "respFormat": "PKnpf;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "1-3", "description": "Port number"},
+        {"name": "p", "type": "string", "range": "D/R", "description": "DTR or RTS"},
+        {"name": "f", "type": "string", "range": "X/C/P/F", "description": "Function assignment"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "PL",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads PL/CTCSS tone number and state",
+      "category": "FM",
+      "setFormat": "PL$nnm;",
+      "getFormat": "PL$;",
+      "respFormat": "PL$nnm;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nn", "type": "integer", "range": "01-50", "description": "Tone number index (maps to 67.0-254.1 Hz)"},
+        {"name": "m", "type": "integer", "range": "0-1", "description": "0=off, 1=on"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "PO",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Reads power output level",
+      "category": "TX",
+      "setFormat": "POn;",
+      "getFormat": "PO;",
+      "respFormat": "POnnnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nnnn", "type": "integer", "range": "power", "description": "Power output value"},
+        {"name": "n", "type": "integer", "range": "0-1", "description": "SET: enable/disable auto-report"}
+      ],
+      "notes": ["GET only for power reading"]
+    },
+    {
+      "command": "PP",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Reads per-band power settings",
+      "category": "TX",
+      "setFormat": null,
+      "getFormat": "PPbb;",
+      "respFormat": "PPbbcccmdddr;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "bb", "type": "integer", "range": "band", "description": "Band number"},
+        {"name": "ccc", "type": "integer", "range": "power", "description": "CW power"},
+        {"name": "m", "type": "string", "range": "mode", "description": "Mode"},
+        {"name": "ddd", "type": "integer", "range": "power", "description": "Data power"},
+        {"name": "r", "type": "string", "range": "L/H/X", "description": "Range"}
+      ],
+      "notes": ["GET only command", "PP1; returns all bands"]
+    },
+    {
+      "command": "PS",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Controls power on/off and restart",
+      "category": "SYSTEM",
+      "setFormat": "PSn;",
+      "getFormat": "PS;",
+      "respFormat": "PSn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0/8/88/89", "description": "0=off, 8=on, 88=restart, 89=restart to bootloader"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "RA",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads RX attenuator level",
+      "category": "RX",
+      "setFormat": "RA$nnm;",
+      "getFormat": "RA$;",
+      "respFormat": "RA$nnm;",
+      "toggleFormat": "RA$/;",
+      "incrDecrFormat": ["RA$+;", "RA$-;"],
+      "parameters": [
+        {"name": "nn", "type": "integer", "range": "0/3/6/9/12/15/18/21", "description": "Attenuation in dB"},
+        {"name": "m", "type": "integer", "range": "0-1", "description": "0=off, 1=on"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "RC",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Clears RIT/XIT offset",
+      "category": "VFO",
+      "setFormat": "RC$;",
+      "getFormat": null,
+      "respFormat": null,
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [],
+      "notes": ["SET only command"]
+    },
+    {
+      "command": "RD",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Decreases RIT/XIT offset",
+      "category": "VFO",
+      "setFormat": "RD$n;",
+      "getFormat": null,
+      "respFormat": null,
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "1-9999", "description": "Decrement in Hz"}
+      ],
+      "notes": ["SET only command", "Alt: RU$0nnnn; for absolute offset"]
+    },
+    {
+      "command": "RE",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads RX equalizer band levels",
+      "category": "AUDIO",
+      "setFormat": "REnabcdefgh;",
+      "getFormat": "RE;",
+      "respFormat": "REnabcdefgh;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "mode", "description": "Mode selector"},
+        {"name": "a-h", "type": "integer", "range": "-16 to +16", "description": "8 EQ bands: 100/200/400/800/1200/1600/2400/3200 Hz"}
+      ],
+      "notes": ["REF; sets flat response"]
+    },
+    {
+      "command": "RG",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads RF gain level",
+      "category": "RX",
+      "setFormat": "RG$-nn;",
+      "getFormat": "RG$;",
+      "respFormat": "RG$-nn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "-nn", "type": "integer", "range": "00-60", "description": "RF gain reduction in dB"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "RL",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads software release channel",
+      "category": "SYSTEM",
+      "setFormat": "RLn;",
+      "getFormat": "RL;",
+      "respFormat": "RLn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "string", "range": "P/B/F/X", "description": "P=production, B=beta, F=factory, X=experimental"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "RO",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads RIT/XIT offset value",
+      "category": "VFO",
+      "setFormat": "RO$snnnn;",
+      "getFormat": "RO$;",
+      "respFormat": "RO$snnnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "s", "type": "string", "range": "+/-", "description": "Sign"},
+        {"name": "nnnn", "type": "integer", "range": "0-9999", "description": "Offset in Hz"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "RP",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads repeater offset and mode",
+      "category": "FM",
+      "setFormat": "RPmnnnnn;",
+      "getFormat": "RP;",
+      "respFormat": "RPmnnnnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "m", "type": "string", "range": "S/+/-", "description": "S=simplex, +=plus offset, -=minus offset"},
+        {"name": "nnnnn", "type": "integer", "range": "00000-99999", "description": "Offset in kHz"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "RRC",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads allowed remote connection count",
+      "category": "REMOTE",
+      "setFormat": "RRCn;",
+      "getFormat": "RRC;",
+      "respFormat": "RRCn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-4", "description": "Max remote connections"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "RRP",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads remote connection password",
+      "category": "REMOTE",
+      "setFormat": "RRPsss;",
+      "getFormat": "RRP;",
+      "respFormat": "RRPsss;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "sss", "type": "string", "range": "text", "description": "Password"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "RRT",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Initiates remote connection request",
+      "category": "REMOTE",
+      "setFormat": "RRTipaddress:port?password;",
+      "getFormat": null,
+      "respFormat": null,
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "ipaddress", "type": "string", "range": "IP", "description": "Server IP address"},
+        {"name": "port", "type": "integer", "range": "port", "description": "Server port"},
+        {"name": "password", "type": "string", "range": "text", "description": "Connection password"}
+      ],
+      "notes": ["SET only command", "RRN; disconnects"]
+    },
+    {
+      "command": "RS",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads remote server mode",
+      "category": "REMOTE",
+      "setFormat": "RSn;",
+      "getFormat": "RS;",
+      "respFormat": "RSn;",
+      "toggleFormat": "RS/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-1", "description": "0=off, 1=on"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "RT",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads RIT on/off state",
+      "category": "VFO",
+      "setFormat": "RT$n;",
+      "getFormat": "RT$;",
+      "respFormat": "RT$n;",
+      "toggleFormat": "RT$/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-1", "description": "0=off, 1=on"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "RU",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Increases RIT/XIT offset",
+      "category": "VFO",
+      "setFormat": "RU$n;",
+      "getFormat": null,
+      "respFormat": null,
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "1-9999", "description": "Increment in Hz"}
+      ],
+      "notes": ["SET only command", "Alt: RU$nnnnn; for absolute"]
+    },
+    {
+      "command": "RV",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Returns firmware revision information",
+      "category": "SYSTEM",
+      "setFormat": null,
+      "getFormat": "RV;",
+      "respFormat": "RV.mmm-vvvv;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "mmm", "type": "string", "range": "module", "description": "Module name"},
+        {"name": "vvvv", "type": "string", "range": "version", "description": "Version number"}
+      ],
+      "notes": ["GET only command", "K3 compat: RVm; where m=F/M/D/A/R"]
+    },
+    {
+      "command": "RX",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Switches radio to receive mode",
+      "category": "TX",
+      "setFormat": "RX;",
+      "getFormat": null,
+      "respFormat": null,
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [],
+      "notes": ["SET only command"]
+    },
+    {
+      "command": "SB",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads sub receiver on/off state",
+      "category": "RX",
+      "setFormat": "SBn;",
+      "getFormat": "SB;",
+      "respFormat": "SBn;",
+      "toggleFormat": "SB/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-1", "description": "0=off, 1=on"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "SC",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads screen count",
+      "category": "DISP",
+      "setFormat": "SCn;",
+      "getFormat": "SC;",
+      "respFormat": "SCn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "1-2", "description": "Number of screens"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "SD",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads VOX or QSK delay",
+      "category": "TX",
+      "setFormat": "SDxyzzz;",
+      "getFormat": "SD;",
+      "respFormat": "SDxyzzz;",
+      "toggleFormat": "SD/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "x", "type": "integer", "range": "0-1", "description": "Mode"},
+        {"name": "y", "type": "string", "range": "C/V/D", "description": "CW/VOX/DATA"},
+        {"name": "zzz", "type": "integer", "range": "000-255", "description": "Delay value"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "SI",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Triggers system auto-info responses",
+      "category": "MISC",
+      "setFormat": "SIxx1;",
+      "getFormat": null,
+      "respFormat": null,
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "xx", "type": "string", "range": "DA/DD/DU/FP/RF/RC", "description": "Info type to request"}
+      ],
+      "notes": ["SET only command"]
+    },
+    {
+      "command": "SL",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads remote streaming audio latency",
+      "category": "REMOTE",
+      "setFormat": "SLn;",
+      "getFormat": "SL;",
+      "respFormat": "SLn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-7", "description": "Latency setting"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "SM",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Reads S-meter value",
+      "category": "RX",
+      "setFormat": "SMn;",
+      "getFormat": "SM$;",
+      "respFormat": "SM$nn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nn", "type": "integer", "range": "00-42", "description": "S-meter reading"},
+        {"name": "n", "type": "integer", "range": "1", "description": "SET: SM1; enables auto-report"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "SMH",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Reads high-resolution S-meter value in dBm",
+      "category": "RX",
+      "setFormat": "SMHn;",
+      "getFormat": "SMH$;",
+      "respFormat": "SMH$+nnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "+nnn", "type": "integer", "range": "dBm", "description": "Signal level in dBm"}
+      ],
+      "notes": ["SMH1; enables auto-report"]
+    },
+    {
+      "command": "SN",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Returns radio serial number",
+      "category": "KRAD",
+      "setFormat": null,
+      "getFormat": "SN;",
+      "respFormat": "SNnnnnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nnnnn", "type": "integer", "range": "serial", "description": "Serial number"}
+      ],
+      "notes": ["GET only command"]
+    },
+    {
+      "command": "SP",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads spot and autospot mode",
+      "category": "RX",
+      "setFormat": "SP$n;",
+      "getFormat": "SP;",
+      "respFormat": "SPn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-3", "description": "Spot mode"}
+      ],
+      "notes": ["SP$3; for sub RX"]
+    },
+    {
+      "command": "SQ",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads squelch level",
+      "category": "RX",
+      "setFormat": "SQ$nnn;",
+      "getFormat": "SQ$;",
+      "respFormat": "SQ$nnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nnn", "type": "integer", "range": "000-040", "description": "Squelch level"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "SS",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Captures screenshot to storage",
+      "category": "MISC",
+      "setFormat": "SSd;",
+      "getFormat": null,
+      "respFormat": null,
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "d", "type": "integer", "range": "0-1", "description": "Destination"}
+      ],
+      "notes": ["SET only command"]
+    },
+    {
+      "command": "SW",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Emulates front panel switch press",
+      "category": "CTRLS",
+      "setFormat": "SWnnn;",
+      "getFormat": null,
+      "respFormat": null,
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nnn", "type": "integer", "range": "switch code", "description": "Switch ID (see reference for complete list)"}
+      ],
+      "notes": ["SET only command", "Codes: 16=TUNE, 17-31=keypad, 32=NB, 33=FIL, 40=ATU TUNE, 41=A/B, etc."]
+    },
+    {
+      "command": "SWH",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Emulates K3 switch hold",
+      "category": "CTRLS",
+      "setFormat": "SWHnn;",
+      "getFormat": null,
+      "respFormat": null,
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nn", "type": "integer", "range": "switch code", "description": "K3 compatible switch code"}
+      ],
+      "notes": ["SET only command", "K3 compatibility subset"]
+    },
+    {
+      "command": "SWT",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Emulates K3 switch tap",
+      "category": "CTRLS",
+      "setFormat": "SWTnn;",
+      "getFormat": null,
+      "respFormat": null,
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nn", "type": "integer", "range": "switch code", "description": "K3 compatible switch code"}
+      ],
+      "notes": ["SET only command", "K3 compatibility subset"]
+    },
+    {
+      "command": "TA",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Reads TX gain calibration constant",
+      "category": "TX",
+      "setFormat": null,
+      "getFormat": "TAbb;",
+      "respFormat": "TGbbxxxxyyyyzzzz;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "bb", "type": "integer", "range": "band", "description": "Band number"}
+      ],
+      "notes": ["GET only command", "TA1; returns all bands"]
+    },
+    {
+      "command": "TB",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Returns buffered text decode status",
+      "category": "TX",
+      "setFormat": null,
+      "getFormat": "TB$;",
+      "respFormat": "TB$trrs;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "t", "type": "integer", "range": "flag", "description": "TX buffer status"},
+        {"name": "rr", "type": "integer", "range": "count", "description": "RX buffer count"},
+        {"name": "s", "type": "string", "range": "text", "description": "Decoded text"}
+      ],
+      "notes": ["GET only command"]
+    },
+    {
+      "command": "TD",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads text decode/encode mode",
+      "category": "TX",
+      "setFormat": "TD$mtl;",
+      "getFormat": "TD$;",
+      "respFormat": "TD$mtl;",
+      "toggleFormat": "TD$/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "m", "type": "integer", "range": "mode", "description": "Mode"},
+        {"name": "t", "type": "integer", "range": "type", "description": "Type"},
+        {"name": "l", "type": "integer", "range": "level", "description": "Level"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "TE",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads TX equalizer band levels",
+      "category": "TX",
+      "setFormat": "TEabcdefgh;",
+      "getFormat": "TE;",
+      "respFormat": "TEabcdefgh;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "a-h", "type": "integer", "range": "-16 to +16", "description": "8 EQ bands: 100/200/400/800/1200/1600/2400/3200 Hz"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "TG",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Reads TX gain constant",
+      "category": "TX",
+      "setFormat": null,
+      "getFormat": "TG;",
+      "respFormat": "TGnnnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nnnn", "type": "integer", "range": "value", "description": "TX gain value"}
+      ],
+      "notes": ["GET only command"]
+    },
+    {
+      "command": "TM",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Returns TX meter data",
+      "category": "TX",
+      "setFormat": "TMx;",
+      "getFormat": null,
+      "respFormat": "TMaaabbbcccddd;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "x", "type": "integer", "range": "0-1", "description": "0=disable, 1=enable auto-report"},
+        {"name": "aaa-ddd", "type": "integer", "range": "meter", "description": "Meter values"}
+      ],
+      "notes": ["Auto-response when enabled"]
+    },
+    {
+      "command": "TQ",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Returns TX state query",
+      "category": "TX",
+      "setFormat": null,
+      "getFormat": "TQ;",
+      "respFormat": "TQn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-1", "description": "0=RX, 1=TX"}
+      ],
+      "notes": ["GET only command", "TQX; alternate format"]
+    },
+    {
+      "command": "TS",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads TX test mode",
+      "category": "TX",
+      "setFormat": "TSn;",
+      "getFormat": "TS;",
+      "respFormat": "TSn;",
+      "toggleFormat": "TS/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-1", "description": "0=off, 1=on"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "TU",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Controls TUNE function",
+      "category": "TX",
+      "setFormat": "TUn;",
+      "getFormat": "TU;",
+      "respFormat": "TUn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-4", "description": "Tune mode/state"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "TX",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Switches radio to transmit mode",
+      "category": "TX",
+      "setFormat": "TX;",
+      "getFormat": null,
+      "respFormat": null,
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [],
+      "notes": ["SET only command"]
+    },
+    {
+      "command": "UP",
+      "supportsSubRx": false,
+      "scope": "main",
+      "description": "Moves VFO A frequency up by one tuning step",
+      "category": "VFO",
+      "setFormat": "UP;",
+      "getFormat": null,
+      "respFormat": null,
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [],
+      "notes": ["SET only command", "Use UPB; for VFO B"]
+    },
+    {
+      "command": "UPB",
+      "supportsSubRx": false,
+      "scope": "sub",
+      "description": "Moves VFO B frequency up by one tuning step",
+      "category": "VFO",
+      "setFormat": "UPB;",
+      "getFormat": null,
+      "respFormat": null,
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [],
+      "notes": ["SET only command"]
+    },
+    {
+      "command": "UT",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Returns UTC timestamp",
+      "category": "MISC",
+      "setFormat": null,
+      "getFormat": "UTn;",
+      "respFormat": "UTn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "unix time", "description": "Unix timestamp"}
+      ],
+      "notes": ["GET only command"]
+    },
+    {
+      "command": "VC",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads coarse tune step",
+      "category": "VFO",
+      "setFormat": "VCsm;",
+      "getFormat": "VC;",
+      "respFormat": "VCsm;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "s", "type": "integer", "range": "step", "description": "Step index"},
+        {"name": "m", "type": "integer", "range": "mode", "description": "Base mode"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "VG",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads VOX gain level",
+      "category": "TX",
+      "setFormat": "VGmnnn;",
+      "getFormat": "VGm;",
+      "respFormat": "VGmnnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "m", "type": "string", "range": "V/D", "description": "V=voice, D=data"},
+        {"name": "nnn", "type": "integer", "range": "000-060", "description": "VOX gain level"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "VI",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads VOX inhibit level",
+      "category": "TX",
+      "setFormat": "VInnn;",
+      "getFormat": "VI;",
+      "respFormat": "VInnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nnn", "type": "integer", "range": "000-060", "description": "VOX inhibit level"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "VO",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads VFO offset",
+      "category": "VFO",
+      "setFormat": "VO$snnnnn;",
+      "getFormat": "VO$;",
+      "respFormat": "VO$snnnnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "s", "type": "string", "range": "+/-", "description": "Sign"},
+        {"name": "nnnnn", "type": "integer", "range": "00000-99999", "description": "Offset in Hz"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "VT",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads VFO tuning step",
+      "category": "VFO",
+      "setFormat": "VT$nm;",
+      "getFormat": "VT$;",
+      "respFormat": "VT$nm;",
+      "toggleFormat": "VT$/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-5", "description": "0=1Hz, 1=10Hz, 2=100Hz, 3=1kHz, 4=10kHz, 5=100kHz"},
+        {"name": "m", "type": "integer", "range": "mode", "description": "Current mode"}
+      ],
+      "notes": ["VT$Xm; alternate GET format", "VT$\\; alternate toggle"]
+    },
+    {
+      "command": "VX",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads VOX on/off state",
+      "category": "TX",
+      "setFormat": "VXmn;",
+      "getFormat": "VX;",
+      "respFormat": "VXmn;",
+      "toggleFormat": "VX/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "m", "type": "string", "range": "C/V/D", "description": "CW/Voice/Data mode"},
+        {"name": "n", "type": "integer", "range": "0-1", "description": "0=off, 1=on"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "WM",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads wattmeter calibration",
+      "category": "TX",
+      "setFormat": "WMpnnn;",
+      "getFormat": "WMp;",
+      "respFormat": "WMpnnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "p", "type": "string", "range": "L/H/X", "description": "Power range"},
+        {"name": "nnn", "type": "integer", "range": "cal value", "description": "Calibration value"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "XT",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads XIT on/off state",
+      "category": "VFO",
+      "setFormat": "XTn;",
+      "getFormat": "XT;",
+      "respFormat": "XTn;",
+      "toggleFormat": "XT/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-1", "description": "0=off, 1=on"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "XV",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads transverter band selection",
+      "category": "XV",
+      "setFormat": "XV$nn;",
+      "getFormat": "XV$;",
+      "respFormat": "XV$nn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nn", "type": "integer", "range": "01-12", "description": "Transverter band number"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "XVI",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads transverter IF frequency for band",
+      "category": "XV",
+      "setFormat": "XVInn;",
+      "getFormat": "XVI;",
+      "respFormat": "XVInn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nn", "type": "integer", "range": "IF freq", "description": "IF frequency setting"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "XVM",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads transverter mode for band",
+      "category": "XV",
+      "setFormat": "XVMn;",
+      "getFormat": "XVM;",
+      "respFormat": "XVMn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "mode", "description": "Transverter mode"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "XVN",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads transverter band name",
+      "category": "XV",
+      "setFormat": "XVNn;",
+      "getFormat": "XVN;",
+      "respFormat": "XVNn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "string", "range": "name", "description": "Band name"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "XVO",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads transverter frequency offset",
+      "category": "XV",
+      "setFormat": "XVO+nnnnn;",
+      "getFormat": "XVO;",
+      "respFormat": "XVO+nnnnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "+nnnnn", "type": "integer", "range": "offset", "description": "Frequency offset"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "XVP",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads transverter power level",
+      "category": "XV",
+      "setFormat": "XVPnnn;",
+      "getFormat": "XVP;",
+      "respFormat": "XVPnnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nnn", "type": "integer", "range": "power", "description": "Power level"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "XVR",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads transverter RF frequency for band",
+      "category": "XV",
+      "setFormat": "XVRnnnnn;",
+      "getFormat": "XVR;",
+      "respFormat": "XVRnnnnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nnnnn", "type": "integer", "range": "RF freq", "description": "RF frequency setting"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "#AR",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads auto-reference level settings for panadapter",
+      "category": "PAN",
+      "setFormat": "#ARaadd+oom;",
+      "getFormat": "#AR;",
+      "respFormat": "#ARaadd+oom;",
+      "toggleFormat": "#AR/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "aa", "type": "integer", "range": "01-20", "description": "Averaging constant"},
+        {"name": "dd", "type": "integer", "range": "4-9", "description": "Debounce constant"},
+        {"name": "+oo", "type": "integer", "range": "-8 to +8", "description": "Offset"},
+        {"name": "m", "type": "integer", "range": "0-1", "description": "0=off, 1=on"}
+      ],
+      "notes": ["#AR0; resets", "#AR1; applies", "#AR9; reset+ON"]
+    },
+    {
+      "command": "#AVG",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads panadapter averaging",
+      "category": "PAN",
+      "setFormat": "#AVGnn;",
+      "getFormat": "#AVG;",
+      "respFormat": "#AVGnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nn", "type": "integer", "range": "01-20", "description": "Averaging value"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "#CAL",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets panadapter reference level calibration",
+      "category": "PAN",
+      "setFormat": "#CAL$-nn;",
+      "getFormat": null,
+      "respFormat": null,
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "-nn", "type": "integer", "range": "calibration", "description": "Calibration offset"}
+      ],
+      "notes": ["SET only command", "#CAL0; resets"]
+    },
+    {
+      "command": "#CUR",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads VFO cursor display mode (alias of #VFA/#VFB)",
+      "category": "PAN",
+      "setFormat": "#CUR$n;",
+      "getFormat": "#CUR$;",
+      "respFormat": "#CUR$n;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-3", "description": "Cursor mode"}
+      ],
+      "notes": ["Alias of #VFA and #VFB"]
+    },
+    {
+      "command": "#DPM",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads dual panadapter mode for LCD",
+      "category": "DISP",
+      "setFormat": "#DPMn;",
+      "getFormat": "#DPM;",
+      "respFormat": "#DPMn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-2", "description": "0=single VFO A, 1=single VFO B, 2=dual"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "#DSM",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads display mode for LCD",
+      "category": "DISP",
+      "setFormat": "#DSMn;",
+      "getFormat": "#DSM;",
+      "respFormat": "#DSMn;",
+      "toggleFormat": "#DSM/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-3", "description": "0=spectrum, 1=spectrum+waterfall, 2=spectrum+power, 3=all"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "#FPS",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads desired panadapter frames per second",
+      "category": "PAN",
+      "setFormat": "#FPSnn;",
+      "getFormat": "#FPS;",
+      "respFormat": "#FPSnn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nn", "type": "integer", "range": "01-30", "description": "Frames per second"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "#FRZ",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads panadapter and waterfall freeze state",
+      "category": "PAN",
+      "setFormat": "#FRZn;",
+      "getFormat": "#FRZ;",
+      "respFormat": "#FRZn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-1", "description": "0=running, 1=frozen"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "#FXA",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads DDC fixed tune mode",
+      "category": "PAN",
+      "setFormat": "#FXAn;",
+      "getFormat": "#FXA;",
+      "respFormat": "#FXAn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-4", "description": "Fixed tune mode"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "#FXT",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads DDC fixed tune toggle state",
+      "category": "PAN",
+      "setFormat": "#FXTn;",
+      "getFormat": "#FXT;",
+      "respFormat": "#FXTn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-1", "description": "0=off, 1=on"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "#HDPM",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads dual panadapter mode for external monitor",
+      "category": "DISP",
+      "setFormat": "#HDPMn;",
+      "getFormat": "#HDPM;",
+      "respFormat": "#HDPMn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-2", "description": "0=single VFO A, 1=single VFO B, 2=dual"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "#HDSM",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads display mode for external monitor",
+      "category": "DISP",
+      "setFormat": "#HDSMn;",
+      "getFormat": "#HDSM;",
+      "respFormat": "#HDSMn;",
+      "toggleFormat": "#HDSM/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-3", "description": "0=spectrum, 1=spectrum+waterfall, 2=spectrum+power, 3=all"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "#HREF",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads panadapter reference level for external monitor",
+      "category": "PAN",
+      "setFormat": "#HREF$n;",
+      "getFormat": "#HREF$;",
+      "respFormat": "#HREF$n;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "-200 to 60", "description": "Reference level"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "#HWBS",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads waterfall color range for external monitor",
+      "category": "PAN",
+      "setFormat": "#HWBSn;",
+      "getFormat": "#HWBS;",
+      "respFormat": "#HWBSn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "5-30", "description": "Color range"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "#HWFC",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads waterfall color mode for external monitor",
+      "category": "PAN",
+      "setFormat": "#HWFCn;",
+      "getFormat": "#HWFC;",
+      "respFormat": "#HWFCn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-4", "description": "0=gray, 1=color, 2=teal, 3=blue, 4=sepia"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "#HWFH",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads waterfall height for external monitor",
+      "category": "PAN",
+      "setFormat": "#HWFHnnn;",
+      "getFormat": "#HWFH;",
+      "respFormat": "#HWFHnnn;",
+      "toggleFormat": "#HWFH/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nnn", "type": "integer", "range": "000-100", "description": "Height percentage"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "#MP",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads mini-pan toggle state",
+      "category": "PAN",
+      "setFormat": "#MP$n;",
+      "getFormat": "#MP$;",
+      "respFormat": "#MP$n;",
+      "toggleFormat": "#MP$/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-1", "description": "0=off, 1=on"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "#NB",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads DDC noise blanker toggle",
+      "category": "PAN",
+      "setFormat": "#NB$n;",
+      "getFormat": "#NB$;",
+      "respFormat": "#NB$n;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-2", "description": "NB mode"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "#NBL",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads DDC noise blanker level",
+      "category": "PAN",
+      "setFormat": "#NBL$n;",
+      "getFormat": "#NBL$;",
+      "respFormat": "#NBL$n;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-14", "description": "NB level"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "#PKM",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads panadapter peak mode",
+      "category": "PAN",
+      "setFormat": "#PKMn;",
+      "getFormat": "#PKM;",
+      "respFormat": "#PKMn;",
+      "toggleFormat": "#PKM/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-1", "description": "0=off, 1=on"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "#REF",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads panadapter reference level for LCD",
+      "category": "PAN",
+      "setFormat": "#REF$n;",
+      "getFormat": "#REF$;",
+      "respFormat": "#REF$n;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "-200 to 60", "description": "Reference level"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "#SCL",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads panadapter scale",
+      "category": "PAN",
+      "setFormat": "#SCLn;",
+      "getFormat": "#SCL;",
+      "respFormat": "#SCLn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "10-150", "description": "Scale value"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "#SFL",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads spectrum fill mode",
+      "category": "PAN",
+      "setFormat": "#SFLn;",
+      "getFormat": "#SFL;",
+      "respFormat": "#SFLn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-1", "description": "0=off, 1=on"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "#SPM",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Returns span adjust mode",
+      "category": "PAN",
+      "setFormat": null,
+      "getFormat": "#SPM;",
+      "respFormat": "#SPM0;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [],
+      "notes": ["GET only command"]
+    },
+    {
+      "command": "#SPN",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads desired panadapter span",
+      "category": "PAN",
+      "setFormat": "#SPN$n;",
+      "getFormat": "#SPN$;",
+      "respFormat": "#SPN$n;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "6000-368000", "description": "Span in Hz"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "#VFA",
+      "supportsSubRx": false,
+      "scope": "main",
+      "description": "Sets or reads VFO A cursor display mode",
+      "category": "PAN",
+      "setFormat": "#VFAn;",
+      "getFormat": "#VFA;",
+      "respFormat": "#VFAn;",
+      "toggleFormat": "#VFA/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-3", "description": "0=off, 1=on, 2=auto, 3=hide"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "#VFB",
+      "supportsSubRx": false,
+      "scope": "sub",
+      "description": "Sets or reads VFO B cursor display mode",
+      "category": "PAN",
+      "setFormat": "#VFBn;",
+      "getFormat": "#VFB;",
+      "respFormat": "#VFBn;",
+      "toggleFormat": "#VFB/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-3", "description": "0=off, 1=on, 2=auto, 3=hide"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "#WBS",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads waterfall color range for LCD",
+      "category": "PAN",
+      "setFormat": "#WBSn;",
+      "getFormat": "#WBS;",
+      "respFormat": "#WBSn;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "5-30", "description": "Color range"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "#WFC",
+      "supportsSubRx": true,
+      "scope": "both",
+      "description": "Sets or reads LCD waterfall color mode",
+      "category": "PAN",
+      "setFormat": "#WFC$n;",
+      "getFormat": "#WFC$;",
+      "respFormat": "#WFC$n;",
+      "toggleFormat": null,
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "n", "type": "integer", "range": "0-4", "description": "0=gray, 1=color, 2=teal, 3=blue, 4=sepia"}
+      ],
+      "notes": []
+    },
+    {
+      "command": "#WFH",
+      "supportsSubRx": false,
+      "scope": "global",
+      "description": "Sets or reads waterfall height for LCD",
+      "category": "PAN",
+      "setFormat": "#WFHnnn;",
+      "getFormat": "#WFH;",
+      "respFormat": "#WFHnnn;",
+      "toggleFormat": "#WFH/;",
+      "incrDecrFormat": null,
+      "parameters": [
+        {"name": "nnn", "type": "integer", "range": "000-100", "description": "Height percentage"}
+      ],
+      "notes": []
+    }
+  ],
+  "categories": {
+    "AUDIO": {
+      "count": 12,
+      "commands": ["AF", "AG", "AL", "BL", "DB", "FX", "LI", "LO", "MX", "RE", "SL"]
+    },
+    "CTRLS": {
+      "count": 4,
+      "commands": ["BS", "SW", "SWH", "SWT"]
+    },
+    "DISP": {
+      "count": 5,
+      "commands": ["SC", "#DPM", "#DSM", "#HDPM", "#HDSM"]
+    },
+    "FM": {
+      "count": 3,
+      "commands": ["DM", "PL", "RP"]
+    },
+    "IO": {
+      "count": 4,
+      "commands": ["BR", "DO", "EC", "PK"]
+    },
+    "KRAD": {
+      "count": 7,
+      "commands": ["ID", "IF", "K2", "K3", "K4", "OM", "SN"]
+    },
+    "MEMORY": {
+      "count": 2,
+      "commands": ["MB", "MC"]
+    },
+    "MISC": {
+      "count": 4,
+      "commands": ["DE", "SI", "SS", "UT"]
+    },
+    "PAN": {
+      "count": 26,
+      "commands": ["FC", "#AR", "#AVG", "#CAL", "#CUR", "#FPS", "#FRZ", "#FXA", "#FXT", "#HREF", "#HWBS", "#HWFC", "#HWFH", "#MP", "#NB", "#NBL", "#PKM", "#REF", "#SCL", "#SFL", "#SPM", "#SPN", "#VFA", "#VFB", "#WBS", "#WFC", "#WFH"]
+    },
+    "REMOTE": {
+      "count": 9,
+      "commands": ["CC", "EM", "KZ", "KZF", "KZL", "RRC", "RRP", "RRT", "RS"]
+    },
+    "RX": {
+      "count": 23,
+      "commands": ["ACM", "ACS", "ACN", "AP", "AR", "BW", "DR", "DT", "DV", "FI", "FP", "HD", "IS", "MA", "MD", "OV", "PA", "RA", "RG", "SB", "SM", "SMH", "SP", "SQ"]
+    },
+    "RX AGC": {
+      "count": 5,
+      "commands": ["GT", "NA", "NB", "NM", "NR"]
+    },
+    "SYSTEM": {
+      "count": 11,
+      "commands": ["AI", "AID", "EE", "ER", "IP", "LOG", "ME", "MEDF", "MO", "PS", "RL", "RV"]
+    },
+    "TX": {
+      "count": 40,
+      "commands": ["ACT", "AN", "AT", "BG", "CP", "CW", "DA", "DW", "ES", "IN", "KP", "KS", "KY", "LB", "MG", "MI", "ML", "MS", "PB", "PC", "PO", "PP", "RX", "SD", "TA", "TB", "TD", "TE", "TG", "TM", "TQ", "TS", "TU", "TX", "VG", "VI", "VX", "WM"]
+    },
+    "VFO": {
+      "count": 20,
+      "commands": ["AB", "BI", "BN", "DN", "DNB", "FA", "FB", "FR", "FT", "LK", "LN", "RC", "RD", "RO", "RT", "RU", "UP", "UPB", "VC", "VO", "VT", "XT"]
+    },
+    "XV": {
+      "count": 7,
+      "commands": ["XV", "XVI", "XVM", "XVN", "XVO", "XVP", "XVR"]
+    }
+  }
+}

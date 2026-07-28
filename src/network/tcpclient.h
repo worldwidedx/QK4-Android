@@ -1,0 +1,83 @@
+#ifndef TCPCLIENT_H
+#define TCPCLIENT_H
+
+#include <QObject>
+#include <QSslSocket>
+#include <QThread>
+#include <QTimer>
+#include <QElapsedTimer>
+#include <atomic>
+#include "protocol.h"
+
+class TcpClient : public QObject {
+    Q_OBJECT
+
+public:
+    enum ConnectionState { Disconnected, Connecting, Authenticating, Connected };
+    Q_ENUM(ConnectionState)
+
+    explicit TcpClient(QObject *parent = nullptr);
+    ~TcpClient();
+
+    Q_INVOKABLE void connectToHost(const QString &host, quint16 port, const QString &password, bool useTls = false,
+                                   const QString &identity = QString(), int encodeMode = 3, int streamingLatency = 3);
+    Q_INVOKABLE void disconnectFromHost();
+    bool isConnected() const;
+    ConnectionState connectionState() const;
+    bool isUsingTls() const { return m_useTls; }
+
+    Q_INVOKABLE void sendCAT(const QString &command);
+    Q_INVOKABLE void sendRaw(const QByteArray &data);
+
+    Protocol *protocol() { return m_protocol; }
+
+signals:
+    void stateChanged(ConnectionState state);
+    void connected();
+    void disconnected();
+    void errorOccurred(const QString &error);
+    void authenticated();
+    void authenticationFailed();
+    void latencyChanged(int milliseconds);
+
+private slots:
+    void onSocketConnected();
+    void onSocketEncrypted();
+    void onSocketDisconnected();
+    void onReadyRead();
+    void onSocketError(QAbstractSocket::SocketError error);
+    void onSslErrors(const QList<QSslError> &errors);
+    void onPreSharedKeyAuthenticationRequired(QSslPreSharedKeyAuthenticator *authenticator);
+    void onConnectTimeout();
+    void onAuthTimeout();
+    void onPingTimer();
+    void onCatResponse(const QString &response);
+
+private:
+    void setState(ConnectionState state);
+    void sendAuthentication();
+    void startPingTimer();
+    void stopPingTimer();
+    void attemptConnection();
+
+    QSslSocket *m_socket;
+    Protocol *m_protocol;
+    QTimer *m_connectTimer;
+    QTimer *m_authTimer;
+    QTimer *m_pingTimer;
+    QElapsedTimer m_pingElapsed;
+
+    QString m_host;
+    quint16 m_port;
+    QString m_password; // Also used as PSK when TLS enabled
+    bool m_useTls;
+    QString m_identity;     // TLS-PSK identity (optional)
+    int m_encodeMode;       // Audio encode mode (0-3)
+    int m_streamingLatency; // Remote streaming audio latency (0-7)
+    // Written on the I/O thread and read from the UI/audio threads.
+    std::atomic<ConnectionState> m_state{Disconnected};
+    std::atomic<bool> m_connected{false}; // Thread-safe read for isConnected()
+    bool m_authResponseReceived;
+};
+
+#endif // TCPCLIENT_H

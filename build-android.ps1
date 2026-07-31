@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("Configure", "Build", "Apk", "Install")]
+    [ValidateSet("Doctor", "Configure", "Build", "Apk", "Install")]
     [string] $Action = "Build",
     [string] $DeviceSerial = "",
     [string] $BuildDirectory = ""
@@ -130,6 +130,21 @@ $opusLibrary = Find-ExistingPath "Android ARM64 Opus library" @(
     (Join-Path $opusRoot "lib\libopus.a")
 )
 
+function Show-AndroidEnvironment {
+    Write-Host "QK4 Android build environment is ready:"
+    Write-Host "  Project: $projectDir"
+    Write-Host "  Qt Android: $qtAndroid"
+    Write-Host "  Qt host: $qtHost"
+    Write-Host "  Android SDK: $androidSdk"
+    Write-Host "  Android NDK: $androidNdk"
+    Write-Host "  Java: $javaHome"
+    Write-Host "  CMake: $cmake"
+    Write-Host "  Ninja: $ninja"
+    Write-Host "  ADB: $adb"
+    Write-Host "  androiddeployqt: $androidDeployQt"
+    Write-Host "  Opus: $opusRoot"
+}
+
 function Configure-AndroidBuild {
     $opusInclude = Split-Path -Parent (Split-Path -Parent $opusHeader)
 
@@ -153,6 +168,11 @@ function Configure-AndroidBuild {
     if ($LASTEXITCODE -ne 0) {
         throw "Android configuration failed with exit code $LASTEXITCODE."
     }
+}
+
+if ($Action -eq "Doctor") {
+    Show-AndroidEnvironment
+    exit 0
 }
 
 if ($Action -eq "Configure") {

@@ -35,6 +35,12 @@ The script stops with a descriptive error if a required path is missing.
 
 ## Commands
 
+Check that all required tools and paths can be discovered without changing the build tree:
+
+```powershell
+.\build-android.cmd -Action Doctor
+```
+
 Configure a fresh build tree:
 
 ```powershell
@@ -69,13 +75,15 @@ The generated build tree is `build-android-arm64` and is intentionally excluded 
 
 ## Moving to another PC
 
-1. Clone or copy the repository.
+1. Clone the private repository (preferred) or copy a complete working tree.
 2. Install the required Qt and Android components.
-3. Run `build-android.cmd -Action Configure`.
-4. Run `build-android.cmd -Action Apk`.
-5. Enable developer options and USB debugging on the phone before using `-Action Install`.
+3. Run `build-android.cmd -Action Doctor` and resolve any missing component it reports.
+4. Run `build-android.cmd -Action Configure`.
+5. Run `build-android.cmd -Action Apk`.
+6. Enable developer options and USB debugging on the phone before using `-Action Install`.
 
 No OneDrive path or original development-directory layout is required.
+See [PORTABILITY.md](PORTABILITY.md) for the complete transfer checklist.
 
 ## Signing
 

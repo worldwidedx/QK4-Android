@@ -53,6 +53,7 @@ The ARM64 Opus headers and static library used by the current Android build are 
 From PowerShell or Command Prompt:
 
 ```powershell
+build-android.cmd -Action Doctor
 build-android.cmd -Action Configure
 build-android.cmd -Action Apk
 ```
@@ -78,6 +79,7 @@ The script discovers normal Qt and Android SDK locations. Any nonstandard locati
 | `QK4_OPUS_ROOT` | Alternate Android Opus installation |
 
 Detailed setup and troubleshooting are in [docs/BUILD_ANDROID_WINDOWS.md](docs/BUILD_ANDROID_WINDOWS.md).
+For a transfer checklist, including what is intentionally *not* stored in Git, see [docs/PORTABILITY.md](docs/PORTABILITY.md).
 
 ## Source layout
 

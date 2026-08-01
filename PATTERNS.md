@@ -2,6 +2,19 @@
 
 Signal/slot patterns and feature addition guides for QK4.
 
+## Android touch and rendering rules
+
+- Treat upstream QK4 as authoritative for radio plumbing. Preserve CAT, audio,
+  and streaming techniques; adapt only presentation and touch interaction.
+- Add a touch secondary action through intentional long press, never through a
+  button's upper/lower hit area. Scrolling must not invoke child buttons.
+- Put local panadapter behavior in the renderer/state owned by the app. Peak
+  Hold and WTR CLRS are local display behavior, not substitutes for CAT state.
+- Use `K4Styles::configureForScreen()` and compact dimensions rather than
+  hard-coding a Galaxy-specific layout. Keep critical controls reachable.
+- For controls where the state is not visible on the console, use the standard
+  application notification overlay above the active popup.
+
 ## Signal/Slot Connection Patterns
 
 ### RadioState → MainWindow

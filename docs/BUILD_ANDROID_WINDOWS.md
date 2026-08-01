@@ -59,6 +59,21 @@ Generate a debug-signed APK:
 .\build-android.cmd -Action Apk
 ```
 
+Generate a release-signed APK in a separate build tree:
+
+```powershell
+# Set these only for the current PowerShell session; never persist passwords.
+$env:QT_ANDROID_KEYSTORE_PATH = "C:\secure-location\qk4-mobile-release.p12"
+$env:QT_ANDROID_KEYSTORE_ALIAS = "qk4mobile"
+$env:QT_ANDROID_KEYSTORE_STORE_PASS = "<stored securely>"
+$env:QT_ANDROID_KEYSTORE_KEY_PASS = "<stored securely>"
+.\build-android.cmd -Action Apk -DeploymentType Release
+```
+
+This writes the release package beneath `build-android-arm64-release`. A
+release-signed APK cannot update a debug-signed installation of the same
+package; remove the debug install first if you want to test the release build.
+
 Install or upgrade on the connected device:
 
 ```powershell
@@ -95,3 +110,7 @@ Local APK builds use Qt's debug deployment path. Production releases require a s
 - `QT_ANDROID_KEYSTORE_KEY_PASS`
 
 Never commit the keystore or passwords.
+
+Keep the keystore and its passphrase in separate protected backups. The same
+key is required for every future direct APK update. If the app is later
+published with Google Play App Signing, retain this key as the Play upload key.

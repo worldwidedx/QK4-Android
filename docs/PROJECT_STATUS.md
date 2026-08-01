@@ -1,66 +1,51 @@
 # Project status
 
-Last updated: 2026-07-27
+Last updated: 2026-08-01
 
-## Last verified Android behavior
+## Released build
 
-The application connects to the K4 and supports RX audio, TX microphone audio, radio control, touch panadapter tuning, direct frequency entry, tuning-step synchronization, CW text decode, and the phone-oriented control panels.
+**QK4 Mobile v0.7.1** is released as a public GitHub ARM64 APK and is signed
+with the permanent QK4 Mobile release certificate. It is installed and accepted
+by Android on the development phone. The product package is
+`com.ai5qk.qk4phone`, with Android API 26 minimum and API 34 target.
 
-The most recent device testing confirmed:
+Version 0.7.1 removes the app-owned case conversion from connection-profile
+inputs. Android keyboards now control Shift and case normally for Name,
+Host/IP, Password, and TLS Identity fields.
 
-- CW text decode activates and receives decoded text.
-- Selecting a frequency digit updates the VFO tuning rate.
-- Panadapter touch tuning respects the selected tuning rate.
-- Right-side control-panel dragging no longer triggers unintended buttons.
-- Radio RX and streamed audio are operating.
+The only physical UI acceptance device so far is a Samsung Galaxy S26 Ultra in
+landscape. The compact layout is selected from logical dimensions, density, and
+physical screen size; broader device validation is still required.
 
-## Next session: first priority
+## Verified Android behavior
 
-### 1. WTR CLRS must be local
+- K4 profile management, TCP/TLS connection, and disconnect/error handling.
+- K4 RX audio streaming plus microphone TX audio and deliberate PTT operation.
+- VFO A/B operation, transmission-VFO selection, tuning digit selection,
+  direct frequency entry, and panadapter tuning at the selected VFO step.
+- Spectrum, waterfall, mini-pan, 50/50 initial spectrum/waterfall split, and
+  user-adjustable waterfall height.
+- Phone-oriented Control, TX, DISP, FN, Main RX, and Sub RX touch menus;
+  touch-safe scrolling and long-press alternate actions.
+- AF controls for main/sub receiver; relevant slider controls and mode-aware
+  filter shift/bandwidth ranges.
+- RIT/XIT activation and long-press jog control.
+- CW text decode screen and F1–F8 macro editor/execution.
+- Local non-decaying red Peak Hold trace, reset on toggle/geometry changes.
+- Local WTR CLRS 5–30 brightness adjustment; it intentionally does not send a
+  CAT command because it maps the application's local waterfall LUT.
 
-The Elecraft controls distinguish:
+## Known boundaries / next validation
 
-- `#WBS`: waterfall color range, documented CAT values 5-30.
-- `#WFC`: waterfall color palette/mode.
-
-The K4 uses native WTR CLRS values 5-30 in increments of 1. The Android control should open an adjustment field above the DISP buttons, in the same location used by the NB adjustment. It needs a current value plus `-` and `+`.
-
-For this application, WTR CLRS is a local waterfall-rendering setting. It should change the mapping between incoming dB/bin intensity and the existing local waterfall color lookup table. It should not send a radio command, and it must not be implemented as palette selection.
-
-The exact K4 internal transfer curve is not public. Match the documented behavior: increasing the value produces brighter colors for the same signal intensity.
-
-Implementation note: WTR CLRS is now a local `5`-`30` control in 1-step
-increments, matching Elecraft's native setting. It applies a brightness curve to the waterfall LUT for both current
-and stored rows and intentionally sends no CAT command. Device visual
-verification is still required.
-
-### 2. Peak Hold must be local
-
-The K4 command `#PKM` only reports or changes Peak Mode on the radio display. Neither the public streaming description nor QK4's decoded PAN packet contains a radio-generated peak trace.
-
-Implement a local trace using the incoming spectrum bins:
-
-```text
-peak[i] = max(peak[i], current[i])
-```
-
-Requirements:
-
-- Draw the peak trace as a red line above the live spectrum.
-- Maintain independent peak arrays for panadapter A and B.
-- Reset the relevant array when Peak is enabled, the connection changes, or center/span/bin geometry changes.
-- Keep the local display toggle authoritative for the local trace.
-- Sending `#PKM` to keep the physical radio display synchronized is optional and must not be treated as the source of peak data.
-- Start with persistent maxima. Measure the physical K4 before adding decay behavior.
-
-Implementation note: the trace is now a local red `LineStrip` over the live
-spectrum. It is deliberately non-decaying and resets on Peak enable/disable,
-disconnect, or a center/sample-rate/span/bin-geometry change. Device visual
-verification is still required.
-
-## Deferred
-
-- DR+ display support remains deferred until its correct source and state semantics are confirmed.
+- Validate landscape usability, system insets, font scaling, touch scrolling,
+  and audio behavior on smaller Android phones, a Pixel/non-Samsung phone, and
+  a foldable or tablet. Do not call those devices supported until tested.
+- Android sideloading can still show a Play Protect/unknown-source notice even
+  for the release-signed APK. Google Play distribution requires a signed AAB
+  and Play App Signing.
+- DR+ indication remains deferred until its source/state semantics are proven.
+- Peak Hold is intentionally local: K4 stream data does not provide a rendered
+  radio peak trace. WTR CLRS is local too; do not conflate it with `#WFC`.
 
 ## References
 

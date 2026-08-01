@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(QK4 VERSION 0.7.0 LANGUAGES CXX)
+project(QK4 VERSION 0.7.1 LANGUAGES CXX)
 
 # Optional override paths for Opus when cross-compiling (primarily Android)
 set(QK4_OPUS_INCLUDE_DIR "" CACHE PATH "Directory containing opus/opus.h for the target platform")

@@ -2,6 +2,12 @@
 
 Complete inventory of all Qt widgets, layouts, and UI elements in QK4.
 
+> **Android v0.7.0 status:** This historical component inventory includes
+> desktop dimensions and legacy widgets. The supported product is the compact
+> landscape phone layout in `MainWindow`, with the touch Controls dialog used
+> for side-panel functions. Treat `src/ui/k4styles.cpp`, `src/mainwindow.cpp`,
+> and `docs/PROJECT_STATUS.md` as authoritative for the current Android UI.
+
 ---
 
 ## Table of Contents

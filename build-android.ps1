@@ -1,6 +1,8 @@
 param(
     [ValidateSet("Doctor", "Configure", "Build", "Apk", "Install")]
     [string] $Action = "Build",
+    [ValidateSet("Debug", "Release")]
+    [string] $DeploymentType = "Debug",
     [string] $DeviceSerial = "",
     [string] $BuildDirectory = ""
 )
@@ -83,7 +85,12 @@ function Find-LatestNdk {
 
 $projectDir = $PSScriptRoot
 if (-not $BuildDirectory) {
-    $BuildDirectory = Join-Path $projectDir "build-android-arm64"
+    $defaultBuildDirectory = if ($DeploymentType -eq "Release") {
+        "build-android-arm64-release"
+    } else {
+        "build-android-arm64"
+    }
+    $BuildDirectory = Join-Path $projectDir $defaultBuildDirectory
 }
 $buildDir = [System.IO.Path]::GetFullPath($BuildDirectory)
 
@@ -115,6 +122,15 @@ $javaHome = Find-ExistingPath "Java/JDK" @(
 $adb = Find-ExistingPath "Android Debug Bridge" @(
     (Join-Path $androidSdk "platform-tools\adb.exe")
 )
+$androidBuildTools = Find-ExistingPath "Android build tools" @(
+    (Join-Path $androidSdk "build-tools\36.0.0")
+)
+$zipalign = Find-ExistingPath "Android zipalign" @(
+    (Join-Path $androidBuildTools "zipalign.exe")
+)
+$apksigner = Find-ExistingPath "Android APK signer" @(
+    (Join-Path $androidBuildTools "apksigner.bat")
+)
 $androidDeployQt = Find-ExistingPath "androiddeployqt" @(
     (Join-Path $qtHost "bin\androiddeployqt.exe")
 )
@@ -141,12 +157,27 @@ function Show-AndroidEnvironment {
     Write-Host "  CMake: $cmake"
     Write-Host "  Ninja: $ninja"
     Write-Host "  ADB: $adb"
+    Write-Host "  Android build tools: $androidBuildTools"
     Write-Host "  androiddeployqt: $androidDeployQt"
     Write-Host "  Opus: $opusRoot"
 }
 
 function Configure-AndroidBuild {
     $opusInclude = Split-Path -Parent (Split-Path -Parent $opusHeader)
+    if ($DeploymentType -eq "Release") {
+        $requiredSigningVariables = @(
+            "QT_ANDROID_KEYSTORE_PATH",
+            "QT_ANDROID_KEYSTORE_ALIAS",
+            "QT_ANDROID_KEYSTORE_STORE_PASS",
+            "QT_ANDROID_KEYSTORE_KEY_PASS"
+        )
+        $missingSigningVariables = $requiredSigningVariables | Where-Object {
+            [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($_))
+        }
+        if ($missingSigningVariables) {
+            throw "Release signing requires these environment variables: $($missingSigningVariables -join ', ')"
+        }
+    }
 
     & $cmake `
         -S $projectDir `
@@ -161,7 +192,7 @@ function Configure-AndroidBuild {
         "-DQT_CHAINLOAD_TOOLCHAIN_FILE=$androidNdk\build\cmake\android.toolchain.cmake" `
         -DANDROID_ABI=arm64-v8a `
         -DANDROID_PLATFORM=android-26 `
-        "-DQK4_ANDROID_DEPLOYMENT_TYPE=DEBUG" `
+        "-DQK4_ANDROID_DEPLOYMENT_TYPE=$($DeploymentType.ToUpperInvariant())" `
         "-DQK4_OPUS_INCLUDE_DIR=$opusInclude" `
         "-DQK4_OPUS_LIBRARY=$opusLibrary"
 
@@ -210,14 +241,56 @@ if ($LASTEXITCODE -ne 0) {
 New-Item -ItemType Directory -Force -Path $packageLibraryDir | Out-Null
 Copy-Item -LiteralPath $applicationLibrary -Destination $packageLibrary -Force
 
-& $androidDeployQt `
-    --input $deploymentSettings `
-    --output $packageDir
-if ($LASTEXITCODE -ne 0) {
+$deployArguments = @(
+    "--input", $deploymentSettings,
+    "--output", $packageDir
+)
+if ($DeploymentType -eq "Release") {
+    # Qt 6.11 occasionally calculates an incorrect filename after Gradle has
+    # built the release APK. Ask it only for the release variant, then align
+    # and sign the generated APK below using the Android SDK tools.
+    $deployArguments += "--release"
+}
+
+& $androidDeployQt @deployArguments
+if ($LASTEXITCODE -ne 0 -and $DeploymentType -ne "Release") {
     throw "Android packaging failed with exit code $LASTEXITCODE."
 }
 
+if ($DeploymentType -eq "Release") {
+    $unsignedApk = Get-ChildItem $packageDir -Filter "*-release-unsigned.apk" -Recurse |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+    if (-not $unsignedApk) {
+        throw "Android release packaging failed and did not produce an unsigned release APK."
+    }
+
+    $alignedApk = Join-Path $packageDir "QK4-release-aligned.apk"
+    $signedApk = Join-Path $packageDir "QK4-release.apk"
+    Remove-Item -LiteralPath $alignedApk,$signedApk -Force -ErrorAction SilentlyContinue
+
+    & $zipalign -f -p 4 $unsignedApk.FullName $alignedApk
+    if ($LASTEXITCODE -ne 0) {
+        throw "zipalign failed with exit code $LASTEXITCODE."
+    }
+
+    & $apksigner sign --ks $env:QT_ANDROID_KEYSTORE_PATH `
+        --ks-key-alias $env:QT_ANDROID_KEYSTORE_ALIAS `
+        --ks-pass "env:QT_ANDROID_KEYSTORE_STORE_PASS" `
+        --key-pass "env:QT_ANDROID_KEYSTORE_KEY_PASS" `
+        --out $signedApk $alignedApk
+    if ($LASTEXITCODE -ne 0) {
+        throw "apksigner failed with exit code $LASTEXITCODE."
+    }
+
+    & $apksigner verify --verbose --print-certs $signedApk
+    if ($LASTEXITCODE -ne 0) {
+        throw "Signed APK verification failed with exit code $LASTEXITCODE."
+    }
+}
+
 $apk = Get-ChildItem $packageDir -Filter "*.apk" -Recurse |
+    Where-Object { $_.Name -notlike "*-unsigned.apk" -and $_.Name -notlike "*-aligned.apk" } |
     Sort-Object LastWriteTime -Descending |
     Select-Object -First 1
 

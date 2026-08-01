@@ -6,58 +6,15 @@
 #include <QApplication>
 #include <QDialogButtonBox>
 #include <QFrame>
-#include <QGuiApplication>
 #include <QScrollArea>
 #include <QScroller>
 #include <QScrollerProperties>
 #include <QScreen>
-#include <QTimer>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
-#include <QInputMethodEvent>
-#include <QKeyEvent>
 #include <QLabel>
-#include <QPointer>
-#include <memory>
 #include <utility>
-
-namespace {
-// Some Android/Samsung IME combinations immediately undo their own Shift
-// state when hosted by a QWidget QLineEdit. This field provides an app-owned
-// uppercase mode, so case-sensitive credentials do not depend on IME state.
-class CaseAwareLineEdit final : public QLineEdit {
-public:
-    explicit CaseAwareLineEdit(QWidget *parent = nullptr) : QLineEdit(parent) {}
-
-    void setUppercaseInput(bool enabled) { m_uppercaseInput = enabled; }
-
-protected:
-    void inputMethodEvent(QInputMethodEvent *event) override {
-        const auto convert = [this](const QString &text) {
-            return m_uppercaseInput ? text.toUpper() : text.toLower();
-        };
-        QInputMethodEvent adjusted(convert(event->preeditString()), event->attributes());
-        adjusted.setCommitString(convert(event->commitString()),
-                                 event->replacementStart(), event->replacementLength());
-        QLineEdit::inputMethodEvent(&adjusted);
-    }
-
-    void keyPressEvent(QKeyEvent *event) override {
-        if (event->text().isEmpty()) {
-            QLineEdit::keyPressEvent(event);
-            return;
-        }
-        const QString converted = m_uppercaseInput ? event->text().toUpper() : event->text().toLower();
-        QKeyEvent adjusted(event->type(), event->key(), event->modifiers(),
-                           converted, event->isAutoRepeat(), event->count());
-        QLineEdit::keyPressEvent(&adjusted);
-    }
-
-private:
-    bool m_uppercaseInput = false;
-};
-} // namespace
 
 RadioManagerDialog::RadioManagerDialog(QWidget *parent) : QDialog(parent), m_currentIndex(-1) {
     setupUi();
@@ -183,16 +140,6 @@ void RadioManagerDialog::setupUi() {
     m_macrosButton->setToolTip("Configure the F1 through F8 buttons in the FN menu");
     m_macrosButton->setStyleSheet(K4Styles::menuBarButton());
     editTitleRow->addWidget(m_macrosButton);
-    QPushButton *caseButton = nullptr;
-    if (compact) {
-        caseButton = new QPushButton("CASE abc", this);
-        caseButton->setCheckable(true);
-        caseButton->setFocusPolicy(Qt::NoFocus); // Keep the keyboard and field active.
-        caseButton->setFixedHeight(26);
-        caseButton->setToolTip("Toggle uppercase typing for Name, Host, Password and ID");
-        caseButton->setStyleSheet(K4Styles::menuBarButton());
-        editTitleRow->addWidget(caseButton);
-    }
     rightSection->addLayout(editTitleRow);
 
     // Form fields - label on LEFT of text box
@@ -221,11 +168,9 @@ void RadioManagerDialog::setupUi() {
     // Row 0: Name
     auto *nameLabel = new QLabel("Name", this);
     nameLabel->setStyleSheet(labelStyle);
-    m_nameEdit = new CaseAwareLineEdit(this);
+    m_nameEdit = new QLineEdit(this);
     m_nameEdit->setStyleSheet(lineEditStyle);
-    // Start lower-case without restricting case. Unlike ImhNoAutoUppercase,
-    // this leaves manual Shift usable on Samsung's Android keyboard.
-    m_nameEdit->setInputMethodHints(Qt::ImhPreferLowercase | Qt::ImhNoPredictiveText);
+    m_nameEdit->setInputMethodHints(Qt::ImhNoAutoUppercase | Qt::ImhNoPredictiveText);
     m_nameEdit->setPlaceholderText("Server Name");
     formLayout->addWidget(nameLabel, 0, 0);
     formLayout->addWidget(m_nameEdit, 0, 1);
@@ -233,9 +178,9 @@ void RadioManagerDialog::setupUi() {
     // Row 1: Host or IP
     auto *hostLabel = new QLabel("Host or IP", this);
     hostLabel->setStyleSheet(labelStyle);
-    m_hostEdit = new CaseAwareLineEdit(this);
+    m_hostEdit = new QLineEdit(this);
     m_hostEdit->setStyleSheet(lineEditStyle);
-    m_hostEdit->setInputMethodHints(Qt::ImhPreferLowercase | Qt::ImhNoPredictiveText);
+    m_hostEdit->setInputMethodHints(Qt::ImhNoAutoUppercase | Qt::ImhNoPredictiveText);
     m_hostEdit->setPlaceholderText("192.168.1.100");
     formLayout->addWidget(hostLabel, 1, 0);
     formLayout->addWidget(m_hostEdit, 1, 1);
@@ -254,12 +199,12 @@ void RadioManagerDialog::setupUi() {
     // Row 3: Password
     auto *passwordLabel = new QLabel("Password", this);
     passwordLabel->setStyleSheet(labelStyle);
-    m_passwordEdit = new CaseAwareLineEdit(this);
+    m_passwordEdit = new QLineEdit(this);
     m_passwordEdit->setStyleSheet(lineEditStyle);
     m_passwordEdit->setEchoMode(QLineEdit::Password);
-    // Password echo mode supplies the hidden Android input type. Prefer lower
-    // case initially, but never force either case.
-    m_passwordEdit->setInputMethodHints(Qt::ImhPreferLowercase | Qt::ImhNoPredictiveText);
+    // Let the Android IME own Shift and case state. Password mode keeps text
+    // hidden, while these hints only disable prediction and sentence casing.
+    m_passwordEdit->setInputMethodHints(Qt::ImhNoAutoUppercase | Qt::ImhNoPredictiveText | Qt::ImhSensitiveData);
     m_passwordEdit->setPlaceholderText("Password");
     auto *passwordContainer = new QWidget(this);
     auto *passwordLayout = new QHBoxLayout(passwordContainer);
@@ -280,45 +225,12 @@ void RadioManagerDialog::setupUi() {
     // Row 4: ID (only visible when TLS is checked)
     m_identityLabel = new QLabel("ID", this);
     m_identityLabel->setStyleSheet(labelStyle);
-    m_identityEdit = new CaseAwareLineEdit(this);
+    m_identityEdit = new QLineEdit(this);
     m_identityEdit->setStyleSheet(lineEditStyle);
-    m_identityEdit->setInputMethodHints(Qt::ImhPreferLowercase | Qt::ImhNoPredictiveText);
+    m_identityEdit->setInputMethodHints(Qt::ImhNoAutoUppercase | Qt::ImhNoPredictiveText);
     m_identityEdit->setPlaceholderText("Identity (optional)");
     formLayout->addWidget(m_identityLabel, compact ? 3 : 4, compact ? 2 : 0);
     formLayout->addWidget(m_identityEdit, compact ? 3 : 4, compact ? 3 : 1);
-
-    if (caseButton) {
-        const QList<CaseAwareLineEdit *> caseFields = {
-            static_cast<CaseAwareLineEdit *>(m_nameEdit),
-            static_cast<CaseAwareLineEdit *>(m_hostEdit),
-            static_cast<CaseAwareLineEdit *>(m_passwordEdit),
-            static_cast<CaseAwareLineEdit *>(m_identityEdit)};
-        auto activeCaseField = std::make_shared<QPointer<CaseAwareLineEdit>>();
-        connect(qApp, &QApplication::focusChanged, this,
-                [activeCaseField, caseFields](QWidget *, QWidget *now) {
-                    for (CaseAwareLineEdit *field : caseFields) {
-                        if (now == field) {
-                            *activeCaseField = field;
-                            break;
-                        }
-                    }
-                });
-        connect(caseButton, &QPushButton::toggled, this,
-                [this, caseButton, caseFields, activeCaseField](bool uppercase) {
-                    caseButton->setText(uppercase ? "CASE ABC" : "CASE abc");
-                    caseButton->setStyleSheet(uppercase ? K4Styles::menuBarButtonActive()
-                                                        : K4Styles::menuBarButton());
-                    for (CaseAwareLineEdit *field : caseFields)
-                        field->setUppercaseInput(uppercase);
-                    const QPointer<CaseAwareLineEdit> field = *activeCaseField;
-                    QTimer::singleShot(0, this, [field]() {
-                        if (!field)
-                            return;
-                        field->setFocus(Qt::OtherFocusReason);
-                        QGuiApplication::inputMethod()->show();
-                    });
-                });
-    }
 
     // Row 5: TLS Checkbox (below ID field)
     m_tlsCheckbox = new QCheckBox("Use TLS (Encrypted)", this);

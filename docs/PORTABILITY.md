@@ -49,4 +49,9 @@ The following stay local and must never be copied into Git:
 - Phone screenshots, screen recordings, UI dumps, and debugging captures.
 - Personal IDE configuration and private notes.
 
-For a signed distribution build, securely transfer the signing key outside Git and supply its values through the documented Qt Android signing variables.
+For a signed distribution build, securely transfer the PKCS#12 signing key
+outside Git and supply its values through the documented Qt Android signing
+variables. Keep the keystore and passphrase in separate protected backups: the
+same certificate is required for every direct-APK update. Use
+`build-android.cmd -Action Apk -DeploymentType Release`; do not copy a keystore
+into the repository.

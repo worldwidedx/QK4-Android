@@ -2,7 +2,7 @@
 
 QK4 Android is a phone-focused Android client for Elecraft K4 transceivers. It preserves the proven radio-control, TCP/TLS, panadapter-stream, and TX/RX audio architecture of QK4 while replacing its desktop-oriented interaction model with a landscape touch interface.
 
-The application is under active development and is intended for testing with an Elecraft K4/K4D on the same network.
+The application is under active development and is intended for testing with an Elecraft K4/K4D on the same network. Version 0.7.1 is available as a release-signed ARM64 APK.
 
 ## Project lineage
 
@@ -23,6 +23,8 @@ This repository retains the GNU General Public License v3 used by the upstream p
 - CW text decoding
 - F1-F8 macro editing and execution
 - Android landscape layout and touch-safe scrolling
+- Local non-decaying Peak Hold and local WTR CLRS waterfall brightness control
+- Release-signed APK distribution support
 
 See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for the verified state and next work.
 
@@ -32,12 +34,12 @@ See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for the verified state and 
 |---|---|
 | Platform | Android 8.0 (API 26) or later |
 | ABI | ARM64 (`arm64-v8a`) |
-| UI | Landscape phone |
+| UI | Landscape phone; compact layout for typical phone displays |
 | Framework | Qt 6.11.1 |
 | Android API | Minimum 26, target 34 |
 | Radio | Elecraft K4/K4D |
 
-Other platforms remain present in the inherited QK4 source, but this repository's supported product target is Android.
+Other platforms remain present in the inherited QK4 source, but this repository's supported product target is Android. Physical acceptance testing has been performed on a Samsung Galaxy S26 Ultra; test other phone families before treating them as validated.
 
 ## Build on Windows
 
@@ -56,6 +58,14 @@ From PowerShell or Command Prompt:
 build-android.cmd -Action Doctor
 build-android.cmd -Action Configure
 build-android.cmd -Action Apk
+```
+
+To make a distribution APK, use the external release keystore and the
+temporary signing environment variables documented in
+[docs/BUILD_ANDROID_WINDOWS.md](docs/BUILD_ANDROID_WINDOWS.md):
+
+```powershell
+build-android.cmd -Action Apk -DeploymentType Release
 ```
 
 To install on a connected phone with USB debugging enabled:

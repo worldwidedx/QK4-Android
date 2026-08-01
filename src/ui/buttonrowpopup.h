@@ -3,6 +3,8 @@
 
 #include "k4popupbase.h"
 #include <QList>
+#include <QPoint>
+#include <QTimer>
 
 /**
  * RxMenuButton - Dual-line button with white primary text and amber secondary text.
@@ -29,6 +31,8 @@ signals:
 protected:
     void paintEvent(QPaintEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
     void enterEvent(QEnterEvent *event) override;
     void leaveEvent(QEvent *event) override;
 
@@ -37,6 +41,11 @@ private:
     QString m_alternateText;
     bool m_hovered = false;
     bool m_hasAlternateFunction = true; // If true, alternate text is amber; if false, white
+    QTimer m_longPressTimer;
+    QPoint m_pressPosition;
+    bool m_leftPressed = false;
+    bool m_longPressHandled = false;
+    bool m_pressCancelled = false;
 };
 
 /**

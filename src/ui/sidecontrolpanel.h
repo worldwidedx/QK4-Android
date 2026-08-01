@@ -9,6 +9,7 @@
 
 class DualControlButton;
 class QGridLayout;
+class QScrollArea;
 class MonOverlay;
 class BalOverlay;
 
@@ -49,6 +50,9 @@ public:
     void setHighCut(double hi); // kHz
     void setShift(double shift);
     void setLowCut(double lo); // kHz
+    // K4 IF center pitch is represented in 10 Hz units and has per-mode limits.
+    void setFilterControlRanges(int bandwidthMinHz, int bandwidthMaxHz, int centerMinDah, int centerMaxDah,
+                                bool centerLocked);
     void setMainRfGain(int gain);
     void setMainSquelch(int sql);
     void setSubSquelch(int sql);
@@ -79,10 +83,6 @@ public:
     void cancelPendingLongPress();
 
 signals:
-    // Icon button signals
-    void helpClicked();
-    void connectClicked();
-
     // TX Function button signals (left-click = primary, right-click = secondary)
     void tuneClicked();    // TUNE - SW16;
     void tuneLpClicked();  // TUNE LP - SW131;
@@ -109,6 +109,9 @@ signals:
     void bandwidthChanged(int delta);
     void highCutChanged(int delta);
     void shiftChanged(int delta);
+    // Touch SHFT dragging previews locally; this sends the final native-Hz
+    // value once the finger releases.
+    void shiftSliderCommitted(int targetDah);
     void lowCutChanged(int delta);
     void mainRfGainChanged(int delta);
     void mainSquelchChanged(int delta);
@@ -155,10 +158,11 @@ private:
     void setupUi();
     void triggerSecondary(QObject *watched);
     void configureAdjustmentSlider(DualControlButton *button, QSlider *slider);
+    void setSliderValueFromTouchPosition(QSlider *slider, int xPosition);
+    QScrollArea *containingScrollArea() const;
     void setGroup1Active(DualControlButton *activeBtn);
     void setGroup2Active(DualControlButton *activeBtn);
     void setGroup3Active(DualControlButton *activeBtn);
-    QPushButton *createIconButton(const QString &text);
     QWidget *createTxFunctionButton(const QString &mainText, const QString &subText, QPushButton *&btnOut);
 
     // Track mode (CW shows WPM/PTCH, Voice shows MIC/CMP)
@@ -202,6 +206,11 @@ private:
     int m_highCutValue = 2400;
     int m_shiftValue = 0;
     int m_lowCutValue = 0;
+    int m_filterBandwidthMinHz = 50;
+    int m_filterBandwidthMaxHz = 5000;
+    int m_filterCenterMinDah = 30;
+    int m_filterCenterMaxDah = 300;
+    bool m_filterCenterLocked = false;
     int m_mainRfValue = 0;
     int m_mainSqlValue = 0;
     int m_subSqlValue = 0;
@@ -211,10 +220,6 @@ private:
     QLabel *m_timeLabel;
     QLabel *m_powerSwrLabel;
     QLabel *m_voltageCurrentLabel;
-
-    // Icon buttons (at bottom of panel)
-    QPushButton *m_helpBtn;
-    QPushButton *m_connectBtn;
 
     // TX Function buttons (2x3 grid)
     QPushButton *m_tuneBtn;
@@ -228,6 +233,16 @@ private:
     QObject *m_longPressTarget = nullptr;
     bool m_longPressHandled = false;
     bool m_suppressNextRelease = false;
+    QPoint m_pressPosition;
+    bool m_dragging = false;
+
+    // A horizontal gesture adjusts a slider; a deliberate vertical gesture
+    // scrolls the enclosing phone CTRL bank instead of trapping the finger.
+    QObject *m_sliderDragTarget = nullptr;
+    QPoint m_sliderPressPosition;
+    int m_sliderLastY = 0;
+    bool m_sliderScrolling = false;
+    bool m_sliderAdjusting = false;
 
     // Volume sliders
     QSlider *m_volumeSlider;

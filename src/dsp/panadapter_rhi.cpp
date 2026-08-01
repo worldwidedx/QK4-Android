@@ -234,7 +234,12 @@ private:
 };
 
 PanadapterRhiWidget::PanadapterRhiWidget(QWidget *parent) : QRhiWidget(parent) {
-    setMinimumHeight(200);
+    // The enclosing phone console reserves the available height for its
+    // fixed two-row operating dock. A 200 px renderer minimum overrode that
+    // contract and pushed the tuning row below the viewport after connection
+    // populated the live VFO/antenna rows. The container retains a 90 px
+    // compact minimum, while desktop keeps the larger spectrum surface.
+    setMinimumHeight(K4Styles::isCompactLayout() ? 0 : 200);
     setMouseTracking(true);
     m_wheelAccumulator.setFilterMomentum(false);
 
@@ -248,21 +253,6 @@ PanadapterRhiWidget::PanadapterRhiWidget(QWidget *parent) : QRhiWidget(parent) {
     initSpectrumLUT(); // Spectrum LUT (for BlueAmplitude style)
 
     // Note: Waterfall data buffer is allocated in initialize() after devicePixelRatio is known
-
-    // Peak hold decay timer
-    m_peakDecayTimer = new QTimer(this);
-    connect(m_peakDecayTimer, &QTimer::timeout, this, [this]() {
-        if (!m_peakHold.isEmpty()) {
-            for (int i = 0; i < m_peakHold.size(); ++i) {
-                m_peakHold[i] -= PEAK_DECAY_RATE;
-                if (m_peakHold[i] < m_currentSpectrum.value(i, m_minDb)) {
-                    m_peakHold[i] = m_currentSpectrum.value(i, m_minDb);
-                }
-            }
-            update();
-        }
-    });
-    m_peakDecayTimer->start(50);
 
     // Waterfall marker timer
     m_waterfallMarkerTimer = new QTimer(this);
@@ -331,7 +321,12 @@ void PanadapterRhiWidget::initColorLUT() {
     m_colorLUT.resize(256 * 4);
 
     for (int i = 0; i < 256; ++i) {
-        float value = i / 255.0f;
+        const float inputValue = i / 255.0f;
+        // A larger WTR CLRS value brightens a given incoming intensity.  The
+        // range is applied to the LUT rather than PAN data, so both existing
+        // waterfall history and new rows update immediately and identically.
+        const float rangeMultiplier = static_cast<float>(m_waterfallColorRange) / 10.0f;
+        float value = std::pow(inputValue, 1.0f / rangeMultiplier);
         int r, g, b;
 
         if (value < 0.10f) {
@@ -748,6 +743,19 @@ void PanadapterRhiWidget::createPipelines() {
 
         m_overlayLinePipeline->create();
 
+        // Peak Hold must be one connected spectrum trace.  Using the generic
+        // Lines topology here only drew alternating, isolated bin segments.
+        m_peakLinePipeline.reset(m_rhi->newGraphicsPipeline());
+        m_peakLinePipeline->setShaderStages(
+            {{QRhiShaderStage::Vertex, m_overlayVert}, {QRhiShaderStage::Fragment, m_overlayFrag}});
+        m_peakLinePipeline->setVertexInputLayout(inputLayout);
+        m_peakLinePipeline->setTopology(QRhiGraphicsPipeline::LineStrip);
+        m_peakLinePipeline->setShaderResourceBindings(m_overlaySrb.get());
+        m_peakLinePipeline->setRenderPassDescriptor(m_rpDesc);
+        m_peakLinePipeline->setTargetBlends({blend});
+        m_peakLinePipeline->setLineWidth(2.0f);
+        m_peakLinePipeline->create();
+
         // Triangle version for filled shapes
         m_overlayTrianglePipeline.reset(m_rhi->newGraphicsPipeline());
         m_overlayTrianglePipeline->setShaderStages(
@@ -957,7 +965,7 @@ void PanadapterRhiWidget::render(QRhiCommandBuffer *cb) {
     // Peak hold is a separate trace, not part of the spectrum-fill shader.
     // The previous code correctly accumulated m_peakHold but never submitted
     // those samples to the renderer, so #PKM only affected the radio.
-    if (m_peakHoldEnabled && m_peakHold.size() > 1 && m_overlayLinePipeline) {
+    if (m_peakHoldEnabled && m_peakHold.size() > 1 && m_peakLinePipeline) {
         QVector<float> peakVerts;
         peakVerts.reserve(m_peakHold.size() * 2);
         const float denom = static_cast<float>(m_peakHold.size() - 1);
@@ -979,7 +987,7 @@ void PanadapterRhiWidget::render(QRhiCommandBuffer *cb) {
         peakRub->updateDynamicBuffer(m_overlayUniformBuffer.get(), 0, sizeof(peakUniforms), &peakUniforms);
         cb->resourceUpdate(peakRub);
         cb->setViewport({0, waterfallHeight, w, spectrumHeight});
-        cb->setGraphicsPipeline(m_overlayLinePipeline.get());
+        cb->setGraphicsPipeline(m_peakLinePipeline.get());
         cb->setShaderResources(m_overlaySrb.get());
         const QRhiCommandBuffer::VertexInput peakVbufBinding(m_overlayVbo.get(), 0);
         cb->setVertexInput(0, 1, &peakVbufBinding);
@@ -1383,6 +1391,20 @@ void PanadapterRhiWidget::updateSpectrum(const QByteArray &bins, qint64 centerFr
         binsToUse = bins;
     }
 
+    // A held bin only has meaning while the spectrum geometry is unchanged.
+    // Reset before consuming this frame when a retune/recenter, span/tier, or
+    // bin-count change would otherwise map old peaks to different frequencies.
+    const bool peakGeometryChanged = !m_peakGeometryValid || m_peakGeometryCenterFreq != centerFreq ||
+                                     m_peakGeometrySampleRate != sampleRate || m_peakGeometrySpanHz != m_spanHz ||
+                                     m_peakGeometryBinCount != binsToUse.size();
+    m_peakGeometryCenterFreq = centerFreq;
+    m_peakGeometrySampleRate = sampleRate;
+    m_peakGeometrySpanHz = m_spanHz;
+    m_peakGeometryBinCount = binsToUse.size();
+    m_peakGeometryValid = true;
+    if (peakGeometryChanged)
+        m_peakHold.clear();
+
     // Decompress bins to dB values
     decompressBins(binsToUse, m_rawSpectrum);
 
@@ -1604,6 +1626,7 @@ void PanadapterRhiWidget::clear() {
     m_currentSpectrum.clear();
     m_rawSpectrum.clear();
     m_peakHold.clear();
+    m_peakGeometryValid = false;
     m_waterfallWriteRow = 0;
     m_waterfallData.fill(0);
     m_waterfallNeedsFullClear = true;
@@ -1647,12 +1670,26 @@ void PanadapterRhiWidget::setWaterfallColor(int color) {
     update();
 }
 
+void PanadapterRhiWidget::setWaterfallColorRange(int range) {
+    range = qBound(5, range, 30);
+    if (m_waterfallColorRange == range)
+        return;
+
+    m_waterfallColorRange = range;
+    initColorLUT();
+    m_waterfallColorNeedsUpdate = m_rhiInitialized;
+    update();
+}
+
 void PanadapterRhiWidget::setPeakHoldEnabled(bool enabled) {
+    if (m_peakHoldEnabled == enabled)
+        return;
+
     m_peakHoldEnabled = enabled;
-    if (!enabled) {
-        m_peakHold.clear();
-    } else if (m_peakHold.isEmpty() && !m_currentSpectrum.isEmpty()) {
-        // Make Peak ON visible immediately, without waiting for another PAN frame.
+    // Peak starts fresh each time it is enabled; it is intentionally sticky
+    // thereafter and advances only when a stronger value arrives for a bin.
+    m_peakHold.clear();
+    if (enabled && !m_currentSpectrum.isEmpty()) {
         m_peakHold = m_currentSpectrum;
     }
     update();
@@ -1689,6 +1726,9 @@ void PanadapterRhiWidget::updateDbRangeFromRefAndScale() {
 void PanadapterRhiWidget::setSpan(int spanHz) {
     if (m_spanHz != spanHz && spanHz > 0) {
         m_spanHz = spanHz;
+        // The same bin index now represents a different frequency range.
+        m_peakHold.clear();
+        m_peakGeometryValid = false;
         updateFreqScaleOverlay();
         update();
     }

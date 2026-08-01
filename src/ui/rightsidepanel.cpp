@@ -1,4 +1,5 @@
 #include "rightsidepanel.h"
+#include "duallinepanelbutton.h"
 #include "k4styles.h"
 #include <QEvent>
 #include <QGridLayout>
@@ -25,6 +26,10 @@ void RightSidePanel::setupUi() {
     const bool compact = K4Styles::isCompactLayout();
     // Match left panel dimensions exactly
     setFixedWidth(K4Styles::Dimensions::SidePanelWidth);
+    QPalette panelPalette = palette();
+    panelPalette.setColor(QPalette::Window, QColor(K4Styles::Colors::PopupBackground));
+    setPalette(panelPalette);
+    setAutoFillBackground(true);
 
     m_layout = new QVBoxLayout(this);
     m_layout->setContentsMargins(K4Styles::Dimensions::PaddingSmall, K4Styles::Dimensions::PopupButtonSpacing,
@@ -173,7 +178,7 @@ void RightSidePanel::setupUi() {
 
 QWidget *RightSidePanel::createFunctionButton(const QString &mainText, const QString &subText, QPushButton *&btnOut,
                                               bool isLighter) {
-    // Container widget for button + sub-text label
+    // The alternate action belongs inside the same touch target as its primary.
     auto *container = new QWidget(this);
     auto *layout = new QVBoxLayout(container);
     layout->setContentsMargins(0, K4Styles::isCompactLayout() ? 0 : K4Styles::Dimensions::SeparatorHeight + 1,
@@ -181,8 +186,8 @@ QWidget *RightSidePanel::createFunctionButton(const QString &mainText, const QSt
     layout->setSpacing(K4Styles::isCompactLayout() ? 0 : K4Styles::Dimensions::PaddingSmall);
 
     // Button - scaled down from bottom menu bar style (matching left panel TX buttons)
-    auto *btn = new QPushButton(mainText, container);
-    btn->setFixedHeight(K4Styles::isCompactLayout() ? 28 : K4Styles::Dimensions::ButtonHeightSmall);
+    auto *btn = new DualLinePanelButton(mainText, subText, container);
+    btn->setFixedHeight(42);
     btn->setCursor(Qt::PointingHandCursor);
 
     if (isLighter) {
@@ -192,15 +197,6 @@ QWidget *RightSidePanel::createFunctionButton(const QString &mainText, const QSt
     }
     btnOut = btn;
     layout->addWidget(btn);
-
-    // Sub-text label (orange) - add top margin to prevent overlap with button
-    auto *subLabel = new QLabel(subText, container);
-    subLabel->setStyleSheet(QString("color: %1; font-size: %2px; margin-top: 2px;")
-                                .arg(K4Styles::Colors::AccentAmber)
-                                .arg(K4Styles::Dimensions::FontSizeSmall));
-    subLabel->setAlignment(Qt::AlignCenter);
-    subLabel->setFixedHeight(K4Styles::isCompactLayout() ? 9 : K4Styles::Dimensions::PopupContentMargin);
-    layout->addWidget(subLabel);
 
     return container;
 }

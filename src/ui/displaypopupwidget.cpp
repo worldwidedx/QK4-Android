@@ -113,14 +113,12 @@ void DisplayMenuButton::mouseReleaseEvent(QMouseEvent *event) {
     if (event->button() == Qt::LeftButton) {
         m_longPressTimer.stop();
         const bool activate = m_leftPressed && !m_longPressHandled && !m_pressCancelled && rect().contains(event->pos());
-        // The desktop button has a primary (white) and alternate (amber) action.
-        // On a phone, tapping the lower half is the explicit alternate action;
-        // a deliberate hold remains an alternate action for accessibility.
-        const bool activateAlternate = activate && m_pressPosition.y() >= height() / 2;
+        // Phone controls must not require a precise tap on one half of a
+        // compact dual-line button. A normal tap always chooses the primary
+        // (white) action; the desktop alternate action remains a deliberate
+        // long-press, which is how WTR CLRS is reached from NB/WTR CLRS.
         m_leftPressed = false;
-        if (activateAlternate)
-            emit rightClicked();
-        else if (activate)
+        if (activate)
             emit clicked();
     }
     event->accept();
@@ -186,6 +184,18 @@ void ControlGroupWidget::setShowAutoButton(bool show) {
     }
 }
 
+void ControlGroupWidget::setCompactLabel(bool compact) {
+    if (m_compactLabel == compact)
+        return;
+
+    m_compactLabel = compact;
+    // AUTO groups need their fixed 220 px form. The compact form is used by
+    // NB only and preserves its 32 px plus/minus touch targets.
+    if (!m_showAutoButton)
+        setFixedSize(m_compactLabel ? 132 : 180, ControlGroupHeight);
+    update();
+}
+
 void ControlGroupWidget::setAutoEnabled(bool enabled) {
     if (m_autoEnabled != enabled) {
         m_autoEnabled = enabled;
@@ -206,9 +216,9 @@ void ControlGroupWidget::paintEvent(QPaintEvent *event) {
     painter.setRenderHint(QPainter::Antialiasing);
 
     // Layout depends on whether AUTO button is shown
-    const int labelWidth = 60; // Fits "AVERAGE" label
+    const int labelWidth = m_compactLabel ? 24 : 60; // NB fits the compact form
     const int autoWidth = m_showAutoButton ? 40 : 0;
-    const int valueWidth = 52;
+    const int valueWidth = m_compactLabel ? 40 : 52;
     const int buttonWidth = 32;
 
     // Draw container background with gradient
@@ -489,10 +499,10 @@ DisplayPopupWidget::DisplayPopupWidget(QWidget *parent) : K4PopupBase(parent) {
 QSize DisplayPopupWidget::contentSize() const {
     int cm = ContentMargin;
 
-    // The WTR/NB page contains an inline palette selector alongside the
-    // NB controls.  Reserve enough landscape width so it cannot be squeezed
-    // off or clipped by the target toggle groups.
-    int width = qMax(7 * MenuButtonWidth + 6 * ButtonSpacing + 2 * cm, 820);
+    // The compact phone layout must remain inside the reachable viewport.
+    // Its widest control page is NB + WTR CLRS, not the old palette selector.
+    const int minimumWidth = K4Styles::isCompactLayout() ? 700 : 820;
+    int width = qMax(7 * MenuButtonWidth + 6 * ButtonSpacing + 2 * cm, minimumWidth);
     int height = TopRowHeight + MenuButtonHeight + RowSpacing + 2 * cm;
     return QSize(width, height);
 }
@@ -609,6 +619,7 @@ void DisplayPopupWidget::setupTopRow() {
     m_scaleControlPage = createScaleControlPage();
     m_averageControlPage = createAverageControlPage();
     m_nbControlPage = createNbControlPage();
+    m_waterfallColorRangeControlPage = createWaterfallColorRangeControlPage();
     m_waterfallControlPage = createWaterfallControlPage();
     m_defaultControlPage = createDefaultControlPage();
 
@@ -617,6 +628,7 @@ void DisplayPopupWidget::setupTopRow() {
     m_controlStack->addWidget(m_scaleControlPage);
     m_controlStack->addWidget(m_averageControlPage);
     m_controlStack->addWidget(m_nbControlPage);
+    m_controlStack->addWidget(m_waterfallColorRangeControlPage);
     m_controlStack->addWidget(m_waterfallControlPage);
     m_controlStack->addWidget(m_defaultControlPage);
 
@@ -749,6 +761,7 @@ QWidget *DisplayPopupWidget::createNbControlPage() {
     layout->setSpacing(0);
 
     m_nbControlGroup = new ControlGroupWidget("NB", page);
+    m_nbControlGroup->setCompactLabel(K4Styles::isCompactLayout());
     updateNbControlGroupValue();
     connect(m_nbControlGroup, &ControlGroupWidget::decrementClicked, this,
             &DisplayPopupWidget::nbLevelDecrementRequested);
@@ -757,25 +770,38 @@ QWidget *DisplayPopupWidget::createNbControlPage() {
     layout->addWidget(m_nbControlGroup);
 
     auto *nbToggle = new QPushButton("NB ON/OFF", page);
-    nbToggle->setFixedSize(100, ControlGroupHeight);
-    connect(nbToggle, &QPushButton::clicked, this, [this]() { emit catCommandRequested("NB;"); });
+    // Keep the action label explicit. Width is recovered from the short NB
+    // adjustment group to the left, not from this control's identity.
+    nbToggle->setFixedSize(60, ControlGroupHeight);
+    nbToggle->setToolTip("Toggle panadapter NB on/off");
+    nbToggle->setAccessibleName("Toggle panadapter noise blanker");
+    connect(nbToggle, &QPushButton::clicked, this, &DisplayPopupWidget::nbToggleRequested);
     layout->addWidget(nbToggle);
 
-    // The K4's secondary WTR CLRS action is a palette selector.  A combo box
-    // gives the phone an explicit menu instead of relying on a mouse right-click.
-    m_waterfallColorCombo = new QComboBox(page);
-    m_waterfallColorCombo->setFixedWidth(150);
-    m_waterfallColorCombo->addItems({"WTR GRAY", "WTR COLOR", "WTR TEAL", "WTR BLUE", "WTR SEPIA"});
-    m_waterfallColorCombo->setCurrentIndex(m_waterfallColor >= 0 ? m_waterfallColor : 1);
-    connect(m_waterfallColorCombo, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int color) {
-        if (color < 0 || color > 4)
-            return;
-        m_waterfallColor = color;
+    return page;
+}
+
+QWidget *DisplayPopupWidget::createWaterfallColorRangeControlPage() {
+    auto *page = new QWidget(this);
+    auto *layout = new QHBoxLayout(page);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+
+    m_waterfallColorRangeControlGroup = new ControlGroupWidget("WTR CLRS", page);
+    updateWaterfallColorRangeControlGroup();
+    connect(m_waterfallColorRangeControlGroup, &ControlGroupWidget::decrementClicked, this, [this]() {
+        m_waterfallColorRange = qMax(5, m_waterfallColorRange - 1);
+        updateWaterfallColorRangeControlGroup();
         updateMenuButtonLabels();
-        emit waterfallColorLocallyChanged(color);
-        emit catCommandRequested(QString("#WFC%1;").arg(color));
+        emit waterfallColorRangeLocallyChanged(m_waterfallColorRange);
     });
-    layout->addWidget(m_waterfallColorCombo);
+    connect(m_waterfallColorRangeControlGroup, &ControlGroupWidget::incrementClicked, this, [this]() {
+        m_waterfallColorRange = qMin(30, m_waterfallColorRange + 1);
+        updateWaterfallColorRangeControlGroup();
+        updateMenuButtonLabels();
+        emit waterfallColorRangeLocallyChanged(m_waterfallColorRange);
+    });
+    layout->addWidget(m_waterfallColorRangeControlGroup);
 
     return page;
 }
@@ -799,6 +825,11 @@ void DisplayPopupWidget::updateNbControlGroupValue() {
         }
         m_nbControlGroup->setValue(QString("%1  %2").arg(modeText).arg(m_ddcNbLevel));
     }
+}
+
+void DisplayPopupWidget::updateWaterfallColorRangeControlGroup() {
+    if (m_waterfallColorRangeControlGroup)
+        m_waterfallColorRangeControlGroup->setValue(QString::number(m_waterfallColorRange));
 }
 
 QWidget *DisplayPopupWidget::createWaterfallControlPage() {
@@ -885,6 +916,7 @@ void DisplayPopupWidget::onMenuItemClicked(MenuItem item) {
         m_controlStack->setCurrentWidget(m_averageControlPage);
         break;
     case NbWtrClrs:
+        // A normal press is the NB action on this dual-line phone button.
         m_controlStack->setCurrentWidget(m_nbControlPage);
         break;
     default:
@@ -942,8 +974,8 @@ void DisplayPopupWidget::onMenuItemClicked(MenuItem item) {
         break;
     }
     case NbWtrClrs:
-        // The page contains explicit NB and WTR COLOR controls.  Do not
-        // silently toggle NB when the user taps the dual-line button.
+        // The page contains explicit NB controls. Do not silently toggle NB
+        // when the user selects the menu item.
         break;
     // Note: AveragePeak only shows control page (first switch) - no CAT command on click
     // The +/- buttons in the control page handle averaging changes via averagingIncrement/DecrementRequested signals
@@ -1024,20 +1056,12 @@ void DisplayPopupWidget::onMenuItemRightClicked(MenuItem item) {
         break;
     }
     case NbWtrClrs: {
-        // Open the explicit palette menu for the amber WTR CLRS action.
+        // Long-press selects only the local WTR CLRS adjustment field. Do not
+        // send #WFC or #WBS: this is local rendering only.
         m_selectedItem = NbWtrClrs;
         updateMenuButtonStyles();
-        m_controlStack->setCurrentWidget(m_nbControlPage);
-        if (m_waterfallColorCombo) {
-            {
-                const QSignalBlocker blocker(m_waterfallColorCombo);
-                m_waterfallColorCombo->setCurrentIndex(qBound(0, m_waterfallColor, 4));
-            }
-            // Keep the selector inside the DISP popup.  Nested Qt popup
-            // windows can dismiss the parent on Android; the visible combo
-            // remains available for a second tap and opens its choices.
-            m_waterfallColorCombo->setFocus();
-        }
+        m_controlStack->setCurrentWidget(m_waterfallColorRangeControlPage);
+        updateWaterfallColorRangeControlGroup();
         break;
     }
     case RefLvlScale:
@@ -1051,6 +1075,7 @@ void DisplayPopupWidget::onMenuItemRightClicked(MenuItem item) {
         // Center on VFO
         QString suffix = m_vfoBEnabled && !m_vfoAEnabled ? "$" : "";
         emit catCommandRequested(QString("FC%1;").arg(suffix));
+        emit panadapterCentered();
         break;
     }
     case AveragePeak:
@@ -1218,10 +1243,6 @@ void DisplayPopupWidget::setDisplayModeExt(int mode) {
 void DisplayPopupWidget::setWaterfallColor(int color) {
     color = qBound(0, color, 4);
     m_waterfallColor = color;
-    if (m_waterfallColorCombo) {
-        const QSignalBlocker blocker(m_waterfallColorCombo);
-        m_waterfallColorCombo->setCurrentIndex(color);
-    }
     updateMenuButtonLabels();
 }
 
@@ -1367,11 +1388,9 @@ void DisplayPopupWidget::updateMenuButtonLabels() {
     m_menuButtons[0]->setPrimaryText(panText);
     m_menuButtons[0]->setAlternateText(displayMode == 0 ? "SPECTRUM" : "WTRFALL");
 
-    // NbWtrClrs button (index 1) - alternate text shows waterfall color
-    static const char *colorNames[] = {"WTR GRAY", "WTR COLOR", "WTR TEAL", "WTR BLUE", "WTR SEPIA"};
-    if (m_waterfallColor >= 0 && m_waterfallColor <= 4) {
-        m_menuButtons[1]->setAlternateText(colorNames[m_waterfallColor]);
-    }
+    // NbWtrClrs button (index 1) - WTR CLRS is a local intensity range, not
+    // a remote palette command. Show the live value so it is discoverable.
+    m_menuButtons[1]->setAlternateText(QString("WTR CLRS %1").arg(m_waterfallColorRange));
 
     // RefLvlScale button (index 2) - no dynamic text for now
 

@@ -57,6 +57,7 @@
 #include <QPainter>
 #include <QFrame>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QScroller>
 #include <QScrollerProperties>
 #include <QTabWidget>
@@ -375,6 +376,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Create display popup
     m_displayPopup = new DisplayPopupWidget(this);
+    // DISP is a top-level Qt popup, so feedback owned by MainWindow would sit
+    // behind it. Use the same NotificationWidget treatment as the CTRL drawer.
+    m_displayNotificationWidget = new NotificationWidget(m_displayPopup);
     connect(m_displayPopup, &DisplayPopupWidget::closed, this, [this]() {
         if (m_bottomMenuBar) {
             m_bottomMenuBar->setDisplayActive(false);
@@ -398,11 +402,17 @@ MainWindow::MainWindow(QWidget *parent)
 
     // DisplayPopup CAT commands -> TcpClient
     connect(m_displayPopup, &DisplayPopupWidget::catCommandRequested, m_tcpClient, &TcpClient::sendCAT);
+    connect(m_displayPopup, &DisplayPopupWidget::panadapterCentered, this,
+            [this]() { showControlFeedback("Panadapter Centered"); });
     connect(m_displayPopup, &DisplayPopupWidget::waterfallColorLocallyChanged, this, [this](int color) {
         m_panadapterA->setWaterfallColor(color);
         m_panadapterB->setWaterfallColor(color);
         static const char *names[] = {"WTR GRAY", "WTR COLOR", "WTR TEAL", "WTR BLUE", "WTR SEPIA"};
         showControlFeedback(QString("WATERFALL: %1").arg((color >= 0 && color <= 4) ? names[color] : "COLOR"));
+    });
+    connect(m_displayPopup, &DisplayPopupWidget::waterfallColorRangeLocallyChanged, this, [this](int range) {
+        m_panadapterA->setWaterfallColorRange(range);
+        m_panadapterB->setWaterfallColorRange(range);
     });
 
     // Create Fn popup with dual-action buttons (macro system)
@@ -1390,19 +1400,40 @@ MainWindow::MainWindow(QWidget *parent)
         m_sideControlPanel->setBandwidth(bwHz / 1000.0);
         m_sideControlPanel->setShift(shiftHz / 1000.0);
 
-        // Calculate and set HI/LO in kHz
-        // High = Shift + (Bandwidth / 2)
-        // Low  = Shift - (Bandwidth / 2)
-        int highHz = shiftHz + (bwHz / 2);
-        int lowHz = shiftHz - (bwHz / 2);
+        // IS is the K4's AF center-pitch. Clamp LO at zero, then place HI
+        // one bandwidth above it, matching the core QK4 filter presentation.
+        int lowHz = qMax(0, shiftHz - (bwHz / 2));
+        int highHz = lowHz + bwHz;
         m_sideControlPanel->setHighCut(highHz / 1000.0);
         m_sideControlPanel->setLowCut(lowHz / 1000.0);
+
+        const RadioState::Mode mode = bSet ? m_radioState->modeB() : m_radioState->mode();
+        const int subMode = bSet ? m_radioState->dataSubModeB() : m_radioState->dataSubMode();
+        int bwMinHz = 50;
+        int bwMaxHz = 5000;
+        int centerMaxDah = (mode == RadioState::CW || mode == RadioState::CW_R) ? 200 : 300;
+        bool centerLocked = mode == RadioState::AM || mode == RadioState::FM;
+        if (mode == RadioState::DATA || mode == RadioState::DATA_R) {
+            if (subMode == 2) {
+                bwMinHz = 150;
+                bwMaxHz = 800;
+                centerLocked = true;
+            } else if (subMode == 3) {
+                bwMaxHz = 200;
+                centerLocked = true;
+            }
+        }
+        m_sideControlPanel->setFilterControlRanges(bwMinHz, bwMaxHz, 30, centerMaxDah, centerLocked);
     };
     connect(m_radioState, &RadioState::filterBandwidthChanged, this, updateFilterDisplay);
     connect(m_radioState, &RadioState::ifShiftChanged, this, updateFilterDisplay);
     connect(m_radioState, &RadioState::filterBandwidthBChanged, this, updateFilterDisplay);
     connect(m_radioState, &RadioState::ifShiftBChanged, this, updateFilterDisplay);
     connect(m_radioState, &RadioState::bSetChanged, this, updateFilterDisplay);
+    connect(m_radioState, &RadioState::modeChanged, this, updateFilterDisplay);
+    connect(m_radioState, &RadioState::modeBChanged, this, updateFilterDisplay);
+    connect(m_radioState, &RadioState::dataSubModeChanged, this, updateFilterDisplay);
+    connect(m_radioState, &RadioState::dataSubModeBChanged, this, updateFilterDisplay);
     connect(m_radioState, &RadioState::keyerSpeedChanged, m_sideControlPanel, &SideControlPanel::setWpm);
     connect(m_radioState, &RadioState::cwPitchChanged, this, [this](int pitch) {
         m_sideControlPanel->setPitch(pitch / 1000.0); // Hz to kHz (500Hz = 0.50)
@@ -1592,6 +1623,11 @@ MainWindow::MainWindow(QWidget *parent)
 
     // RadioState waterfall height -> Panadapter (global setting applies to both)
     connect(m_radioState, &RadioState::waterfallHeightChanged, this, [this](int percent) {
+        // Retain the intentional 50/50 phone starting point through the
+        // initial radio-state dump.  Thereafter this follows WTR HEIGHT
+        // normally, including the +/- controls in the DISP popup.
+        if (K4Styles::isCompactLayout() && !m_phoneWaterfallHeightAdjusted)
+            return;
         m_panadapterA->setWaterfallHeight(percent);
         m_panadapterB->setWaterfallHeight(percent);
     });
@@ -1656,7 +1692,11 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_radioState, &RadioState::scaleChanged, m_displayPopup, &DisplayPopupWidget::setScale);
     connect(m_radioState, &RadioState::ddcNbModeChanged, m_displayPopup, &DisplayPopupWidget::setDdcNbMode);
     connect(m_radioState, &RadioState::ddcNbLevelChanged, m_displayPopup, &DisplayPopupWidget::setDdcNbLevel);
-    connect(m_radioState, &RadioState::waterfallHeightChanged, m_displayPopup, &DisplayPopupWidget::setWaterfallHeight);
+    connect(m_radioState, &RadioState::waterfallHeightChanged, this, [this](int percent) {
+        m_displayPopup->setWaterfallHeight(K4Styles::isCompactLayout() && !m_phoneWaterfallHeightAdjusted
+                                                ? m_phoneWaterfallHeight
+                                                : percent);
+    });
     connect(m_radioState, &RadioState::waterfallHeightExtChanged, m_displayPopup,
             &DisplayPopupWidget::setWaterfallHeightExt);
     // Also update span/ref values in popup
@@ -1684,28 +1724,45 @@ MainWindow::MainWindow(QWidget *parent)
     });
 
     // DDC NB level control +/- -> CAT commands
+    connect(m_displayPopup, &DisplayPopupWidget::nbToggleRequested, this, [this]() {
+        // This is the panadapter NB shown beside the WTR CLRS controls, not
+        // the receiver's generic NB switch. Use #NB$ explicitly and report
+        // the requested state immediately, even if the K4 echo is delayed.
+        const bool enable = m_radioState->ddcNbMode() != 1;
+        showControlFeedback(enable ? "PAN NB ON" : "PAN NB OFF");
+        const QString command = QString("#NB$%1;").arg(enable ? 1 : 0);
+        m_tcpClient->sendCAT(command);
+        m_radioState->parseCATCommand(command);
+    });
     connect(m_displayPopup, &DisplayPopupWidget::nbLevelIncrementRequested, this, [this]() {
         int current = m_radioState->ddcNbLevel();
         int next = qMin(current + 1, 14);
-        m_tcpClient->sendCAT(QString("#NBL$%1;").arg(next, 2, 10, QChar('0')));
+        const QString command = QString("#NBL$%1;").arg(next, 2, 10, QChar('0'));
+        m_tcpClient->sendCAT(command);
+        m_radioState->parseCATCommand(command);
     });
     connect(m_displayPopup, &DisplayPopupWidget::nbLevelDecrementRequested, this, [this]() {
         int current = m_radioState->ddcNbLevel();
         int next = qMax(current - 1, 0);
-        m_tcpClient->sendCAT(QString("#NBL$%1;").arg(next, 2, 10, QChar('0')));
+        const QString command = QString("#NBL$%1;").arg(next, 2, 10, QChar('0'));
+        m_tcpClient->sendCAT(command);
+        m_radioState->parseCATCommand(command);
     });
 
     // Waterfall height control +/- -> CAT commands (respects LCD/EXT selection)
     // LCD controls our app's panadapter, EXT is just for external HDMI display
     connect(m_displayPopup, &DisplayPopupWidget::waterfallHeightIncrementRequested, this, [this]() {
         bool isExt = m_displayPopup->isExtEnabled() && !m_displayPopup->isLcdEnabled();
-        int current = isExt ? m_radioState->waterfallHeightExt() : m_radioState->waterfallHeight();
+        int current = isExt ? m_radioState->waterfallHeightExt()
+                            : (K4Styles::isCompactLayout() ? m_phoneWaterfallHeight : m_radioState->waterfallHeight());
         int next = qMin(current + 1, 90); // 1% steps, max 90%
         QString cmd =
             isExt ? QString("#HWFH%1;").arg(next, 2, 10, QChar('0')) : QString("#WFH%1;").arg(next, 2, 10, QChar('0'));
         m_tcpClient->sendCAT(cmd);
         // Optimistically update RadioState and UI (K4 may not echo this command)
         if (!isExt) {
+            m_phoneWaterfallHeight = next;
+            m_phoneWaterfallHeightAdjusted = true;
             m_radioState->setWaterfallHeight(next);
             m_panadapterA->setWaterfallHeight(next);
             m_panadapterB->setWaterfallHeight(next);
@@ -1717,13 +1774,16 @@ MainWindow::MainWindow(QWidget *parent)
     });
     connect(m_displayPopup, &DisplayPopupWidget::waterfallHeightDecrementRequested, this, [this]() {
         bool isExt = m_displayPopup->isExtEnabled() && !m_displayPopup->isLcdEnabled();
-        int current = isExt ? m_radioState->waterfallHeightExt() : m_radioState->waterfallHeight();
+        int current = isExt ? m_radioState->waterfallHeightExt()
+                            : (K4Styles::isCompactLayout() ? m_phoneWaterfallHeight : m_radioState->waterfallHeight());
         int next = qMax(current - 1, 10); // 1% steps, min 10%
         QString cmd =
             isExt ? QString("#HWFH%1;").arg(next, 2, 10, QChar('0')) : QString("#WFH%1;").arg(next, 2, 10, QChar('0'));
         m_tcpClient->sendCAT(cmd);
         // Optimistically update RadioState and UI (K4 may not echo this command)
         if (!isExt) {
+            m_phoneWaterfallHeight = next;
+            m_phoneWaterfallHeightAdjusted = true;
             m_radioState->setWaterfallHeight(next);
             m_panadapterA->setWaterfallHeight(next);
             m_panadapterB->setWaterfallHeight(next);
@@ -2259,8 +2319,12 @@ void MainWindow::setupUi() {
     // Main content (VFO + Spectrum)
     auto *contentWidget = new QWidget(middleWidget);
     auto *contentLayout = new QVBoxLayout(contentWidget);
-    contentLayout->setContentsMargins(K4Styles::Dimensions::PaddingSmall, K4Styles::Dimensions::PaddingSmall,
-                                      K4Styles::Dimensions::PaddingSmall, K4Styles::Dimensions::PaddingSmall);
+    // The phone console has a fixed two-row dock.  Avoid spending vertical
+    // space on decorative gutters above/below the VFO row: that space is more
+    // useful for the live spectrum and keeps every dock control reachable.
+    const int contentVerticalMargin = K4Styles::isCompactLayout() ? 0 : K4Styles::Dimensions::PaddingSmall;
+    contentLayout->setContentsMargins(K4Styles::Dimensions::PaddingSmall, contentVerticalMargin,
+                                      K4Styles::Dimensions::PaddingSmall, contentVerticalMargin);
     contentLayout->setSpacing(K4Styles::isCompactLayout() ? 1 : 2);
 
     // VFO section (A | Center | B)
@@ -2723,18 +2787,12 @@ void MainWindow::setupUi() {
         });
     }
 
-    // Connect side control panel icon buttons
-    connect(m_sideControlPanel, &SideControlPanel::connectClicked, this, &MainWindow::showRadioManager);
     connect(m_bottomMenuBar, &BottomMenuBar::connectClicked, this, &MainWindow::showRadioManager);
     connect(m_bottomMenuBar, &BottomMenuBar::frequencyARequested, this,
             [this]() { showFrequencyEntry(false); });
     connect(m_bottomMenuBar, &BottomMenuBar::frequencyBRequested, this,
             [this]() { showFrequencyEntry(true); });
     connect(m_bottomMenuBar, &BottomMenuBar::controlsRequested, this, &MainWindow::showPhoneControls);
-    connect(m_sideControlPanel, &SideControlPanel::helpClicked, this, []() {
-        // TODO: Show help dialog
-    });
-
     // Connect volume slider to AudioEngine (Main RX / VFO A)
     connect(m_sideControlPanel, &SideControlPanel::volumeChanged, this, [this](int value) {
         if (m_audioEngine) {
@@ -2851,7 +2909,14 @@ void MainWindow::setupUi() {
     connect(m_sideControlPanel, &SideControlPanel::bandwidthChanged, this, [this](int delta) {
         bool bSet = m_radioState->bSetEnabled();
         int currentBw = bSet ? m_radioState->filterBandwidthB() : m_radioState->filterBandwidth();
-        int newBw = qBound(50, currentBw + (delta * 50), 5000);
+        int bwMin = 50, bwMax = 5000;
+        const RadioState::Mode mode = bSet ? m_radioState->modeB() : m_radioState->mode();
+        const int subMode = bSet ? m_radioState->dataSubModeB() : m_radioState->dataSubMode();
+        if (mode == RadioState::DATA || mode == RadioState::DATA_R) {
+            if (subMode == 2) { bwMin = 150; bwMax = 800; }
+            else if (subMode == 3) { bwMax = 200; }
+        }
+        int newBw = qBound(bwMin, currentBw + (delta * 50), bwMax);
         QString cmd = bSet ? "BW$" : "BW";
         m_tcpClient->sendCAT(QString("%1%2;").arg(cmd).arg(newBw / 10, 4, 10, QChar('0')));
         if (bSet) {
@@ -2860,25 +2925,52 @@ void MainWindow::setupUi() {
             m_radioState->setFilterBandwidth(newBw);
         }
     });
-    connect(m_sideControlPanel, &SideControlPanel::highCutChanged, this, [this](int delta) {
-        bool bSet = m_radioState->bSetEnabled();
-        int currentBw = bSet ? m_radioState->filterBandwidthB() : m_radioState->filterBandwidth();
-        int newBw = qBound(50, currentBw + (delta * 50), 5000);
-        QString cmd = bSet ? "BW$" : "BW";
-        m_tcpClient->sendCAT(QString("%1%2;").arg(cmd).arg(newBw / 10, 4, 10, QChar('0')));
-        if (bSet) {
-            m_radioState->setFilterBandwidthB(newBw);
-        } else {
-            m_radioState->setFilterBandwidth(newBw);
+    auto adjustFilterEdge = [this](bool adjustHi, int delta) {
+        const bool bSet = m_radioState->bSetEnabled();
+        const RadioState::Mode mode = bSet ? m_radioState->modeB() : m_radioState->mode();
+        const int subMode = bSet ? m_radioState->dataSubModeB() : m_radioState->dataSubMode();
+        const int bwDah = (bSet ? m_radioState->filterBandwidthB() : m_radioState->filterBandwidth()) / 10;
+        const int isDah = bSet ? m_radioState->ifShiftB() : m_radioState->ifShift();
+        int bwMinDah = 5, bwMaxDah = 500;
+        bool isLocked = mode == RadioState::AM || mode == RadioState::FM;
+        if (mode == RadioState::DATA || mode == RadioState::DATA_R) {
+            if (subMode == 2) { bwMinDah = 15; bwMaxDah = 80; isLocked = true; }
+            else if (subMode == 3) { bwMaxDah = 20; isLocked = true; }
         }
-    });
+        const int loDah = qMax(0, isDah - bwDah / 2);
+        const int hiDah = loDah + bwDah;
+        const int requestedHi = adjustHi ? hiDah + delta : hiDah;
+        const int requestedLo = adjustHi ? loDah : loDah + delta;
+        if (requestedHi <= requestedLo)
+            return;
+        const int newBwDah = qBound(bwMinDah, requestedHi - requestedLo, bwMaxDah);
+        const QString bwCmd = bSet ? "BW$" : "BW";
+        m_tcpClient->sendCAT(QString("%1%2;").arg(bwCmd).arg(newBwDah, 4, 10, QChar('0')));
+        if (bSet) m_radioState->setFilterBandwidthB(newBwDah * 10);
+        else m_radioState->setFilterBandwidth(newBwDah * 10);
+        if (!isLocked) {
+            const int maxIsDah = (mode == RadioState::CW || mode == RadioState::CW_R) ? 200 : 300;
+            const int newIsDah = qBound(30, (requestedHi + requestedLo) / 2, maxIsDah);
+            const QString isCmd = bSet ? "IS$" : "IS";
+            m_tcpClient->sendCAT(QString("%1+%2;").arg(isCmd).arg(newIsDah, 4, 10, QChar('0')));
+            if (bSet) m_radioState->setIfShiftB(newIsDah);
+            else m_radioState->setIfShift(newIsDah);
+        }
+    };
+    connect(m_sideControlPanel, &SideControlPanel::highCutChanged, this,
+            [adjustFilterEdge](int delta) { adjustFilterEdge(true, delta); });
     connect(m_sideControlPanel, &SideControlPanel::shiftChanged, this, [this](int delta) {
         bool bSet = m_radioState->bSetEnabled();
+        const RadioState::Mode mode = bSet ? m_radioState->modeB() : m_radioState->mode();
+        const int subMode = bSet ? m_radioState->dataSubModeB() : m_radioState->dataSubMode();
+        if (mode == RadioState::AM || mode == RadioState::FM ||
+            ((mode == RadioState::DATA || mode == RadioState::DATA_R) && (subMode == 2 || subMode == 3)))
+            return;
         int currentShift = bSet ? m_radioState->ifShiftB() : m_radioState->ifShift();
-        int newShift = qBound(-999, currentShift + delta, 999);
+        const int maxShift = (mode == RadioState::CW || mode == RadioState::CW_R) ? 200 : 300;
+        int newShift = qBound(30, currentShift + delta, maxShift);
         QString prefix = bSet ? "IS$" : "IS";
-        QString cmd =
-            QString("%1%2%3;").arg(prefix).arg(newShift >= 0 ? "+" : "-").arg(qAbs(newShift), 4, 10, QChar('0'));
+        QString cmd = QString("%1+%2;").arg(prefix).arg(newShift, 4, 10, QChar('0'));
         m_tcpClient->sendCAT(cmd);
         if (bSet) {
             m_radioState->setIfShiftB(newShift);
@@ -2886,20 +2978,21 @@ void MainWindow::setupUi() {
             m_radioState->setIfShift(newShift);
         }
     });
-    connect(m_sideControlPanel, &SideControlPanel::lowCutChanged, this, [this](int delta) {
-        bool bSet = m_radioState->bSetEnabled();
-        int currentShift = bSet ? m_radioState->ifShiftB() : m_radioState->ifShift();
-        int newShift = qBound(-999, currentShift + delta, 999);
-        QString prefix = bSet ? "IS$" : "IS";
-        QString cmd =
-            QString("%1%2%3;").arg(prefix).arg(newShift >= 0 ? "+" : "-").arg(qAbs(newShift), 4, 10, QChar('0'));
+    connect(m_sideControlPanel, &SideControlPanel::shiftSliderCommitted, this, [this](int targetDah) {
+        const bool bSet = m_radioState->bSetEnabled();
+        const RadioState::Mode mode = bSet ? m_radioState->modeB() : m_radioState->mode();
+        const int maxShift = (mode == RadioState::CW || mode == RadioState::CW_R) ? 200 : 300;
+        const int newShift = qBound(30, targetDah, maxShift);
+        const QString prefix = bSet ? "IS$" : "IS";
+        const QString cmd = QString("%1+%2;").arg(prefix).arg(newShift, 4, 10, QChar('0'));
         m_tcpClient->sendCAT(cmd);
-        if (bSet) {
+        if (bSet)
             m_radioState->setIfShiftB(newShift);
-        } else {
+        else
             m_radioState->setIfShift(newShift);
-        }
     });
+    connect(m_sideControlPanel, &SideControlPanel::lowCutChanged, this,
+            [adjustFilterEdge](int delta) { adjustFilterEdge(false, delta); });
     // Group 3: M.RF/M.SQL and S.RF/S.SQL
     // RF Gain uses RG-nn; format where nn is 00-60 (representing -0 to -60 dB attenuation)
     // Scroll up = less attenuation = decrease value, scroll down = more attenuation = increase value
@@ -3464,8 +3557,11 @@ void MainWindow::setupTopStatusBar(QWidget *parent) {
 void MainWindow::setupVfoSection(QWidget *parent) {
     // Main vertical layout: VFO row on top, antenna row below
     auto *mainVLayout = new QVBoxLayout(parent);
-    mainVLayout->setContentsMargins(K4Styles::Dimensions::PaddingSmall, K4Styles::Dimensions::PaddingSmall,
-                                    K4Styles::Dimensions::PaddingSmall, K4Styles::Dimensions::PaddingSmall);
+    // Align the complete VFO block with the top of the live console on a
+    // phone.  The desktop keeps its visual breathing room.
+    const int vfoVerticalMargin = K4Styles::isCompactLayout() ? 0 : K4Styles::Dimensions::PaddingSmall;
+    mainVLayout->setContentsMargins(K4Styles::Dimensions::PaddingSmall, vfoVerticalMargin,
+                                    K4Styles::Dimensions::PaddingSmall, vfoVerticalMargin);
     // Keep the antenna state directly beneath the receiver indicators on a
     // phone; the old compact-layout gap crowded the filter row below.
     mainVLayout->setSpacing(K4Styles::isCompactLayout() ? 0 : 4);
@@ -4409,12 +4505,14 @@ void MainWindow::showControlFeedback(const QString &message) {
     if (message.isEmpty())
         return;
 
-    // The compact CTRL surface is a separate QDialog. A notification owned by
-    // MainWindow is necessarily behind that dialog, even when raise() is used.
-    // Use an overlay owned by the visible drawer so feedback is always on top.
+    // CTRL and DISP are top-level surfaces. A notification owned by MainWindow
+    // is necessarily behind either one, even when raise() is used. Use the
+    // same NotificationWidget overlay owned by the visible surface instead.
     NotificationWidget *overlay = m_notificationWidget;
     if (m_phoneControlsDialog && m_phoneControlsDialog->isVisible() && m_controlNotificationWidget)
         overlay = m_controlNotificationWidget;
+    else if (m_displayPopup && m_displayPopup->isVisible() && m_displayNotificationWidget)
+        overlay = m_displayNotificationWidget;
     if (overlay)
         overlay->showMessage(message, 1600);
 }
@@ -4595,6 +4693,17 @@ void MainWindow::onAuthenticated() {
         m_notificationWidget->showMessage(QString("Connected to %1").arg(target), 3500);
     }
 
+    if (K4Styles::isCompactLayout()) {
+        // A short landscape phone needs a readable live trace on first open.
+        // This is a local initial view only; WTR HEIGHT immediately regains
+        // normal control as soon as the operator adjusts it.
+        m_phoneWaterfallHeight = 50;
+        m_phoneWaterfallHeightAdjusted = false;
+        m_panadapterA->setWaterfallHeight(m_phoneWaterfallHeight);
+        m_panadapterB->setWaterfallHeight(m_phoneWaterfallHeight);
+        m_displayPopup->setWaterfallHeight(m_phoneWaterfallHeight);
+    }
+
     // Reassert SL after TcpClient's RDY request, then update local state because
     // the K4 silently applies SL and does not echo it. This is current mainline's
     // synchronization contract and prevents K4/local TX frame-size drift.
@@ -4749,6 +4858,8 @@ void MainWindow::updateConnectionState(TcpClient::ConnectionState state) {
         // Clear the local TX gate on every disconnect, including unexpected
         // radio/network closure. Never leave the next connection latched TX.
         m_pttActive = false;
+        m_phoneWaterfallHeight = 50;
+        m_phoneWaterfallHeightAdjusted = false;
         m_bottomMenuBar->setPttActive(false);
         QMetaObject::invokeMethod(m_audioEngine, "setPttActive", Qt::QueuedConnection, Q_ARG(bool, false));
         m_connectionStatusLabel->setText("K4");
@@ -5615,6 +5726,10 @@ void MainWindow::showPhoneControls() {
             scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
             scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
             scroll->setWidgetResizable(false);
+            QPalette viewportPalette = scroll->viewport()->palette();
+            viewportPalette.setColor(QPalette::Window, QColor(K4Styles::Colors::PopupBackground));
+            scroll->viewport()->setPalette(viewportPalette);
+            scroll->viewport()->setAutoFillBackground(true);
             scroll->viewport()->setAttribute(Qt::WA_AcceptTouchEvents);
             QScroller::grabGesture(scroll->viewport(), QScroller::TouchGesture);
             // Briefly delay child-button press delivery while Qt determines
@@ -5653,6 +5768,11 @@ void MainWindow::showPhoneControls() {
     m_phoneControlsDialog->move(available.left() + (available.width() - m_phoneControlsDialog->width()) / 2,
                                 available.bottom() - m_phoneControlsDialog->height() + 1);
     m_phoneControlsDialog->show();
+    // The control widgets persist between openings.  Always begin at the
+    // operating controls—especially A/B AF—rather than reopening wherever a
+    // previous scroll ended.
+    m_leftPanelScroll->verticalScrollBar()->setValue(m_leftPanelScroll->verticalScrollBar()->minimum());
+    m_rightPanelScroll->verticalScrollBar()->setValue(m_rightPanelScroll->verticalScrollBar()->minimum());
     m_phoneControlsDialog->raise();
     m_phoneControlsDialog->activateWindow();
 }

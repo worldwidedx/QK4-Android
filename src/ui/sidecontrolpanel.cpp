@@ -1,5 +1,6 @@
 #include "sidecontrolpanel.h"
 #include "dualcontrolbutton.h"
+#include "duallinepanelbutton.h"
 #include "k4styles.h"
 #include "monoverlay.h"
 #include "baloverlay.h"
@@ -10,8 +11,10 @@
 #include <QGridLayout>
 #include <QSpacerItem>
 #include <QEvent>
-#include <QIcon>
 #include <QMouseEvent>
+#include <QScrollArea>
+#include <QScrollBar>
+#include <QStyle>
 
 SideControlPanel::SideControlPanel(QWidget *parent) : QWidget(parent) {
     m_longPressTimer = new QTimer(this);
@@ -28,6 +31,10 @@ SideControlPanel::SideControlPanel(QWidget *parent) : QWidget(parent) {
 
 void SideControlPanel::setupUi() {
     setFixedWidth(K4Styles::Dimensions::SidePanelWidth);
+    QPalette panelPalette = palette();
+    panelPalette.setColor(QPalette::Window, QColor(K4Styles::Colors::PopupBackground));
+    setPalette(panelPalette);
+    setAutoFillBackground(true);
     // Note: No explicit size policy - let Qt handle vertical expansion like RightSidePanel
 
     auto *layout = new QVBoxLayout(this);
@@ -45,9 +52,45 @@ void SideControlPanel::setupUi() {
         slider->setMinimumHeight(32);
         slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         slider->setStyleSheet(K4Styles::sliderHorizontal(K4Styles::Colors::DarkBackground, color));
+        slider->installEventFilter(this);
         rowLayout->addWidget(slider, 1);
         layout->addWidget(row);
     };
+
+    // ===== Receiver AF controls: always first in the phone CTRL bank =====
+    m_volumeLabel = new QLabel("A AF", this);
+    m_volumeLabel->setStyleSheet(
+        QString("color: %1; font-size: 10px; font-weight: bold;").arg(K4Styles::Colors::VfoACyan));
+    m_volumeLabel->setAlignment(Qt::AlignCenter);
+    layout->addWidget(m_volumeLabel);
+
+    m_volumeSlider = new QSlider(Qt::Horizontal, this);
+    m_volumeSlider->setRange(0, 100);
+    m_volumeSlider->setValue(RadioSettings::instance()->volume());
+    m_volumeSlider->setMinimumHeight(K4Styles::isCompactLayout() ? 32 : 24);
+    m_volumeSlider->setStyleSheet(
+        K4Styles::sliderHorizontal(K4Styles::Colors::DarkBackground, K4Styles::Colors::VfoACyan));
+    m_volumeSlider->installEventFilter(this);
+    layout->addWidget(m_volumeSlider);
+    connect(m_volumeSlider, &QSlider::valueChanged, this, &SideControlPanel::volumeChanged);
+
+    m_subVolumeLabel = new QLabel("B AF", this);
+    m_subVolumeLabel->setStyleSheet(
+        QString("color: %1; font-size: 10px; font-weight: bold;").arg(K4Styles::Colors::VfoBGreen));
+    m_subVolumeLabel->setAlignment(Qt::AlignCenter);
+    layout->addWidget(m_subVolumeLabel);
+
+    m_subVolumeSlider = new QSlider(Qt::Horizontal, this);
+    m_subVolumeSlider->setRange(0, 100);
+    m_subVolumeSlider->setValue(RadioSettings::instance()->subVolume());
+    m_subVolumeSlider->setMinimumHeight(K4Styles::isCompactLayout() ? 32 : 24);
+    m_subVolumeSlider->setStyleSheet(
+        K4Styles::sliderHorizontal(K4Styles::Colors::DarkBackground, K4Styles::Colors::VfoBGreen));
+    m_subVolumeSlider->installEventFilter(this);
+    layout->addWidget(m_subVolumeSlider);
+    connect(m_subVolumeSlider, &QSlider::valueChanged, this, &SideControlPanel::subVolumeChanged);
+
+    layout->addSpacing(K4Styles::Dimensions::PaddingMedium);
 
     // ===== TX Function Buttons (2x3 grid) =====
     auto *txGrid = new QGridLayout();
@@ -212,44 +255,6 @@ void SideControlPanel::setupUi() {
     connect(m_monOverlay, &MonOverlay::levelChangeRequested, this, &SideControlPanel::monLevelChangeRequested);
     connect(m_balOverlay, &BalOverlay::balanceChangeRequested, this, &SideControlPanel::balChangeRequested);
 
-    // ===== Volume Slider =====
-    layout->addSpacing(K4Styles::Dimensions::PaddingMedium);
-
-    m_volumeLabel = new QLabel("A AF", this);
-    m_volumeLabel->setStyleSheet(
-        QString("color: %1; font-size: 10px; font-weight: bold;").arg(K4Styles::Colors::VfoACyan));
-    m_volumeLabel->setAlignment(Qt::AlignCenter);
-    layout->addWidget(m_volumeLabel);
-
-    m_volumeSlider = new QSlider(Qt::Horizontal, this);
-    m_volumeSlider->setRange(0, 100);
-    m_volumeSlider->setValue(RadioSettings::instance()->volume()); // Restore from settings (default 45%)
-    m_volumeSlider->setMinimumHeight(K4Styles::isCompactLayout() ? 32 : 24);
-    m_volumeSlider->setStyleSheet(
-        K4Styles::sliderHorizontal(K4Styles::Colors::DarkBackground, K4Styles::Colors::VfoACyan));
-    layout->addWidget(m_volumeSlider);
-
-    connect(m_volumeSlider, &QSlider::valueChanged, this, &SideControlPanel::volumeChanged);
-
-    // ===== Sub RX Volume Slider (VFO B) =====
-    layout->addSpacing(K4Styles::Dimensions::PaddingSmall);
-
-    m_subVolumeLabel = new QLabel("B AF", this);
-    m_subVolumeLabel->setStyleSheet(
-        QString("color: %1; font-size: 10px; font-weight: bold;").arg(K4Styles::Colors::VfoBGreen));
-    m_subVolumeLabel->setAlignment(Qt::AlignCenter);
-    layout->addWidget(m_subVolumeLabel);
-
-    m_subVolumeSlider = new QSlider(Qt::Horizontal, this);
-    m_subVolumeSlider->setRange(0, 100);
-    m_subVolumeSlider->setValue(RadioSettings::instance()->subVolume()); // Restore from settings (default 45%)
-    m_subVolumeSlider->setMinimumHeight(K4Styles::isCompactLayout() ? 32 : 24);
-    m_subVolumeSlider->setStyleSheet(
-        K4Styles::sliderHorizontal(K4Styles::Colors::DarkBackground, K4Styles::Colors::VfoBGreen));
-    layout->addWidget(m_subVolumeSlider);
-
-    connect(m_subVolumeSlider, &QSlider::valueChanged, this, &SideControlPanel::subVolumeChanged);
-
     // ===== Stretch to push status/icons to bottom =====
     layout->addStretch();
 
@@ -268,28 +273,6 @@ void SideControlPanel::setupUi() {
     layout->addWidget(m_voltageCurrentLabel);
 
     layout->addSpacing(K4Styles::Dimensions::PopupButtonSpacing);
-
-    // ===== Icon Buttons at bottom =====
-    auto *iconRow = new QHBoxLayout();
-    iconRow->setContentsMargins(0, 0, 0, 0);
-    iconRow->setSpacing(K4Styles::Dimensions::PopupButtonSpacing);
-
-    m_helpBtn = createIconButton("");
-    m_helpBtn->setIcon(QIcon(":/icons/help.svg"));
-    m_helpBtn->setIconSize(QSize(K4Styles::Dimensions::ButtonHeightMini, K4Styles::Dimensions::ButtonHeightMini));
-    m_connectBtn = createIconButton("");
-    m_connectBtn->setIcon(QIcon(":/icons/globe.svg"));
-    m_connectBtn->setIconSize(QSize(K4Styles::Dimensions::ButtonHeightMini, K4Styles::Dimensions::ButtonHeightMini));
-    m_connectBtn->setToolTip("Connect to Radio");
-
-    iconRow->addWidget(m_helpBtn);
-    iconRow->addWidget(m_connectBtn);
-    iconRow->addStretch();
-    layout->addLayout(iconRow);
-
-    // Connect icon button signals
-    connect(m_helpBtn, &QPushButton::clicked, this, &SideControlPanel::helpClicked);
-    connect(m_connectBtn, &QPushButton::clicked, this, &SideControlPanel::connectClicked);
 
     // ===== Connect Group 1 signals (WPM/PWR) =====
     connect(m_wpmBtn, &DualControlButton::becameActive, this, &SideControlPanel::onWpmBecameActive);
@@ -383,7 +366,22 @@ void SideControlPanel::setupUi() {
     connectSlider(m_wpmSlider, [this](int delta) { onWpmScrolled(delta); });
     connectSlider(m_pwrSlider, [this](int delta) { onPwrScrolled(delta); });
     connectSlider(m_bwSlider, [this](int delta) { onBwScrolled(delta); });
-    connectSlider(m_shiftSlider, [this](int delta) { onShiftScrolled(delta); });
+    connect(m_shiftSlider, &QSlider::valueChanged, this, [this](int value) {
+        const int previous = m_shiftSlider->property("lastRadioValue").toInt();
+        m_shiftSlider->setProperty("lastRadioValue", value);
+        const int delta = value - previous;
+        if (delta == 0)
+            return;
+
+        if (m_sliderDragTarget == m_shiftSlider && m_sliderAdjusting && m_shiftIsPrimary) {
+            // Preview the exact native-Hz setting locally while the user is
+            // dragging.  The radio is updated once, on release.
+            m_shiftValue = value * 10;
+            m_shiftBtn->setPrimaryValue(QString::number(m_shiftValue / 1000.0, 'f', 2));
+            return;
+        }
+        onShiftScrolled(delta);
+    });
     connectSlider(m_mainRfSlider, [this](int delta) { onMainRfScrolled(delta); });
     connectSlider(m_subSqlSlider, [this](int delta) { onSubSqlScrolled(delta); });
 
@@ -434,13 +432,29 @@ void SideControlPanel::configureAdjustmentSlider(DualControlButton *button, QSli
             value = m_delayValue;
         }
     } else if (button == m_bwBtn) {
-        minimum = 1;
-        maximum = 100;
-        value = qRound((m_bwIsPrimary ? m_bandwidthValue : m_highCutValue) / 50.0);
+        if (m_bwIsPrimary) {
+            // BW moves in 50 Hz increments, matching current QK4.
+            minimum = qMax(1, (m_filterBandwidthMinHz + 49) / 50);
+            maximum = qMax(minimum, m_filterBandwidthMaxHz / 50);
+            value = qRound(m_bandwidthValue / 50.0);
+        } else {
+            // HI is an edge in 10 Hz units with LO held fixed.
+            minimum = qMax(0, m_lowCutValue / 10);
+            maximum = qMax(minimum, (m_lowCutValue + m_filterBandwidthMaxHz) / 10);
+            value = m_highCutValue / 10;
+        }
     } else if (button == m_shiftBtn) {
-        minimum = -999;
-        maximum = 999;
-        value = m_shiftIsPrimary ? m_shiftValue : m_lowCutValue;
+        if (m_shiftIsPrimary) {
+            minimum = m_filterCenterMinDah;
+            maximum = m_filterCenterMaxDah;
+            value = m_shiftValue / 10;
+        } else {
+            // With HI fixed, LO spans zero to the displayed high edge.
+            minimum = 0;
+            maximum = qMax(0, m_highCutValue / 10);
+            value = m_lowCutValue / 10;
+        }
+        slider->setEnabled(!m_filterCenterLocked);
     } else if (button == m_mainRfBtn) {
         if (m_mainRfIsPrimary) {
             minimum = 0;
@@ -733,6 +747,17 @@ void SideControlPanel::setLowCut(double lo) {
     configureAdjustmentSlider(m_shiftBtn, m_shiftSlider);
 }
 
+void SideControlPanel::setFilterControlRanges(int bandwidthMinHz, int bandwidthMaxHz, int centerMinDah,
+                                              int centerMaxDah, bool centerLocked) {
+    m_filterBandwidthMinHz = bandwidthMinHz;
+    m_filterBandwidthMaxHz = bandwidthMaxHz;
+    m_filterCenterMinDah = centerMinDah;
+    m_filterCenterMaxDah = centerMaxDah;
+    m_filterCenterLocked = centerLocked;
+    configureAdjustmentSlider(m_bwBtn, m_bwSlider);
+    configureAdjustmentSlider(m_shiftBtn, m_shiftSlider);
+}
+
 void SideControlPanel::setMainRfGain(int gain) {
     m_mainRfValue = gain;
     QString value = gain > 0 ? QString("-%1").arg(gain) : "0";
@@ -814,14 +839,6 @@ void SideControlPanel::setCurrent(double amps) {
     m_voltageCurrentLabel->setText(QString("%1  %2A").arg(voltsPart).arg(amps, 0, 'f', 1));
 }
 
-QPushButton *SideControlPanel::createIconButton(const QString &text) {
-    auto *btn = new QPushButton(text, this);
-    btn->setFixedSize(K4Styles::Dimensions::ButtonHeightMedium, K4Styles::Dimensions::ButtonHeightMedium);
-    btn->setCursor(Qt::PointingHandCursor);
-    btn->setStyleSheet(K4Styles::sidePanelButton());
-    return btn;
-}
-
 QWidget *SideControlPanel::createTxFunctionButton(const QString &mainText, const QString &subText,
                                                   QPushButton *&btnOut) {
     // Container widget for button + sub-text label
@@ -830,22 +847,13 @@ QWidget *SideControlPanel::createTxFunctionButton(const QString &mainText, const
     layout->setContentsMargins(0, K4Styles::Dimensions::SeparatorHeight + 1, 0, K4Styles::Dimensions::SeparatorHeight + 1);
     layout->setSpacing(K4Styles::Dimensions::PaddingSmall);
 
-    // Button - scaled down from bottom menu bar style
-    auto *btn = new QPushButton(mainText, container);
-    btn->setFixedHeight(K4Styles::Dimensions::ButtonHeightSmall);
+    // Keep both the primary and amber alternate action inside one touch target.
+    auto *btn = new DualLinePanelButton(mainText, subText, container);
+    btn->setFixedHeight(42);
     btn->setCursor(Qt::PointingHandCursor);
     btn->setStyleSheet(K4Styles::sidePanelButtonLight());
     btnOut = btn;
     layout->addWidget(btn);
-
-    // Sub-text label (orange) - add top margin to prevent overlap with button
-    auto *subLabel = new QLabel(subText, container);
-    subLabel->setStyleSheet(QString("color: %1; font-size: %2px; margin-top: 2px;")
-                                .arg(K4Styles::Colors::AccentAmber)
-                                .arg(K4Styles::Dimensions::FontSizeSmall));
-    subLabel->setAlignment(Qt::AlignCenter);
-    subLabel->setFixedHeight(K4Styles::Dimensions::PopupContentMargin);
-    layout->addWidget(subLabel);
 
     return container;
 }
@@ -888,6 +896,61 @@ void SideControlPanel::cancelPendingLongPress() {
 }
 
 bool SideControlPanel::eventFilter(QObject *watched, QEvent *event) {
+    if (auto *slider = qobject_cast<QSlider *>(watched)) {
+        if (event->type() == QEvent::MouseButtonPress) {
+            auto *mouseEvent = static_cast<QMouseEvent *>(event);
+            if (mouseEvent->button() == Qt::LeftButton) {
+                m_sliderDragTarget = slider;
+                m_sliderPressPosition = mouseEvent->pos();
+                m_sliderLastY = mouseEvent->pos().y();
+                m_sliderScrolling = false;
+                m_sliderAdjusting = false;
+                // Do not pass the press to QSlider yet.  On a touch device a
+                // vertical swipe often begins directly on the slider track;
+                // forwarding this press would change the radio before we can
+                // determine that the user intended to scroll the CTRL bank.
+                return true;
+            }
+        } else if (event->type() == QEvent::MouseMove && watched == m_sliderDragTarget) {
+            auto *mouseEvent = static_cast<QMouseEvent *>(event);
+            const QPoint delta = mouseEvent->pos() - m_sliderPressPosition;
+            if (!m_sliderScrolling && !m_sliderAdjusting && delta.manhattanLength() > 12) {
+                m_sliderScrolling = qAbs(delta.y()) > qAbs(delta.x());
+                m_sliderAdjusting = !m_sliderScrolling;
+            }
+            if (m_sliderScrolling) {
+                if (QScrollArea *scroll = containingScrollArea()) {
+                    scroll->verticalScrollBar()->setValue(scroll->verticalScrollBar()->value() -
+                                                          (mouseEvent->pos().y() - m_sliderLastY));
+                }
+                m_sliderLastY = mouseEvent->pos().y();
+                return true;
+            }
+            if (m_sliderAdjusting) {
+                // Preserve the radio's existing full, native slider range;
+                // this only changes when the adjustment begins, not its
+                // resolution or the emitted value.
+                setSliderValueFromTouchPosition(slider, mouseEvent->pos().x());
+                return true;
+            }
+            return true;
+        } else if (event->type() == QEvent::MouseButtonRelease && watched == m_sliderDragTarget) {
+            const bool commitShift = slider == m_shiftSlider && m_sliderAdjusting && m_shiftIsPrimary;
+            const int shiftTarget = slider->value();
+            m_sliderDragTarget = nullptr;
+            m_sliderScrolling = false;
+            m_sliderAdjusting = false;
+            // A tap without deliberate horizontal motion is intentionally a
+            // no-op, avoiding an accidental setting change while scrolling.
+            if (commitShift)
+                emit shiftSliderCommitted(shiftTarget);
+            return true;
+        }
+        // Let non-input events, especially Paint and Resize, reach QSlider.
+        // Only the deliberate touch-gesture paths above are consumed.
+        return QWidget::eventFilter(watched, event);
+    }
+
     if (event->type() == QEvent::MouseButtonPress) {
         auto *mouseEvent = static_cast<QMouseEvent *>(event);
         if (mouseEvent->button() == Qt::RightButton) {
@@ -897,7 +960,19 @@ bool SideControlPanel::eventFilter(QObject *watched, QEvent *event) {
         if (mouseEvent->button() == Qt::LeftButton) {
             m_longPressTarget = watched;
             m_longPressHandled = false;
+            m_dragging = false;
+            m_pressPosition = mouseEvent->pos();
             m_longPressTimer->start();
+        }
+    } else if (event->type() == QEvent::MouseMove && watched == m_longPressTarget) {
+        auto *mouseEvent = static_cast<QMouseEvent *>(event);
+        if ((mouseEvent->pos() - m_pressPosition).manhattanLength() > 12) {
+            m_dragging = true;
+            m_suppressNextRelease = true;
+            m_longPressTimer->stop();
+            if (auto *button = qobject_cast<QPushButton *>(watched))
+                button->setDown(false);
+            m_longPressTarget = nullptr;
         }
     } else if (event->type() == QEvent::MouseButtonRelease) {
         auto *mouseEvent = static_cast<QMouseEvent *>(event);
@@ -916,8 +991,28 @@ bool SideControlPanel::eventFilter(QObject *watched, QEvent *event) {
                 return true;
             }
         }
+        m_dragging = false;
     }
     return QWidget::eventFilter(watched, event);
+}
+
+void SideControlPanel::setSliderValueFromTouchPosition(QSlider *slider, int xPosition) {
+    if (!slider)
+        return;
+
+    const int handleWidth = qMax(12, slider->height() / 2);
+    const int span = qMax(1, slider->width() - handleWidth);
+    const int position = qBound(0, xPosition - handleWidth / 2, span);
+    slider->setValue(QStyle::sliderValueFromPosition(slider->minimum(), slider->maximum(), position, span,
+                                                      slider->invertedAppearance()));
+}
+
+QScrollArea *SideControlPanel::containingScrollArea() const {
+    for (QWidget *ancestor = parentWidget(); ancestor; ancestor = ancestor->parentWidget()) {
+        if (auto *scroll = qobject_cast<QScrollArea *>(ancestor))
+            return scroll;
+    }
+    return nullptr;
 }
 
 void SideControlPanel::triggerSecondary(QObject *watched) {

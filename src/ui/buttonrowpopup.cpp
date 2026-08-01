@@ -20,6 +20,16 @@ RxMenuButton::RxMenuButton(const QString &primaryText, const QString &alternateT
     : QWidget(parent), m_primaryText(primaryText), m_alternateText(alternateText) {
     setFixedSize(ButtonWidth, ButtonHeight);
     setCursor(Qt::PointingHandCursor);
+
+    m_longPressTimer.setSingleShot(true);
+    m_longPressTimer.setInterval(550);
+    connect(&m_longPressTimer, &QTimer::timeout, this, [this]() {
+        if (m_leftPressed && !m_pressCancelled && m_hasAlternateFunction &&
+            !m_alternateText.isEmpty()) {
+            m_longPressHandled = true;
+            emit rightClicked();
+        }
+    });
 }
 
 void RxMenuButton::setPrimaryText(const QString &text) {
@@ -91,10 +101,41 @@ void RxMenuButton::paintEvent(QPaintEvent *event) {
 
 void RxMenuButton::mousePressEvent(QMouseEvent *event) {
     if (event->button() == Qt::LeftButton) {
-        emit clicked();
+        if (K4Styles::isCompactLayout()) {
+            m_pressPosition = event->pos();
+            m_leftPressed = true;
+            m_longPressHandled = false;
+            m_pressCancelled = false;
+            m_longPressTimer.start();
+        } else {
+            emit clicked();
+        }
     } else if (event->button() == Qt::RightButton) {
+        m_longPressTimer.stop();
         emit rightClicked();
     }
+    event->accept();
+}
+
+void RxMenuButton::mouseReleaseEvent(QMouseEvent *event) {
+    if (event->button() == Qt::LeftButton && K4Styles::isCompactLayout()) {
+        m_longPressTimer.stop();
+        const bool triggerPrimary = m_leftPressed && !m_longPressHandled &&
+                                    !m_pressCancelled && rect().contains(event->pos());
+        m_leftPressed = false;
+        if (triggerPrimary) {
+            emit clicked();
+        }
+    }
+    event->accept();
+}
+
+void RxMenuButton::mouseMoveEvent(QMouseEvent *event) {
+    if (m_leftPressed && (event->pos() - m_pressPosition).manhattanLength() > 12) {
+        m_pressCancelled = true;
+        m_longPressTimer.stop();
+    }
+    event->accept();
 }
 
 void RxMenuButton::enterEvent(QEnterEvent *event) {
@@ -105,6 +146,10 @@ void RxMenuButton::enterEvent(QEnterEvent *event) {
 
 void RxMenuButton::leaveEvent(QEvent *event) {
     Q_UNUSED(event)
+    if (m_leftPressed) {
+        m_pressCancelled = true;
+        m_longPressTimer.stop();
+    }
     m_hovered = false;
     update();
 }

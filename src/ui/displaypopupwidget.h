@@ -5,7 +5,6 @@
 #include "wheelaccumulator.h"
 #include <QLabel>
 #include <QList>
-#include <QComboBox>
 #include <QPushButton>
 #include <QStackedWidget>
 #include <QTimer>
@@ -89,12 +88,17 @@ signals:
     void scaleDecrementRequested();
 
     // DDC NB control signals
+    void nbToggleRequested();
     void nbLevelIncrementRequested();
     void nbLevelDecrementRequested();
 
     // Waterfall height control signals
     void waterfallHeightIncrementRequested();
     void waterfallHeightDecrementRequested();
+
+    // Local-only WTR CLRS control. This changes the app's waterfall mapping;
+    // it deliberately does not issue a CAT command to the radio.
+    void waterfallColorRangeLocallyChanged(int range);
 
     // CAT command signal (for MainWindow to forward to TcpClient)
     void catCommandRequested(const QString &cmd);
@@ -103,6 +107,10 @@ signals:
     // Pan mode changed (for MainWindow to update panadapter display)
     // K4 doesn't echo #DPM commands, so we notify directly
     void dualPanModeChanged(int mode);
+
+    // Long-press CENTER is a radio command with no persistent, immediately
+    // visible change in the phone layout. Request the standard feedback toast.
+    void panadapterCentered();
 
     // #PKM toggle needs an immediate local renderer update; some K4 firmware
     // revisions do not echo the toggle back to the client promptly.
@@ -121,9 +129,11 @@ private:
     QWidget *createScaleControlPage();
     QWidget *createAverageControlPage();
     QWidget *createNbControlPage();
+    QWidget *createWaterfallColorRangeControlPage();
     QWidget *createWaterfallControlPage();
     QWidget *createDefaultControlPage();
     void updateNbControlGroupValue();
+    void updateWaterfallColorRangeControlGroup();
     void updateWaterfallControlGroup();
 
     void updateToggleStyles();
@@ -150,6 +160,7 @@ private:
     QWidget *m_refLevelControlPage;
     QWidget *m_averageControlPage;
     QWidget *m_nbControlPage;
+    QWidget *m_waterfallColorRangeControlPage;
     QWidget *m_defaultControlPage;
 
     // Span controls
@@ -170,8 +181,7 @@ private:
 
     // DDC NB controls
     ControlGroupWidget *m_nbControlGroup;
-    // WTR CLRS selector (opened by tapping the amber secondary label)
-    QComboBox *m_waterfallColorCombo = nullptr;
+    ControlGroupWidget *m_waterfallColorRangeControlGroup;
 
     // Waterfall height controls
     QWidget *m_waterfallControlPage;
@@ -206,6 +216,7 @@ private:
     int m_displayModeLcd = -1; // #DSM: LCD 0=spectrum, 1=spectrum+waterfall
     int m_displayModeExt = -1; // #HDSM: EXT 0=spectrum, 1=spectrum+waterfall
     int m_waterfallColor = -1; // 0-4
+    int m_waterfallColorRange = 10; // local WTR CLRS: 5-30, step 1
     int m_averaging = -1;      // 1-20
     int m_peakMode = -1;       // 0=off, 1=on (int for -1 init)
     int m_fixedTuneMode = -1;  // Combined FXT+FXA state (0-5: SLIDE1, SLIDE2, FIXED1, FIXED2, STATIC, TRACK)
@@ -274,6 +285,9 @@ public:
     QString value() const { return m_value; }
 
     void setShowAutoButton(bool show);
+    // NB needs only a short label. Reclaim width without shrinking the +/-
+    // hit areas shared by all control groups.
+    void setCompactLabel(bool compact);
     void setAutoEnabled(bool enabled);
     bool isAutoEnabled() const { return m_autoEnabled; }
     void setValueFaded(bool faded); // Faded grey text when in auto mode
@@ -293,6 +307,7 @@ private:
     QString m_label;
     QString m_value;
     bool m_showAutoButton = false;
+    bool m_compactLabel = false;
     bool m_autoEnabled = false;
     bool m_valueFaded = false; // Grey text when auto mode
     QRect m_autoRect;

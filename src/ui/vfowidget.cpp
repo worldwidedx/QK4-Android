@@ -17,8 +17,13 @@ void VFOWidget::setupUi() {
     setStyleSheet(QString("background-color: %1;").arg(K4Styles::Colors::Background));
 
     auto *mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(K4Styles::Dimensions::PopupButtonSpacing, 4,
-                                   K4Styles::Dimensions::PopupButtonSpacing, 4);
+    // Compact mode is a fixed landscape console: start the frequency and
+    // A/B controls at the top of their VFO block instead of leaving a desktop
+    // gutter above them.  This leaves more vertical room for the spectrum and
+    // the always-visible two-row touch dock.
+    const int verticalMargin = K4Styles::isCompactLayout() ? 0 : 4;
+    mainLayout->setContentsMargins(K4Styles::Dimensions::PopupButtonSpacing, verticalMargin,
+                                   K4Styles::Dimensions::PopupButtonSpacing, verticalMargin);
     mainLayout->setSpacing(2);
 
     // Row 1: Frequency display with inline editing

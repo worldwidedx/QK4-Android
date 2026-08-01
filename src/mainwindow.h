@@ -302,6 +302,9 @@ private:
     MenuOverlayWidget *m_menuOverlay;
     BandPopupWidget *m_bandPopup;
     DisplayPopupWidget *m_displayPopup;
+    // Top-level popups need their own overlay; a MainWindow child cannot
+    // appear above a Qt::Popup. Keep the same presentation used by CTRL.
+    NotificationWidget *m_displayNotificationWidget = nullptr;
     FnPopupWidget *m_fnPopup;
     MacroDialog *m_macroDialog;
     ButtonRowPopup *m_mainRxPopup;
@@ -325,6 +328,11 @@ private:
 
     RadioEntry m_currentRadio;
     TcpClient::ConnectionState m_connectionState = TcpClient::Disconnected;
+    // The phone begins each connection with an even local panadapter split.
+    // Once the operator changes WTR HEIGHT, the normal radio-backed setting
+    // again drives the phone renderer and popup.
+    int m_phoneWaterfallHeight = 50;
+    bool m_phoneWaterfallHeightAdjusted = false;
     int m_currentBandNum = -1;  // Current band number for VFO A (BN command)
     int m_currentBandNumB = -1; // Current band number for VFO B (BN$ command)
 

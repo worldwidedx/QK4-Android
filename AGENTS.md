@@ -25,6 +25,10 @@
 ## UX invariants
 
 - Design for fingers rather than mouse hover, wheel input, keyboard entry, or desktop right-click.
+- For a dual-line control with a primary and alternate action, any normal tap
+  anywhere on the button must invoke the primary action. The alternate action
+  must use a deliberate long press; never split normal tap behavior by the
+  vertical position of a finger on the button.
 - Distinguish scrolling gestures from button taps.
 - Provide visible feedback for controls whose resulting radio state is not visible on the main display.
 - Do not place required actions outside the reachable viewport.
@@ -46,4 +50,3 @@ Implement the two local panadapter features described in `docs/PROJECT_STATUS.md
 2. Local Peak Hold accumulation and red trace.
 
 Do not conflate WTR CLRS (`#WBS`, color range) with WFC (`#WFC`, palette selection).
-

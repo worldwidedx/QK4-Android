@@ -23,11 +23,16 @@ The Elecraft controls distinguish:
 - `#WBS`: waterfall color range, documented CAT values 5-30.
 - `#WFC`: waterfall color palette/mode.
 
-The K4 presents WTR CLRS as approximately 0.5-3.0 in 0.1 increments. The Android control should open an adjustment field above the DISP buttons, in the same location used by the NB adjustment. It needs a current value plus `-` and `+`.
+The K4 uses native WTR CLRS values 5-30 in increments of 1. The Android control should open an adjustment field above the DISP buttons, in the same location used by the NB adjustment. It needs a current value plus `-` and `+`.
 
 For this application, WTR CLRS is a local waterfall-rendering setting. It should change the mapping between incoming dB/bin intensity and the existing local waterfall color lookup table. It should not send a radio command, and it must not be implemented as palette selection.
 
 The exact K4 internal transfer curve is not public. Match the documented behavior: increasing the value produces brighter colors for the same signal intensity.
+
+Implementation note: WTR CLRS is now a local `5`-`30` control in 1-step
+increments, matching Elecraft's native setting. It applies a brightness curve to the waterfall LUT for both current
+and stored rows and intentionally sends no CAT command. Device visual
+verification is still required.
 
 ### 2. Peak Hold must be local
 
@@ -48,6 +53,11 @@ Requirements:
 - Sending `#PKM` to keep the physical radio display synchronized is optional and must not be treated as the source of peak data.
 - Start with persistent maxima. Measure the physical K4 before adding decay behavior.
 
+Implementation note: the trace is now a local red `LineStrip` over the live
+spectrum. It is deliberately non-decaying and resets on Peak enable/disable,
+disconnect, or a center/sample-rate/span/bin-geometry change. Device visual
+verification is still required.
+
 ## Deferred
 
 - DR+ display support remains deferred until its correct source and state semantics are confirmed.
@@ -57,4 +67,3 @@ Requirements:
 - [Elecraft K4 manuals](https://elecraft.com/pages/k4-high-performance-direct-sampling-sdr-manuals)
 - [Elecraft K4 Programmer's Reference](https://ftp.elecraft.com/K4/Manuals%20Downloads/K4ProgrammersReferencerev.D12.html)
 - [Upstream QK4](https://github.com/mikeg-dal/QK4)
-

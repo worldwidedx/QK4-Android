@@ -42,6 +42,8 @@ public:
     // Display settings
     void setGridEnabled(bool enabled);
     void setWaterfallColor(int color);
+    // Local WTR CLRS mapping using Elecraft's native 5-30 setting.
+    void setWaterfallColorRange(int range);
     void setPeakHoldEnabled(bool enabled);
     void setRefLevel(int level);
     void setScale(int scale); // 25-150, affects display gain/range
@@ -133,6 +135,9 @@ private:
     std::unique_ptr<QRhiSampler> m_sampler;
     std::unique_ptr<QRhiGraphicsPipeline> m_waterfallPipeline;
     std::unique_ptr<QRhiGraphicsPipeline> m_overlayLinePipeline;
+    // A continuous red line for local sticky Peak Hold.  The generic overlay
+    // pipeline uses independent line pairs and cannot render a spectrum trace.
+    std::unique_ptr<QRhiGraphicsPipeline> m_peakLinePipeline;
     std::unique_ptr<QRhiGraphicsPipeline> m_overlayTrianglePipeline;
     std::unique_ptr<QRhiBuffer> m_fullscreenQuadVbo; // Shared fullscreen quad for fragment-shader styles
     // Spectrum amplitude style resources (LUT-based colors)
@@ -170,6 +175,11 @@ private:
     QVector<float> m_currentSpectrum;
     QVector<float> m_rawSpectrum;
     QVector<float> m_peakHold;
+    qint64 m_peakGeometryCenterFreq = 0;
+    qint32 m_peakGeometrySampleRate = 0;
+    int m_peakGeometrySpanHz = 0;
+    int m_peakGeometryBinCount = 0;
+    bool m_peakGeometryValid = false;
 
     // K4 spectrum calibration: dBm = raw_byte - K4_DBM_OFFSET
     // Calibrated by comparing peak signals with K4 display
@@ -189,6 +199,7 @@ private:
     // Color LUT (256 RGBA entries) - for waterfall
     QVector<quint8> m_colorLUT;
     int m_waterfallColor = 1;
+    int m_waterfallColorRange = 10; // K4-style local WTR CLRS: 5-30
     bool m_waterfallColorNeedsUpdate = false;
     // Spectrum color LUT (256 RGBA entries) - for BlueAmplitude style
     QVector<quint8> m_spectrumLUT;
@@ -206,7 +217,9 @@ private:
     // Display settings
     float m_minDb = -138.0f;
     float m_maxDb = -58.0f;
-    float m_spectrumRatio = 0.30f;
+    // Landscape phone console: spectrum and waterfall are deliberately equal
+    // height so the live trace stays readable while retaining useful history.
+    float m_spectrumRatio = 0.50f;
     float m_smoothedBaseline = 0.0f;
     bool m_gridEnabled = true;
     // Follow the radio's #PKM state; connection sync enables this when Peak is on.
@@ -246,12 +259,6 @@ private:
     QColor m_notchColor{255, 0, 0};                 // Red
     QColor m_bgCenterColor{56, 56, 56};             // Lighter gray at center
     QColor m_bgEdgeColor{20, 20, 20};               // Darker at edges
-
-    // Peak hold decay
-    QTimer *m_peakDecayTimer = nullptr;
-    // Decay in dB per 50 ms tick.  A fast decay makes Peak ON look like a second
-    // live spectrum rather than a held peak indication.
-    static constexpr float PEAK_DECAY_RATE = 0.12f;
 
     // Waterfall marker
     QTimer *m_waterfallMarkerTimer = nullptr;

@@ -711,7 +711,16 @@ void RadioManagerDialog::onMacrosClicked() {
     scrollArea->setWidgetResizable(true);
     scrollArea->setFrameShape(QFrame::NoFrame);
     scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scrollArea->setStyleSheet(QString("QScrollArea { background-color: %1; border: none; }"
+                                      "QScrollBar:vertical { background-color: %2; width: 8px; }"
+                                      "QScrollBar::handle:vertical { background-color: %3; border-radius: 4px; }")
+                                  .arg(K4Styles::Colors::Background)
+                                  .arg(K4Styles::Colors::DarkBackground)
+                                  .arg(K4Styles::Colors::GradientTop));
+    scrollArea->viewport()->setStyleSheet(
+        QString("background-color: %1;").arg(K4Styles::Colors::Background));
     auto *content = new QWidget(scrollArea);
+    content->setStyleSheet(QString("background-color: %1;").arg(K4Styles::Colors::Background));
     auto *grid = new QGridLayout(content);
     grid->setContentsMargins(0, 0, 0, 0);
     grid->setHorizontalSpacing(K4Styles::Dimensions::PaddingMedium);
@@ -726,12 +735,23 @@ void RadioManagerDialog::onMacrosClicked() {
         grid->addWidget(header, 0, column);
     }
 
-    const QString editStyle = QString("QLineEdit { background: #FFFFFF; color: #111111; border: 1px solid %1; "
-                                      "border-radius: 4px; padding: %2px; }")
+    const QString editStyle = QString("QLineEdit { background: %1; color: %2; border: 1px solid %3; "
+                                      "border-radius: 4px; padding: %4px; } "
+                                      "QLineEdit:focus { border-color: %5; } "
+                                      "QLineEdit::placeholder { color: %6; } "
+                                      "QLineEdit::selection { background: %5; color: %7; }")
+                                  .arg(K4Styles::Colors::GradientMid1)
+                                  .arg(K4Styles::Colors::TextWhite)
                                   .arg(K4Styles::Colors::DialogBorder)
-                                  .arg(K4Styles::Dimensions::PaddingSmall);
+                                  .arg(K4Styles::Dimensions::PaddingSmall)
+                                  .arg(K4Styles::Colors::AccentAmber)
+                                  .arg(K4Styles::Colors::TextFaded)
+                                  .arg(K4Styles::Colors::TextDark);
     const QVector<QString> ids = {MacroIds::FnF1, MacroIds::FnF2, MacroIds::FnF3, MacroIds::FnF4,
                                   MacroIds::FnF5, MacroIds::FnF6, MacroIds::FnF7, MacroIds::FnF8};
+    // Eight macro rows must fit above the fixed Save/Cancel bar in the
+    // landscape phone editor. Desktop sizing remains unchanged.
+    const int compactFieldHeight = compact ? 42 : 0;
     QVector<QPair<QLineEdit *, QLineEdit *>> fields;
     fields.reserve(ids.size());
     for (int i = 0; i < ids.size(); ++i) {
@@ -748,6 +768,11 @@ void RadioManagerDialog::onMacrosClicked() {
         command->setPlaceholderText("Example: KY CQ CQ DE ...;");
         label->setStyleSheet(editStyle);
         command->setStyleSheet(editStyle);
+        if (compactFieldHeight > 0) {
+            label->setFixedHeight(compactFieldHeight);
+            command->setFixedHeight(compactFieldHeight);
+            grid->setRowMinimumHeight(i + 1, compactFieldHeight);
+        }
         label->setInputMethodHints(Qt::ImhNoPredictiveText);
         command->setInputMethodHints(Qt::ImhNoPredictiveText);
         grid->addWidget(key, i + 1, 0);
@@ -758,6 +783,12 @@ void RadioManagerDialog::onMacrosClicked() {
     grid->setColumnStretch(1, 1);
     grid->setColumnStretch(2, 3);
     scrollArea->setWidget(content);
+    if (compact) {
+        // F1-F8 must remain reachable on a landscape phone.  Keep normal
+        // finger scrolling available for unusually small displays, too.
+        scrollArea->viewport()->setAttribute(Qt::WA_AcceptTouchEvents);
+        QScroller::grabGesture(scrollArea->viewport(), QScroller::TouchGesture);
+    }
     layout->addWidget(scrollArea, 1);
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, &editor);

@@ -227,6 +227,9 @@ MacroDialog::MacroDialog(QWidget *parent) : QWidget(parent) {
     setWindowFlags(Qt::FramelessWindowHint);
     setAttribute(Qt::WA_TranslucentBackground, false);
     setFocusPolicy(Qt::StrongFocus);
+    // The dialog overlays only the spectrum region. Give the root a concrete
+    // dark fill so no platform-default (white) widget background can show.
+    setStyleSheet(QString("background-color: %1;").arg(K4Styles::Colors::OverlayContentBg));
 
     setupUi();
 }
@@ -293,9 +296,13 @@ void MacroDialog::setupUi() {
                                         "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }")
                                     .arg(K4Styles::Colors::OverlayContentBg)
                                     .arg(K4Styles::Colors::OverlayNavButton));
+    // QScrollArea owns a separate viewport; without this explicit fill Qt's
+    // Android style paints that viewport white behind the macro rows.
+    m_scrollArea->viewport()->setStyleSheet(
+        QString("background-color: %1;").arg(K4Styles::Colors::OverlayContentBg));
 
     m_listContainer = new QWidget();
-    m_listContainer->setStyleSheet("background: transparent;");
+    m_listContainer->setStyleSheet(QString("background-color: %1;").arg(K4Styles::Colors::OverlayContentBg));
     m_listLayout = new QVBoxLayout(m_listContainer);
     m_listLayout->setContentsMargins(0, 0, 0, 0);
     m_listLayout->setSpacing(0);

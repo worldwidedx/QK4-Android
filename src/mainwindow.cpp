@@ -1693,12 +1693,19 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_radioState, &RadioState::freezeChanged, m_displayPopup, &DisplayPopupWidget::setFreeze);
     connect(m_radioState, &RadioState::vfoACursorChanged, m_displayPopup, &DisplayPopupWidget::setVfoACursor);
     connect(m_radioState, &RadioState::vfoBCursorChanged, m_displayPopup, &DisplayPopupWidget::setVfoBCursor);
-    // VFO cursor visibility → panadapter passband indicator
-    // Visible for ON (1) and AUTO (2), hidden for OFF (0) and HIDE (3)
-    connect(m_radioState, &RadioState::vfoACursorChanged, this,
-            [this](int mode) { m_panadapterA->setCursorVisible(mode == 1 || mode == 2); });
-    connect(m_radioState, &RadioState::vfoBCursorChanged, this,
-            [this](int mode) { m_panadapterB->setCursorVisible(mode == 1 || mode == 2); });
+    // Each panadapter renders its own VFO as the primary cursor and the other
+    // VFO as the secondary cursor. This keeps CURS B visible on panadapter A
+    // whenever the B-only panadapter is hidden.
+    connect(m_radioState, &RadioState::vfoACursorChanged, this, [this](int mode) {
+        const bool visible = mode == 1 || mode == 2;
+        m_panadapterA->setCursorVisible(visible);
+        m_panadapterB->setSecondaryVisible(visible);
+    });
+    connect(m_radioState, &RadioState::vfoBCursorChanged, this, [this](int mode) {
+        const bool visible = mode == 1 || mode == 2;
+        m_panadapterB->setCursorVisible(visible);
+        m_panadapterA->setSecondaryVisible(visible);
+    });
     connect(m_radioState, &RadioState::autoRefLevelChanged, m_displayPopup, &DisplayPopupWidget::setAutoRefLevel);
     connect(m_radioState, &RadioState::scaleChanged, m_displayPopup, &DisplayPopupWidget::setScale);
     connect(m_radioState, &RadioState::ddcNbModeChanged, m_displayPopup, &DisplayPopupWidget::setDdcNbMode);
@@ -1806,12 +1813,12 @@ MainWindow::MainWindow(QWidget *parent)
     });
 
     // Span control from display popup -> CAT commands (respects A/B selection)
-    // Inverted controls: + zooms in (decrease span), - zooms out (increase span)
+    // Match QK4/K4 convention: + increases span and - reduces it.
     connect(m_displayPopup, &DisplayPopupWidget::spanIncrementRequested, this, [this]() {
         bool vfoA = m_displayPopup->isVfoAEnabled();
         bool vfoB = m_displayPopup->isVfoBEnabled();
         int currentSpan = (vfoB && !vfoA) ? m_radioState->spanHzB() : m_radioState->spanHz();
-        int newSpan = getNextSpanDown(currentSpan); // + zooms in
+        int newSpan = getNextSpanUp(currentSpan); // + increases span
         if (newSpan != currentSpan) {
             if (vfoA) {
                 m_radioState->setSpanHz(newSpan);
@@ -1827,7 +1834,7 @@ MainWindow::MainWindow(QWidget *parent)
         bool vfoA = m_displayPopup->isVfoAEnabled();
         bool vfoB = m_displayPopup->isVfoBEnabled();
         int currentSpan = (vfoB && !vfoA) ? m_radioState->spanHzB() : m_radioState->spanHz();
-        int newSpan = getNextSpanUp(currentSpan); // - zooms out
+        int newSpan = getNextSpanDown(currentSpan); // - reduces span
         if (newSpan != currentSpan) {
             if (vfoA) {
                 m_radioState->setSpanHz(newSpan);
@@ -2129,7 +2136,7 @@ MainWindow::MainWindow(QWidget *parent)
         if (on && !ensureMicrophonePermission(this)) {
             m_pttActive = false;
             m_bottomMenuBar->setPttActive(false);
-        QMetaObject::invokeMethod(m_audioEngine, "setPttActive", Qt::QueuedConnection, Q_ARG(bool, false));
+            QMetaObject::invokeMethod(m_audioEngine, "setPttActive", Qt::QueuedConnection, Q_ARG(bool, false));
             return;
         }
 #endif
@@ -2886,6 +2893,12 @@ void MainWindow::setupUi() {
             }
         }
         RadioSettings::instance()->setSubVolume(value); // Persist setting
+    });
+    connect(m_sideControlPanel, &SideControlPanel::phoneMicGainChanged, this, [this](int value) {
+        // PHONE MIC is local pre-encode gain for the phone/headset input. Do
+        // not send MG; that command belongs exclusively to the K4 MIC control.
+        RadioSettings::instance()->setMicGain(value);
+        m_audioEngine->setMicGain(value / 100.0f);
     });
 
     // Connect side control panel scroll signals to CAT commands
@@ -4227,11 +4240,10 @@ void MainWindow::setupSpectrumPlaceholder(QWidget *parent) {
     m_vfoIndicatorA->move(0, m_panadapterA->height() - K4Styles::Dimensions::VfoIndicatorBadgeHeight);
     m_vfoIndicatorB->move(0, m_panadapterB->height() - K4Styles::Dimensions::VfoIndicatorBadgeHeight);
 
-    // Span adjustment for Main: K4 span steps, inverted controls
-    // - button = zoom out (increase span), + button = zoom in (decrease span)
+    // Span adjustment for Main: - reduces span, + increases span.
     connect(m_spanDownBtn, &QPushButton::clicked, this, [this]() {
         int currentSpan = m_radioState->spanHz();
-        int newSpan = getNextSpanUp(currentSpan); // - zooms out
+        int newSpan = getNextSpanDown(currentSpan); // - reduces span
         if (newSpan != currentSpan) {
             m_radioState->setSpanHz(newSpan);
             m_tcpClient->sendCAT(QString("#SPN%1;").arg(newSpan));
@@ -4240,7 +4252,7 @@ void MainWindow::setupSpectrumPlaceholder(QWidget *parent) {
 
     connect(m_spanUpBtn, &QPushButton::clicked, this, [this]() {
         int currentSpan = m_radioState->spanHz();
-        int newSpan = getNextSpanDown(currentSpan); // + zooms in
+        int newSpan = getNextSpanUp(currentSpan); // + increases span
         if (newSpan != currentSpan) {
             m_radioState->setSpanHz(newSpan);
             m_tcpClient->sendCAT(QString("#SPN%1;").arg(newSpan));
@@ -4252,7 +4264,7 @@ void MainWindow::setupSpectrumPlaceholder(QWidget *parent) {
     // Span adjustment for Sub: uses $ suffix for Sub RX commands
     connect(m_spanDownBtnB, &QPushButton::clicked, this, [this]() {
         int currentSpan = m_radioState->spanHzB();
-        int newSpan = getNextSpanUp(currentSpan); // - zooms out
+        int newSpan = getNextSpanDown(currentSpan); // - reduces span
         if (newSpan != currentSpan) {
             m_radioState->setSpanHzB(newSpan);
             m_tcpClient->sendCAT(QString("#SPN$%1;").arg(newSpan));
@@ -4261,7 +4273,7 @@ void MainWindow::setupSpectrumPlaceholder(QWidget *parent) {
 
     connect(m_spanUpBtnB, &QPushButton::clicked, this, [this]() {
         int currentSpan = m_radioState->spanHzB();
-        int newSpan = getNextSpanDown(currentSpan); // + zooms in
+        int newSpan = getNextSpanUp(currentSpan); // + increases span
         if (newSpan != currentSpan) {
             m_radioState->setSpanHzB(newSpan);
             m_tcpClient->sendCAT(QString("#SPN$%1;").arg(newSpan));
@@ -5660,6 +5672,10 @@ void MainWindow::showPhoneControls() {
     if (!K4Styles::isCompactLayout() || !m_leftPanelScroll || !m_rightPanelScroll)
         return;
 
+    // Keep the persistent CTRL drawer in sync if PHONE MIC was adjusted from
+    // the Settings audio-input page since it was last opened.
+    m_sideControlPanel->setPhoneMicGain(RadioSettings::instance()->micGain());
+
     const QRect available = screen() ? screen()->availableGeometry() : QRect(0, 0, 800, 360);
     const int drawerWidth = qMax(360, available.width() - 8);
     // Leave the complete VFO/filter/RIT block exposed above the drawer.  The
@@ -5939,19 +5955,27 @@ void MainWindow::onPttPressed() {
     }
 #endif
 
-    // Current QK4 mainline's normal PTT path keys the K4 through the remote
-    // audio stream. TX;/RX; is reserved for the separate XMIT/CAT paths.
+    // The Android control is a deliberate tap-to-TX latch rather than the
+    // desktop's momentary PTT.  Key the K4 explicitly before enabling its
+    // microphone stream so the radio state, meters, and UI enter TX even
+    // before the first encoded frame arrives.  This is a PTT command, not
+    // VOX; the upstream audio stream remains the voice-audio path.
     m_pttActive = true;
+    m_tcpClient->sendCAT("TX;");
     QMetaObject::invokeMethod(m_audioEngine, "setPttActive", Qt::QueuedConnection, Q_ARG(bool, true));
     m_bottomMenuBar->setPttActive(true);
-    qDebug() << "PTT pressed - microphone enabled";
+    qDebug() << "Phone PTT enabled - K4 TX command and microphone stream active";
 }
 
 void MainWindow::onPttReleased() {
+    // Always release the K4 first, including after a partial TX start.  The
+    // separate audio gate is then closed so no more microphone frames follow.
+    if (m_tcpClient && m_tcpClient->isConnected())
+        m_tcpClient->sendCAT("RX;");
     m_pttActive = false;
     QMetaObject::invokeMethod(m_audioEngine, "setPttActive", Qt::QueuedConnection, Q_ARG(bool, false));
     m_bottomMenuBar->setPttActive(false);
-    qDebug() << "PTT released - microphone disabled";
+    qDebug() << "Phone PTT released - K4 RX command and microphone stream disabled";
 }
 
 bool MainWindow::eventFilter(QObject *watched, QEvent *event) {

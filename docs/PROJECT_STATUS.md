@@ -1,18 +1,18 @@
 # Project status
 
-Last updated: 2026-08-01
+Last updated: 2026-08-02
 
 ## Released build
 
-**QK4 Mobile v0.7.2** is released as a public GitHub ARM64 APK and is signed
+**QK4 Mobile v0.7.3** is released as a public GitHub ARM64 APK and is signed
 with the permanent QK4 Mobile release certificate. It is installed and accepted
 by Android on the development phone. The product package is
 `com.ai5qk.qk4phone`, with Android API 26 minimum and API 34 target.
 
-Version 0.7.2 retains the v0.7.1 connection-profile case correction and moves
-Android transient dialogs and menus into the live application window. This
-avoids Android 17/Pixel crashes associated with separate Qt popup windows
-without changing K4 connection, control, audio, or panadapter plumbing.
+Version 0.7.3 retains the Android 17/Pixel-safe in-window dialog work and
+restores explicit K4 PTT control for the phone's latched TX/RX button. A tap
+sends `TX;` before microphone streaming begins; the return tap sends `RX;`.
+This is phone-specific deliberate PTT behavior, not VOX.
 
 The only physical UI acceptance device so far is a Samsung Galaxy S26 Ultra in
 landscape. The compact layout is selected from logical dimensions, density, and
@@ -21,7 +21,8 @@ physical screen size; broader device validation is still required.
 ## Verified Android behavior
 
 - K4 profile management, TCP/TLS connection, and disconnect/error handling.
-- K4 RX audio streaming plus microphone TX audio and deliberate PTT operation.
+- K4 RX audio streaming plus microphone TX audio and deliberate phone PTT
+  operation, physically retested on the development K4 after the v0.7.3 fix.
 - VFO A/B operation, transmission-VFO selection, tuning digit selection,
   direct frequency entry, and panadapter tuning at the selected VFO step.
 - Spectrum, waterfall, mini-pan, 50/50 initial spectrum/waterfall split, and

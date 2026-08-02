@@ -11,6 +11,24 @@ but upstream QK4 history is intentionally not repeated here.
 - Use **Added**, **Changed**, **Fixed**, and **Known limitations** as needed.
 - Do not list unverified radio behavior as fixed.
 
+## [0.7.3] - 2026-08-02
+
+### Fixed
+
+- Restored reliable phone TX/RX operation. The touch-latched TX/RX control now
+  explicitly keys the K4 with `TX;` and releases it with `RX;`, while retaining
+  the upstream microphone-stream path for voice audio. This is deliberate PTT,
+  not VOX.
+- Corrected the Android panadapter span controls to match QK4/K4 convention:
+  `+` increases span and `-` reduces span.
+- Restored the VFO B cursor indicator when it is selected from the DISP menu.
+
+### Added
+
+- Added a local PHONE MIC slider in CTRL for phone/headset input level. It
+  adjusts the pre-encode Android microphone gain and does not change the K4's
+  radio MIC setting.
+
 ## [0.7.2] - 2026-08-01
 
 ### Fixed

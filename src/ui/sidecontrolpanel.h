@@ -71,6 +71,7 @@ public:
     // Volume control
     int volume() const;
     int subVolume() const;
+    void setPhoneMicGain(int value);
 
     // Monitor level (MON overlay)
     void updateMonitorLevel(int mode, int level);
@@ -119,6 +120,7 @@ signals:
     void subRfGainChanged(int delta);
     void volumeChanged(int value);    // 0-100 (Main RX / VFO A)
     void subVolumeChanged(int value); // 0-100 (Sub RX / VFO B)
+    void phoneMicGainChanged(int value); // 0-100 (local phone/headset input only)
 
     // SW command signals (MON/NORM/BAL buttons)
     void swCommandRequested(const QString &command);
@@ -249,6 +251,8 @@ private:
     QLabel *m_volumeLabel;
     QSlider *m_subVolumeSlider;
     QLabel *m_subVolumeLabel;
+    QSlider *m_phoneMicGainSlider;
+    QLabel *m_phoneMicGainLabel;
 
     // MON/NORM/BAL buttons (above volume sliders)
     QPushButton *m_monBtn;

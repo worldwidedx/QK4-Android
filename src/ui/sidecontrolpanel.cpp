@@ -90,6 +90,24 @@ void SideControlPanel::setupUi() {
     layout->addWidget(m_subVolumeSlider);
     connect(m_subVolumeSlider, &QSlider::valueChanged, this, &SideControlPanel::subVolumeChanged);
 
+    // Local input gain is intentionally separate from the K4 MIC control.
+    // It scales the phone/headset microphone stream before Opus encoding.
+    m_phoneMicGainLabel = new QLabel("PHONE MIC", this);
+    m_phoneMicGainLabel->setStyleSheet(
+        QString("color: %1; font-size: 10px; font-weight: bold;").arg(K4Styles::Colors::AccentAmber));
+    m_phoneMicGainLabel->setAlignment(Qt::AlignCenter);
+    layout->addWidget(m_phoneMicGainLabel);
+
+    m_phoneMicGainSlider = new QSlider(Qt::Horizontal, this);
+    m_phoneMicGainSlider->setRange(0, 100);
+    m_phoneMicGainSlider->setValue(RadioSettings::instance()->micGain());
+    m_phoneMicGainSlider->setMinimumHeight(K4Styles::isCompactLayout() ? 32 : 24);
+    m_phoneMicGainSlider->setStyleSheet(
+        K4Styles::sliderHorizontal(K4Styles::Colors::DarkBackground, K4Styles::Colors::AccentAmber));
+    m_phoneMicGainSlider->installEventFilter(this);
+    layout->addWidget(m_phoneMicGainSlider);
+    connect(m_phoneMicGainSlider, &QSlider::valueChanged, this, &SideControlPanel::phoneMicGainChanged);
+
     layout->addSpacing(K4Styles::Dimensions::PaddingMedium);
 
     // ===== TX Function Buttons (2x3 grid) =====
@@ -864,6 +882,14 @@ int SideControlPanel::volume() const {
 
 int SideControlPanel::subVolume() const {
     return m_subVolumeSlider ? m_subVolumeSlider->value() : 100;
+}
+
+void SideControlPanel::setPhoneMicGain(int value) {
+    if (!m_phoneMicGainSlider)
+        return;
+    m_phoneMicGainSlider->blockSignals(true);
+    m_phoneMicGainSlider->setValue(qBound(0, value, 100));
+    m_phoneMicGainSlider->blockSignals(false);
 }
 
 void SideControlPanel::updateMonitorLevel(int mode, int level) {

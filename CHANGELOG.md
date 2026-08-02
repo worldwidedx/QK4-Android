@@ -11,6 +11,22 @@ but upstream QK4 history is intentionally not repeated here.
 - Use **Added**, **Changed**, **Fixed**, and **Known limitations** as needed.
 - Do not list unverified radio behavior as fixed.
 
+## [0.7.4] - 2026-08-02
+
+### Added
+
+- **Experimental:** while the phone's touch-latched TX/RX control is in TX,
+  an in-window shield blocks all other console touch, scroll, and button input.
+  The red TX ON control remains available in the same position so the operator
+  can always return immediately to RX. The shield is UI-only and does not
+  alter K4 PTT, CAT, microphone, or audio-stream behavior.
+
+### Known limitations
+
+- The TX input shield has been physically tested during a successful contact
+  on the development phone, but remains experimental pending broader field
+  testing and Android-device coverage.
+
 ## [0.7.3] - 2026-08-02
 
 ### Fixed

@@ -179,6 +179,8 @@ private:
     void completeControlFeedback(const QString &key, const QString &message);
     void showControlFeedback(const QString &message);
     QString requestText(const QString &title, const QString &label, const QString &initial, bool *accepted);
+    void setPhoneTxInputShieldActive(bool active);
+    void updatePhoneTxInputShieldGeometry();
 
     // Band and mini pan helpers
     int getBandFromFrequency(quint64 freq);
@@ -300,6 +302,8 @@ private:
     QScrollArea *m_leftPanelScroll = nullptr;
     QScrollArea *m_rightPanelScroll = nullptr;
     QWidget *m_phoneControlsDialog = nullptr;
+    QWidget *m_phoneTxInputShield = nullptr;
+    QPushButton *m_phoneTxReleaseButton = nullptr;
     NotificationWidget *m_controlNotificationWidget = nullptr;
     RadioManagerDialog *m_radioManager = nullptr;
 

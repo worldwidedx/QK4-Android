@@ -194,6 +194,30 @@ private:
     double m_bufferMs = 0.0;
 };
 
+// Full-window input shield used only while the phone's deliberate TX latch is
+// active.  It consumes touch, mouse, and wheel events before they reach radio
+// controls beneath it.  The separate TX/RX proxy button remains available as
+// the sole in-app route back to receive.
+class PhoneTxInputShield final : public QWidget {
+public:
+    explicit PhoneTxInputShield(QWidget *parent = nullptr) : QWidget(parent) { setFocusPolicy(Qt::NoFocus); }
+
+protected:
+    bool event(QEvent *event) override {
+        switch (event->type()) {
+        case QEvent::MouseButtonPress:
+        case QEvent::MouseButtonRelease:
+        case QEvent::MouseButtonDblClick:
+        case QEvent::MouseMove:
+        case QEvent::Wheel:
+            event->accept();
+            return true;
+        default:
+            return QWidget::event(event);
+        }
+    }
+};
+
 QString temperatureStyle(int celsius) {
     const QString color = celsius >= 75 ? K4Styles::Colors::TxRed
                            : celsius >= 60 ? K4Styles::Colors::MeterOrange
@@ -2859,6 +2883,24 @@ void MainWindow::setupUi() {
             }
         });
     }
+
+    // During deliberate phone TX, cover the console with an input shield.  A
+    // proxy at the exact TX/RX location forwards the return tap to the same
+    // existing button and signal path; it does not contain any radio logic.
+    m_phoneTxInputShield = new PhoneTxInputShield(centralWidget);
+    m_phoneTxInputShield->setObjectName("phoneTxInputShield");
+    m_phoneTxInputShield->setStyleSheet("#phoneTxInputShield { background-color: rgba(0, 0, 0, 48); }");
+    m_phoneTxInputShield->hide();
+
+    m_phoneTxReleaseButton = new QPushButton("TX ON", m_phoneTxInputShield);
+    m_phoneTxReleaseButton->setStyleSheet(K4Styles::menuBarButtonPttPressed());
+    m_phoneTxReleaseButton->setFocusPolicy(Qt::NoFocus);
+    connect(m_phoneTxReleaseButton, &QPushButton::clicked, this, [this]() {
+        // Hide first so the original control is immediately reachable again;
+        // click() reuses its existing latched PTT signal wiring unchanged.
+        setPhoneTxInputShieldActive(false);
+        m_bottomMenuBar->pttButton()->click();
+    });
 
     connect(m_bottomMenuBar, &BottomMenuBar::connectClicked, this, &MainWindow::showRadioManager);
     connect(m_bottomMenuBar, &BottomMenuBar::frequencyARequested, this,
@@ -5964,6 +6006,7 @@ void MainWindow::onPttPressed() {
     m_tcpClient->sendCAT("TX;");
     QMetaObject::invokeMethod(m_audioEngine, "setPttActive", Qt::QueuedConnection, Q_ARG(bool, true));
     m_bottomMenuBar->setPttActive(true);
+    setPhoneTxInputShieldActive(true);
     qDebug() << "Phone PTT enabled - K4 TX command and microphone stream active";
 }
 
@@ -5975,6 +6018,7 @@ void MainWindow::onPttReleased() {
     m_pttActive = false;
     QMetaObject::invokeMethod(m_audioEngine, "setPttActive", Qt::QueuedConnection, Q_ARG(bool, false));
     m_bottomMenuBar->setPttActive(false);
+    setPhoneTxInputShieldActive(false);
     qDebug() << "Phone PTT released - K4 RX command and microphone stream disabled";
 }
 
@@ -6146,6 +6190,31 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
     if (m_radioManager && centralWidget()) {
         m_radioManager->setGeometry(centralWidget()->rect());
     }
+    updatePhoneTxInputShieldGeometry();
+}
+
+void MainWindow::setPhoneTxInputShieldActive(bool active) {
+    if (!m_phoneTxInputShield || !m_phoneTxReleaseButton)
+        return;
+
+    if (!active) {
+        m_phoneTxInputShield->hide();
+        return;
+    }
+
+    updatePhoneTxInputShieldGeometry();
+    m_phoneTxInputShield->show();
+    m_phoneTxInputShield->raise();
+}
+
+void MainWindow::updatePhoneTxInputShieldGeometry() {
+    if (!m_phoneTxInputShield || !m_phoneTxReleaseButton || !centralWidget() || !m_bottomMenuBar)
+        return;
+
+    m_phoneTxInputShield->setGeometry(centralWidget()->rect());
+    QPushButton *pttButton = m_bottomMenuBar->pttButton();
+    const QPoint pttTopLeft = centralWidget()->mapFromGlobal(pttButton->mapToGlobal(QPoint(0, 0)));
+    m_phoneTxReleaseButton->setGeometry(QRect(pttTopLeft, pttButton->size()));
 }
 
 void MainWindow::changeEvent(QEvent *event) {

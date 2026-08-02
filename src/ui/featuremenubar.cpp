@@ -1,5 +1,6 @@
 #include "featuremenubar.h"
 #include "k4styles.h"
+#include "inwindowpopup.h"
 #include <QHBoxLayout>
 #include <QPainter>
 #include <QApplication>
@@ -14,9 +15,7 @@ const int ContentMargin = 12; // Horizontal margin inside content
 } // namespace
 
 FeatureMenuBar::FeatureMenuBar(QWidget *parent) : QWidget(parent) {
-    setWindowFlags(Qt::Popup | Qt::FramelessWindowHint);
-    setAttribute(Qt::WA_TranslucentBackground);
-    setFocusPolicy(Qt::StrongFocus);
+    InWindowPopup::configure(this);
     setupUi();
     hide(); // Hidden by default
 }
@@ -168,7 +167,7 @@ void FeatureMenuBar::showAboveWidget(QWidget *referenceWidget) {
         popupY = refGlobal.y() + referenceWidget->height() + 4 - K4Styles::Dimensions::ShadowMargin;
     }
 
-    move(popupX, popupY);
+    InWindowPopup::moveFromGlobal(this, QPoint(popupX, popupY));
     show();
     setFocus();
     update();

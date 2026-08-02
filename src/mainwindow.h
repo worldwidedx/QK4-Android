@@ -53,6 +53,8 @@ class OptionsDialog;
 class NotificationWidget;
 class VfoRowWidget;
 class SidetoneGenerator;
+class RadioManagerDialog;
+class QResizeEvent;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -70,6 +72,7 @@ public:
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
     void showEvent(QShowEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
     void changeEvent(QEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
 
@@ -122,6 +125,7 @@ private slots:
     void toggleSubRxPopup();
     void toggleTxPopup();
     void closeAllPopups();
+    void closeSecondaryPopups();
 
     // KPOD slots
     void onKpodEncoderRotated(int ticks);
@@ -174,6 +178,7 @@ private:
     void queueControlFeedback(const QString &key, const QString &fallback);
     void completeControlFeedback(const QString &key, const QString &message);
     void showControlFeedback(const QString &message);
+    QString requestText(const QString &title, const QString &label, const QString &initial, bool *accepted);
 
     // Band and mini pan helpers
     int getBandFromFrequency(quint64 freq);
@@ -294,8 +299,9 @@ private:
     BottomMenuBar *m_bottomMenuBar;
     QScrollArea *m_leftPanelScroll = nullptr;
     QScrollArea *m_rightPanelScroll = nullptr;
-    QDialog *m_phoneControlsDialog = nullptr;
+    QWidget *m_phoneControlsDialog = nullptr;
     NotificationWidget *m_controlNotificationWidget = nullptr;
+    RadioManagerDialog *m_radioManager = nullptr;
 
     // Menu system
     MenuModel *m_menuModel;
@@ -371,6 +377,7 @@ private:
     int m_mouseQsyMenuId = -999; // Menu ID from MEDF (sentinel = not yet discovered)
 
     WheelAccumulator m_ritWheelAccumulator;
+    bool m_closingTransientMenus = false;
 };
 
 #endif // MAINWINDOW_H

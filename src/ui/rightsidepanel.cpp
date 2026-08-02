@@ -19,6 +19,18 @@ RightSidePanel::RightSidePanel(QWidget *parent)
         m_longPressHandled = true;
         triggerSecondary(m_longPressTarget);
     });
+    m_revPressTimer = new QTimer(this);
+    m_revPressTimer->setSingleShot(true);
+    // QScroller delays a child press for 250 ms while it resolves a drag.
+    // Keep REV just beyond that interval, otherwise it transmits SW160 as
+    // soon as a finger starts a scroll over the REV tile.
+    m_revPressTimer->setInterval(300);
+    connect(m_revPressTimer, &QTimer::timeout, this, [this]() {
+        if (!m_revPressPending || m_revDragging)
+            return;
+        m_revActive = true;
+        emit revPressed();
+    });
     setupUi();
 }
 
@@ -80,8 +92,6 @@ void RightSidePanel::setupUi() {
     connect(m_ntchBtn, &QPushButton::clicked, this, &RightSidePanel::ntchClicked);
     connect(m_filBtn, &QPushButton::clicked, this, &RightSidePanel::filClicked);
     connect(m_abBtn, &QPushButton::clicked, this, &RightSidePanel::abClicked);
-    connect(m_revBtn, &QPushButton::pressed, this, &RightSidePanel::revPressed);
-    connect(m_revBtn, &QPushButton::released, this, &RightSidePanel::revReleased);
     connect(m_atobBtn, &QPushButton::clicked, this, &RightSidePanel::atobClicked);
     connect(m_spotBtn, &QPushButton::clicked, this, &RightSidePanel::spotClicked);
     connect(m_modeBtn, &QPushButton::clicked, this, &RightSidePanel::modeClicked);
@@ -93,7 +103,9 @@ void RightSidePanel::setupUi() {
     m_ntchBtn->installEventFilter(this);
     m_filBtn->installEventFilter(this);
     m_abBtn->installEventFilter(this);
-    // m_revBtn - uses press/release (not right-click)
+    // REV has no secondary action, but still needs the same scroll guard as
+    // every other phone CTRL tile.
+    m_revBtn->installEventFilter(this);
     m_atobBtn->installEventFilter(this);
     m_spotBtn->installEventFilter(this);
     m_modeBtn->installEventFilter(this);
@@ -209,9 +221,61 @@ void RightSidePanel::cancelPendingLongPress() {
         button->setDown(false);
     m_longPressTarget = nullptr;
     m_longPressHandled = false;
+
+    // A QScroller state transition can arrive after the REV timer.  Ensure a
+    // scroll never leaves the radio in the momentary-reverse state.
+    if (m_revPressTimer)
+        m_revPressTimer->stop();
+    m_revPressPending = false;
+    m_revDragging = true;
+    if (m_revActive) {
+        m_revActive = false;
+        emit revReleased();
+    }
+    if (m_revBtn)
+        m_revBtn->setDown(false);
 }
 
 bool RightSidePanel::eventFilter(QObject *watched, QEvent *event) {
+    if (watched == m_revBtn) {
+        if (event->type() == QEvent::MouseButtonPress) {
+            auto *mouseEvent = static_cast<QMouseEvent *>(event);
+            if (mouseEvent->button() == Qt::LeftButton) {
+                m_pressPosition = mouseEvent->pos();
+                m_revPressPending = true;
+                m_revDragging = false;
+                m_revActive = false;
+                m_revPressTimer->start();
+            }
+        } else if (event->type() == QEvent::MouseMove && m_revPressPending) {
+            auto *mouseEvent = static_cast<QMouseEvent *>(event);
+            if ((mouseEvent->pos() - m_pressPosition).manhattanLength() > 12) {
+                m_revDragging = true;
+                m_revPressPending = false;
+                m_revPressTimer->stop();
+                m_revBtn->setDown(false);
+            }
+        } else if (event->type() == QEvent::MouseButtonRelease) {
+            auto *mouseEvent = static_cast<QMouseEvent *>(event);
+            if (mouseEvent->button() == Qt::LeftButton) {
+                m_revPressTimer->stop();
+                m_revPressPending = false;
+                if (m_revActive) {
+                    m_revActive = false;
+                    emit revReleased();
+                } else if (!m_revDragging) {
+                    // Preserve the original quick-tap semantics.  A tap is
+                    // still a momentary REV action; only an actual drag is
+                    // discarded as scrolling.
+                    emit revPressed();
+                    emit revReleased();
+                }
+                m_revBtn->setDown(false);
+            }
+        }
+        return QWidget::eventFilter(watched, event);
+    }
+
     if (event->type() == QEvent::MouseButtonPress) {
         auto *mouseEvent = static_cast<QMouseEvent *>(event);
         if (mouseEvent->button() == Qt::RightButton) {

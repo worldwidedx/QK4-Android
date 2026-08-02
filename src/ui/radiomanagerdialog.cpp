@@ -10,13 +10,14 @@
 #include <QScroller>
 #include <QScrollerProperties>
 #include <QScreen>
+#include <QResizeEvent>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
 #include <QLabel>
 #include <utility>
 
-RadioManagerDialog::RadioManagerDialog(QWidget *parent) : QDialog(parent), m_currentIndex(-1) {
+RadioManagerDialog::RadioManagerDialog(QWidget *parent) : QWidget(parent), m_currentIndex(-1) {
     setupUi();
     refreshList();
     updateButtonStates();
@@ -26,7 +27,7 @@ RadioManagerDialog::RadioManagerDialog(QWidget *parent) : QDialog(parent), m_cur
 
 void RadioManagerDialog::setupUi() {
     const bool compact = K4Styles::isCompactLayout();
-    setWindowTitle("Server Manager");
+    setObjectName("radioManagerOverlay");
     if (compact) {
         // A landscape phone can have less than 360 logical pixels after the
         // system bars. Never force the dialog taller than that viewport.
@@ -38,11 +39,11 @@ void RadioManagerDialog::setupUi() {
             resize(420, 700);
         }
     } else {
-        setFixedSize(580, 395);
+        resize(580, 395);
     }
 
     // Dark popup surface theme
-    setStyleSheet(QString("QDialog { background-color: %1; }").arg(K4Styles::Colors::Background));
+    setStyleSheet(QString("#radioManagerOverlay { background-color: %1; }").arg(K4Styles::Colors::Background));
 
     auto *dialogLayout = new QVBoxLayout(this);
     dialogLayout->setContentsMargins(0, 0, 0, 0);
@@ -412,7 +413,7 @@ void RadioManagerDialog::onConnectClicked() {
         // Check if this is a disconnect request (selected radio is already connected)
         if (!m_connectedHost.isEmpty() && host == m_connectedHost) {
             emit disconnectRequested();
-            accept();
+            emit closeRequested();
             return;
         }
 
@@ -437,7 +438,7 @@ void RadioManagerDialog::onConnectClicked() {
             RadioSettings::instance()->setLastSelectedIndex(m_currentIndex);
         }
         emit connectRequested(entry);
-        accept();
+        emit closeRequested();
     }
 }
 
@@ -510,7 +511,7 @@ void RadioManagerDialog::onDeleteClicked() {
 }
 
 void RadioManagerDialog::onBackClicked() {
-    reject();
+    emit closeRequested();
 }
 
 void RadioManagerDialog::onSelectionChanged() {
@@ -594,32 +595,37 @@ void RadioManagerDialog::onTlsCheckboxToggled(bool checked) {
 void RadioManagerDialog::onMacrosClicked() {
     // Keep the phone setup workflow self-contained: F1-F8 are the only
     // macros exposed here, and map directly to the paired FN-menu buttons.
-    QDialog editor(this);
-    editor.setWindowTitle("F1-F8 Macros");
-    editor.setModal(true);
-    editor.setStyleSheet(QString("QDialog { background-color: %1; }").arg(K4Styles::Colors::Background));
-
-    const bool compact = K4Styles::isCompactLayout();
-    if (compact) {
-        const QSize available = screen() ? screen()->availableGeometry().size() : QSize(640, 360);
-        editor.resize(qMax(360, available.width() - 20), qMax(250, available.height() - 20));
-    } else {
-        editor.resize(620, 480);
+    if (m_macroEditor) {
+        m_macroEditor->raise();
+        return;
     }
 
-    auto *layout = new QVBoxLayout(&editor);
+    // This must remain a child widget. A top-level QDialog creates another
+    // Android EGL/RHI surface and can deadlock with Android accessibility.
+    auto *editor = new QWidget(this);
+    m_macroEditor = editor;
+    editor->setObjectName("macroEditorOverlay");
+    editor->setAttribute(Qt::WA_StyledBackground, true);
+    editor->setStyleSheet(QString("#macroEditorOverlay { background-color: %1; }")
+                              .arg(K4Styles::Colors::Background));
+    editor->setGeometry(rect());
+    connect(editor, &QObject::destroyed, this, [this]() { m_macroEditor = nullptr; });
+
+    const bool compact = K4Styles::isCompactLayout();
+
+    auto *layout = new QVBoxLayout(editor);
     layout->setContentsMargins(K4Styles::Dimensions::PaddingLarge, K4Styles::Dimensions::PaddingLarge,
                                K4Styles::Dimensions::PaddingLarge, K4Styles::Dimensions::PaddingLarge);
     layout->setSpacing(K4Styles::Dimensions::PaddingMedium);
 
-    auto *help = new QLabel("Set the label shown in FN and the CAT command sent when that F key is tapped.", &editor);
+    auto *help = new QLabel("Set the label shown in FN and the CAT command sent when that F key is tapped.", editor);
     help->setWordWrap(true);
     help->setStyleSheet(QString("QLabel { color: %1; font-size: %2px; }")
                             .arg(K4Styles::Colors::TextGray)
                             .arg(K4Styles::Dimensions::FontSizeButton));
     layout->addWidget(help);
 
-    auto *scrollArea = new QScrollArea(&editor);
+    auto *scrollArea = new QScrollArea(editor);
     scrollArea->setWidgetResizable(true);
     scrollArea->setFrameShape(QFrame::NoFrame);
     scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -703,19 +709,27 @@ void RadioManagerDialog::onMacrosClicked() {
     }
     layout->addWidget(scrollArea, 1);
 
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, &editor);
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, editor);
     buttons->setStyleSheet(K4Styles::dialogButton());
-    connect(buttons, &QDialogButtonBox::accepted, &editor, [&editor, ids, fields]() {
+    connect(buttons, &QDialogButtonBox::accepted, editor, [editor, ids, fields]() {
         for (int i = 0; i < ids.size(); ++i) {
             RadioSettings::instance()->setMacro(ids.at(i), fields.at(i).first->text().trimmed(),
                                                 fields.at(i).second->text().trimmed());
         }
-        editor.accept();
+        editor->deleteLater();
     });
-    connect(buttons, &QDialogButtonBox::rejected, &editor, &QDialog::reject);
+    connect(buttons, &QDialogButtonBox::rejected, editor, &QObject::deleteLater);
     layout->addWidget(buttons);
 
-    editor.exec();
+    editor->show();
+    editor->raise();
+}
+
+void RadioManagerDialog::resizeEvent(QResizeEvent *event) {
+    QWidget::resizeEvent(event);
+    if (m_macroEditor) {
+        m_macroEditor->setGeometry(rect());
+    }
 }
 
 RadioEntry RadioManagerDialog::selectedRadio() const {

@@ -3,7 +3,7 @@
 
 #include <QCheckBox>
 #include <QComboBox>
-#include <QDialog>
+#include <QWidget>
 #include <QLabel>
 #include <QListWidget>
 #include <QLineEdit>
@@ -11,7 +11,9 @@
 #include <QSpinBox>
 #include "settings/radiosettings.h"
 
-class RadioManagerDialog : public QDialog {
+class QResizeEvent;
+
+class RadioManagerDialog : public QWidget {
     Q_OBJECT
 
 public:
@@ -26,6 +28,10 @@ public:
 signals:
     void connectRequested(const RadioEntry &radio);
     void disconnectRequested();
+    void closeRequested();
+
+protected:
+    void resizeEvent(QResizeEvent *event) override;
 
 private slots:
     void onConnectClicked();
@@ -65,6 +71,7 @@ private:
 
     int m_currentIndex;
     QString m_connectedHost; // Host of currently connected radio (empty if disconnected)
+    QWidget *m_macroEditor = nullptr;
 };
 
 #endif // RADIOMANAGERDIALOG_H

@@ -1,5 +1,6 @@
 #include "menuoverlay.h"
 #include "k4styles.h"
+#include "inwindowpopup.h"
 #include <QPainter>
 #include <QKeyEvent>
 #include <QMouseEvent>
@@ -311,7 +312,8 @@ void MenuOverlayWidget::setupUi() {
 }
 
 void MenuOverlayWidget::createSearchPopup() {
-    m_searchPopup = new QWidget(this, Qt::Popup);
+    m_searchPopup = new QWidget(this);
+    InWindowPopup::configure(m_searchPopup);
     m_searchPopup->setFixedWidth(130);
 
     QVBoxLayout *layout = new QVBoxLayout(m_searchPopup);
@@ -342,7 +344,7 @@ void MenuOverlayWidget::toggleSearchPopup() {
     } else {
         // Position below search button
         QPoint pos = m_searchBtn->mapToGlobal(QPoint(0, m_searchBtn->height() + 4));
-        m_searchPopup->move(pos);
+        InWindowPopup::moveFromGlobal(m_searchPopup, pos);
         m_searchPopup->show();
         m_searchInput->setFocus();
         m_searchInput->selectAll();

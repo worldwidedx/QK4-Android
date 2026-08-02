@@ -1,5 +1,6 @@
 #include "micconfigpopup.h"
 #include "k4styles.h"
+#include "inwindowpopup.h"
 #include <QApplication>
 #include <QHBoxLayout>
 #include <QHideEvent>
@@ -15,9 +16,7 @@ const int TitleWidthRear = 170;  // "MIC CONFIG, REAR"
 } // namespace
 
 MicConfigPopupWidget::MicConfigPopupWidget(QWidget *parent) : QWidget(parent) {
-    setWindowFlags(Qt::Popup | Qt::FramelessWindowHint);
-    setAttribute(Qt::WA_TranslucentBackground);
-    setFocusPolicy(Qt::StrongFocus);
+    InWindowPopup::configure(this);
     setupUi();
     hide();
 }
@@ -233,7 +232,7 @@ void MicConfigPopupWidget::showAboveWidget(QWidget *referenceWidget) {
         popupY = refGlobal.y() + referenceWidget->height() + 4 - K4Styles::Dimensions::ShadowMargin;
     }
 
-    move(popupX, popupY);
+    InWindowPopup::moveFromGlobal(this, QPoint(popupX, popupY));
     show();
     setFocus();
     update();

@@ -18,6 +18,8 @@
 #include "ui/vforowwidget.h"
 #include "ui/filterindicatorwidget.h"
 #include "ui/k4styles.h"
+#include "ui/inwindowdialog.h"
+#include "ui/inwindowpopup.h"
 #include "ui/antennacfgpopup.h"
 #include "ui/lineoutpopup.h"
 #include "ui/lineinpopup.h"
@@ -41,8 +43,6 @@
 #include "network/catserver.h"
 #include "settings/radiosettings.h"
 #include <QVBoxLayout>
-#include <QInputDialog>
-#include <QDialog>
 #include <QDialogButtonBox>
 #include <QLineEdit>
 #include <QHBoxLayout>
@@ -51,7 +51,6 @@
 #include <QAction>
 #include <QCoreApplication>
 #include <QDebug>
-#include <QMessageBox>
 #include <QFont>
 #include <QDateTime>
 #include <QPainter>
@@ -248,15 +247,15 @@ static bool ensureMicrophonePermission(QWidget *parent) {
         QPointer<QWidget> safeParent(parent);
         qApp->requestPermission(permission, parent, [safeParent](const QPermission &result) {
             if (result.status() == Qt::PermissionStatus::Denied && safeParent) {
-                QMessageBox::warning(safeParent, "Microphone Permission Required",
-                                     "Grant microphone permission to transmit audio.");
+                showInWindowMessage(safeParent, "Microphone Permission Required",
+                                    "Grant microphone permission to transmit audio.");
             }
         });
         return false;
     }
 
-    QMessageBox::warning(parent, "Microphone Permission Required",
-                         "Microphone permission is currently denied. Enable it in Android Settings to transmit audio.");
+    showInWindowMessage(parent, "Microphone Permission Required",
+                        "Microphone permission is currently denied. Enable it in Android Settings to transmit audio.");
     return false;
 }
 #endif
@@ -483,17 +482,20 @@ MainWindow::MainWindow(QWidget *parent)
         switch (index) {
         case 0: // ANT CFG - show TX antenna config popup
             if (m_txAntCfgPopup && m_txPopup) {
+                closeSecondaryPopups();
                 m_txAntCfgPopup->showAboveWidget(m_txPopup);
             }
             break;
         case 1: // TX EQ - show TX graphic equalizer popup
             if (m_txEqPopup && m_txPopup) {
+                closeSecondaryPopups();
                 m_txEqPopup->setAllBands(m_radioState->txEqBands());
                 m_txEqPopup->showAboveWidget(m_txPopup);
             }
             break;
         case 2: // LINE IN - show line in control popup
             if (m_lineInPopup && m_txPopup) {
+                closeSecondaryPopups();
                 m_lineInPopup->setSoundCardLevel(m_radioState->lineInSoundCard());
                 m_lineInPopup->setLineInJackLevel(m_radioState->lineInJack());
                 m_lineInPopup->setSource(m_radioState->lineInSource());
@@ -502,12 +504,14 @@ MainWindow::MainWindow(QWidget *parent)
             break;
         case 3: // MIC INP - show mic input selection popup
             if (m_micInputPopup && m_txPopup) {
+                closeSecondaryPopups();
                 m_micInputPopup->setCurrentInput(m_radioState->micInput());
                 m_micInputPopup->showAboveWidget(m_txPopup);
             }
             break;
         case 4: // VOX GN - show VOX Gain popup
             if (m_voxPopup && m_txPopup) {
+                closeSecondaryPopups();
                 bool isDataMode =
                     (m_radioState->mode() == RadioState::DATA || m_radioState->mode() == RadioState::DATA_R);
                 m_voxPopup->setPopupMode(VoxPopupWidget::VoxGain);
@@ -519,6 +523,7 @@ MainWindow::MainWindow(QWidget *parent)
             break;
         case 5: // SSB BW - show SSB TX Bandwidth popup
             if (m_ssbBwPopup && m_txPopup) {
+                closeSecondaryPopups();
                 m_ssbBwPopup->setEssbEnabled(m_radioState->essbEnabled());
                 int bw = m_radioState->ssbTxBw();
                 if (bw >= 24 && bw <= 45) {
@@ -564,6 +569,7 @@ MainWindow::MainWindow(QWidget *parent)
             return;
         if (index == 4) { // ANTIVOX
             if (m_voxPopup && m_txPopup) {
+                closeSecondaryPopups();
                 m_voxPopup->setPopupMode(VoxPopupWidget::AntiVox);
                 m_voxPopup->setValue(m_radioState->antiVox());
                 m_voxPopup->setVoxEnabled(m_radioState->voxForCurrentMode());
@@ -578,6 +584,7 @@ MainWindow::MainWindow(QWidget *parent)
             // Determine if Front or Rear mic
             bool isFront = (input == 0 || input == 3); // 0=front, 3=front+line
             if (m_micConfigPopup && m_txPopup) {
+                closeSecondaryPopups();
                 m_micConfigPopup->setMicType(isFront ? MicConfigPopupWidget::Front : MicConfigPopupWidget::Rear);
                 if (isFront) {
                     m_micConfigPopup->setBias(m_radioState->micFrontBias());
@@ -651,7 +658,7 @@ MainWindow::MainWindow(QWidget *parent)
         QVector<int> currentBands = m_radioState->rxEqBands();
 
         bool ok;
-        QString name = QInputDialog::getText(this, "Save Preset", "Preset name:", QLineEdit::Normal, defaultName, &ok);
+        QString name = requestText("Save Preset", "Preset name:", defaultName, &ok);
 
         // Re-show the EQ popup after dialog closes
         if (m_bottomMenuBar) {
@@ -742,8 +749,7 @@ MainWindow::MainWindow(QWidget *parent)
         QVector<int> currentBands = m_radioState->txEqBands();
 
         bool ok;
-        QString name =
-            QInputDialog::getText(this, "Save TX Preset", "Preset name:", QLineEdit::Normal, defaultName, &ok);
+        QString name = requestText("Save TX Preset", "Preset name:", defaultName, &ok);
 
         // Re-show the EQ popup after dialog closes
         if (m_bottomMenuBar) {
@@ -1013,6 +1019,11 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Create SSB TX Bandwidth popup (TX menu button index 5)
     m_ssbBwPopup = new SsbBwPopupWidget(this);
+    connect(m_ssbBwPopup, &SsbBwPopupWidget::doneRequested, this, [this]() {
+        // Bandwidth changes are applied immediately. Done returns from the
+        // editor and closes the complete TX operating-menu stack.
+        closeAllPopups();
+    });
     connect(m_ssbBwPopup, &SsbBwPopupWidget::bandwidthChanged, this, [this](int bw) {
         if (!m_tcpClient || !m_tcpClient->isConnected())
             return;
@@ -2220,11 +2231,19 @@ void MainWindow::setupMenuBar() {
     connect(optionsAction, &QAction::triggered, this, [this]() {
         if (!m_optionsDialog) {
             m_optionsDialog =
-                new OptionsDialog(m_radioState, m_audioEngine, m_kpodDevice, m_catServer, m_halikeyDevice, this);
+                new OptionsDialog(m_radioState, m_audioEngine, m_kpodDevice, m_catServer, m_halikeyDevice,
+                                  centralWidget());
         }
+#ifdef Q_OS_ANDROID
+        m_optionsDialog->setGeometry(centralWidget()->rect());
+#endif
         m_optionsDialog->show();
         m_optionsDialog->raise();
+#ifndef Q_OS_ANDROID
         m_optionsDialog->activateWindow();
+#else
+        m_optionsDialog->setFocus(Qt::OtherFocusReason);
+#endif
     });
     toolsMenu->addAction(optionsAction);
 
@@ -2241,15 +2260,61 @@ void MainWindow::setupMenuBar() {
 }
 
 void MainWindow::showAboutDialog() {
-    QMessageBox::about(this, "About QK4 Mobile",
-                       QString("<h2>QK4 Mobile for Android</h2>"
-                               "<p>Version %1</p>"
-                               "<p>Remote control application for Elecraft K4 radios.</p>"
-                               "<p>By <a href='https://worldwidedx.com'>WorldwideDX.com</a></p>"
-                               "<p>Based on QK4 by Mike Garcia (KF5O).</p>"
-                               "<p>Licensed under GNU GPL v3.0 or later.</p>"
-                               "<p><a href='https://github.com/mikeg-dal/QK4'>QK4 source</a></p>")
-                           .arg(QCoreApplication::applicationVersion()));
+    showInWindowMessage(centralWidget(), "About QK4 Mobile",
+                        QString("<h2>QK4 Mobile for Android</h2>"
+                                "<p>Version %1</p>"
+                                "<p>Remote control application for Elecraft K4 radios.</p>"
+                                "<p>By <a href='https://worldwidedx.com'>WorldwideDX.com</a></p>"
+                                "<p>Based on QK4 by Mike Garcia (KF5O).</p>"
+                                "<p>Licensed under GNU GPL v3.0 or later.</p>"
+                                "<p><a href='https://github.com/mikeg-dal/QK4'>QK4 source</a></p>")
+                            .arg(QCoreApplication::applicationVersion()));
+}
+
+QString MainWindow::requestText(const QString &title, const QString &label, const QString &initial, bool *accepted) {
+    InWindowDialog dialog(centralWidget());
+    QWidget *panel = dialog.contentWidget();
+    auto *layout = new QVBoxLayout(panel);
+    layout->setContentsMargins(14, 12, 14, 12);
+    layout->setSpacing(10);
+
+    auto *titleLabel = new QLabel(title, panel);
+    titleLabel->setAlignment(Qt::AlignCenter);
+    titleLabel->setStyleSheet(QString("color: %1; font-size: 17px; font-weight: bold;")
+                                  .arg(K4Styles::Colors::AccentAmber));
+    layout->addWidget(titleLabel);
+
+    auto *prompt = new QLabel(label, panel);
+    prompt->setStyleSheet(QString("color: %1; font-size: 13px;").arg(K4Styles::Colors::TextWhite));
+    layout->addWidget(prompt);
+
+    auto *entry = new QLineEdit(initial, panel);
+    entry->setInputMethodHints(Qt::ImhNoAutoUppercase | Qt::ImhNoPredictiveText);
+    entry->setStyleSheet(QString("background: %1; color: %2; border: 1px solid %3; padding: 6px;")
+                             .arg(K4Styles::Colors::DarkBackground, K4Styles::Colors::TextWhite,
+                                  K4Styles::Colors::DialogBorder));
+    layout->addWidget(entry);
+
+    auto *buttons = new QHBoxLayout();
+    auto *cancel = new QPushButton("CANCEL", panel);
+    auto *save = new QPushButton("SAVE", panel);
+    for (QPushButton *button : {cancel, save}) {
+        button->setMinimumHeight(36);
+        button->setStyleSheet(K4Styles::menuBarButton());
+        buttons->addWidget(button, 1);
+    }
+    save->setStyleSheet(K4Styles::menuBarButtonActive());
+    layout->addLayout(buttons);
+    connect(cancel, &QPushButton::clicked, &dialog, &InWindowDialog::reject);
+    connect(save, &QPushButton::clicked, &dialog, &InWindowDialog::accept);
+    connect(entry, &QLineEdit::returnPressed, &dialog, &InWindowDialog::accept);
+
+    const int width = qMin(500, qMax(300, centralWidget()->width() - 24));
+    dialog.setPanelSize(QSize(width, qMin(220, centralWidget()->height() - 16)));
+    const bool wasAccepted = dialog.exec() == InWindowDialog::Accepted;
+    if (accepted)
+        *accepted = wasAccepted;
+    return wasAccepted ? entry->text() : QString();
 }
 
 void MainWindow::setupUi() {
@@ -2650,6 +2715,7 @@ void MainWindow::setupUi() {
 
     // Mode Popup Widget (popup, positioned above bottom menu bar when shown)
     m_modePopup = new ModePopupWidget(this);
+
     connect(m_modePopup, &ModePopupWidget::modeSelected, this, [this](const QString &catCmd) {
         // Send the command to the radio
         m_tcpClient->sendCAT(catCmd);
@@ -4618,19 +4684,27 @@ void MainWindow::checkAndHideMiniPanB() {
 }
 
 void MainWindow::showRadioManager() {
-    RadioManagerDialog dialog(this);
-    connect(&dialog, &RadioManagerDialog::connectRequested, this, &MainWindow::connectToRadio);
-    connect(&dialog, &RadioManagerDialog::disconnectRequested, this, [this]() {
-        // TcpClient::disconnectFromHost() sends RRN; automatically
-        QMetaObject::invokeMethod(m_tcpClient, "disconnectFromHost", Qt::QueuedConnection);
-    });
-
-    // Set the connected host so dialog can show "Disconnect" for active connection
-    if (m_tcpClient->isConnected()) {
-        dialog.setConnectedHost(m_currentRadio.host);
+    if (!m_radioManager) {
+        // Keep the manager inside the existing Android window. Creating a
+        // top-level QDialog here adds a second EGL/RHI surface, which can
+        // deadlock with Android accessibility while the panadapter is active.
+        m_radioManager = new RadioManagerDialog(centralWidget());
+        m_radioManager->hide();
+        connect(m_radioManager, &RadioManagerDialog::connectRequested, this, &MainWindow::connectToRadio);
+        connect(m_radioManager, &RadioManagerDialog::disconnectRequested, this, [this]() {
+            // TcpClient::disconnectFromHost() sends RRN; automatically
+            QMetaObject::invokeMethod(m_tcpClient, "disconnectFromHost", Qt::QueuedConnection);
+        });
+        connect(m_radioManager, &RadioManagerDialog::closeRequested, m_radioManager, &QWidget::hide);
     }
 
-    dialog.exec();
+    // Set the connected host so the manager can show "Disconnect" for the
+    // active connection, and clear stale state after a disconnect.
+    m_radioManager->setConnectedHost(m_tcpClient->isConnected() ? m_currentRadio.host : QString());
+    m_radioManager->setGeometry(centralWidget()->rect());
+    m_radioManager->show();
+    m_radioManager->raise();
+    m_radioManager->setFocus(Qt::OtherFocusReason);
 }
 
 void MainWindow::connectToRadio(const RadioEntry &radio) {
@@ -5437,16 +5511,13 @@ void MainWindow::showRitXitAdjustment(bool preferXit) {
     m_tcpClient->sendCAT("RT$;");
     m_tcpClient->sendCAT("RO$;");
 
-    QDialog dialog(this);
-    dialog.setWindowTitle("RIT / XIT Offset");
-    dialog.setModal(true);
-    dialog.setStyleSheet(QString("QDialog { background-color: %1; }").arg(K4Styles::Colors::Background));
-
-    auto *layout = new QVBoxLayout(&dialog);
+    InWindowDialog dialog(centralWidget());
+    QWidget *panel = dialog.contentWidget();
+    auto *layout = new QVBoxLayout(panel);
     layout->setContentsMargins(12, 10, 12, 10);
     layout->setSpacing(8);
 
-    auto *title = new QLabel("OFFSET JOG", &dialog);
+    auto *title = new QLabel("OFFSET JOG", panel);
     title->setAlignment(Qt::AlignCenter);
     title->setStyleSheet(QString("color: %1; font-size: 17px; font-weight: bold;")
                              .arg(K4Styles::Colors::AccentAmber));
@@ -5454,8 +5525,8 @@ void MainWindow::showRitXitAdjustment(bool preferXit) {
 
     auto *targetRow = new QHBoxLayout();
     targetRow->setSpacing(8);
-    auto *ritTarget = new QPushButton("RIT", &dialog);
-    auto *xitTarget = new QPushButton("XIT", &dialog);
+    auto *ritTarget = new QPushButton("RIT", panel);
+    auto *xitTarget = new QPushButton("XIT", panel);
     for (QPushButton *button : {ritTarget, xitTarget}) {
         button->setCheckable(true);
         button->setMinimumHeight(36);
@@ -5466,12 +5537,12 @@ void MainWindow::showRitXitAdjustment(bool preferXit) {
     layout->addLayout(targetRow);
 
     bool adjustXit = xitActive && (preferXit || !ritActive);
-    auto *targetDescription = new QLabel(&dialog);
+    auto *targetDescription = new QLabel(panel);
     targetDescription->setAlignment(Qt::AlignCenter);
     targetDescription->setStyleSheet(QString("color: %1; font-size: 11px;").arg(K4Styles::Colors::TextGray));
     layout->addWidget(targetDescription);
 
-    auto *offsetValue = new QLabel(&dialog);
+    auto *offsetValue = new QLabel(panel);
     offsetValue->setAlignment(Qt::AlignCenter);
     offsetValue->setMinimumHeight(42);
     offsetValue->setStyleSheet(QString("color: %1; background: %2; border: 1px solid %3;"
@@ -5506,15 +5577,15 @@ void MainWindow::showRitXitAdjustment(bool preferXit) {
         refreshTarget();
     });
 
-    auto *hint = new QLabel("Tap or hold - / + for continuous 10 Hz steps", &dialog);
+    auto *hint = new QLabel("Tap or hold - / + for continuous 10 Hz steps", panel);
     hint->setAlignment(Qt::AlignCenter);
     hint->setStyleSheet(QString("color: %1; font-size: 11px;").arg(K4Styles::Colors::TextGray));
     layout->addWidget(hint);
 
     auto *jogRow = new QHBoxLayout();
     jogRow->setSpacing(10);
-    auto *down = new QPushButton("-", &dialog);
-    auto *up = new QPushButton("+", &dialog);
+    auto *down = new QPushButton("-", panel);
+    auto *up = new QPushButton("+", panel);
     for (QPushButton *button : {down, up}) {
         button->setMinimumHeight(54);
         button->setAutoRepeat(true);
@@ -5564,8 +5635,8 @@ void MainWindow::showRitXitAdjustment(bool preferXit) {
             [&refreshTarget](bool, int) { refreshTarget(); });
 
     auto *bottomRow = new QHBoxLayout();
-    auto *zero = new QPushButton("ZERO", &dialog);
-    auto *close = new QPushButton("DONE", &dialog);
+    auto *zero = new QPushButton("ZERO", panel);
+    auto *close = new QPushButton("DONE", panel);
     for (QPushButton *button : {zero, close}) {
         button->setMinimumHeight(36);
         button->setStyleSheet(K4Styles::menuBarButton());
@@ -5576,15 +5647,12 @@ void MainWindow::showRitXitAdjustment(bool preferXit) {
         m_tcpClient->sendCAT(usesBRegister() ? "RC$;" : "RC;");
         m_tcpClient->sendCAT(usesBRegister() ? "RO$;" : "RO;");
     });
-    connect(close, &QPushButton::clicked, &dialog, &QDialog::accept);
+    connect(close, &QPushButton::clicked, &dialog, &InWindowDialog::accept);
 
     refreshTarget();
-    if (QScreen *targetScreen = screen()) {
-        const QRect available = targetScreen->availableGeometry();
-        dialog.adjustSize();
-        dialog.resize(qMin(480, available.width() - 20), qMin(dialog.sizeHint().height(), available.height() - 12));
-        dialog.move(available.center() - dialog.rect().center());
-    }
+    layout->activate();
+    dialog.setPanelSize(QSize(qMin(480, centralWidget()->width() - 20),
+                              qMin(layout->sizeHint().height(), centralWidget()->height() - 12)));
     dialog.exec();
 }
 
@@ -5603,12 +5671,11 @@ void MainWindow::showPhoneControls() {
         // Keep the proven QK4 control widgets and signal plumbing, but present
         // them as a bottom drawer.  The live VFO/filter/status area remains
         // visible above the drawer while the operator changes the radio.
-        m_phoneControlsDialog = new QDialog(this);
-        m_phoneControlsDialog->setWindowTitle("K4 Controls");
-        m_phoneControlsDialog->setModal(false);
-        m_phoneControlsDialog->setWindowFlag(Qt::FramelessWindowHint, true);
+        m_phoneControlsDialog = new QWidget(this);
+        m_phoneControlsDialog->setObjectName("phoneControlsOverlay");
+        m_phoneControlsDialog->setAttribute(Qt::WA_StyledBackground, true);
         m_phoneControlsDialog->setStyleSheet(
-            QString("QDialog { background-color: %1; border: 1px solid %2; }")
+            QString("#phoneControlsOverlay { background-color: %1; border: 1px solid %2; }")
                 .arg(K4Styles::Colors::Background, K4Styles::Colors::BorderSelected));
 
         // A MainWindow child cannot stack above this top-level dialog.
@@ -5761,12 +5828,13 @@ void MainWindow::showPhoneControls() {
         m_rightSidePanel->setFixedWidth(bankWidth - 18);
         layout->addLayout(columns, 1);
 
-        connect(close, &QPushButton::clicked, m_phoneControlsDialog, &QDialog::hide);
+        connect(close, &QPushButton::clicked, m_phoneControlsDialog, &QWidget::hide);
     }
 
     m_phoneControlsDialog->resize(drawerWidth, qMin(drawerHeight, available.height() - 4));
-    m_phoneControlsDialog->move(available.left() + (available.width() - m_phoneControlsDialog->width()) / 2,
-                                available.bottom() - m_phoneControlsDialog->height() + 1);
+    const QPoint drawerGlobal(available.left() + (available.width() - m_phoneControlsDialog->width()) / 2,
+                              available.bottom() - m_phoneControlsDialog->height() + 1);
+    InWindowPopup::moveFromGlobal(m_phoneControlsDialog, drawerGlobal);
     m_phoneControlsDialog->show();
     // The control widgets persist between openings.  Always begin at the
     // operating controls—especially A/B AF—rather than reopening wherever a
@@ -5774,25 +5842,22 @@ void MainWindow::showPhoneControls() {
     m_leftPanelScroll->verticalScrollBar()->setValue(m_leftPanelScroll->verticalScrollBar()->minimum());
     m_rightPanelScroll->verticalScrollBar()->setValue(m_rightPanelScroll->verticalScrollBar()->minimum());
     m_phoneControlsDialog->raise();
-    m_phoneControlsDialog->activateWindow();
+    m_phoneControlsDialog->setFocus(Qt::OtherFocusReason);
 }
 
 void MainWindow::showFrequencyEntry(bool vfoB) {
-    QDialog dialog(this);
-    dialog.setWindowTitle(vfoB ? "Set VFO B Frequency" : "Set VFO A Frequency");
-    dialog.setModal(true);
-    dialog.setMinimumWidth(0);
-
-    auto *layout = new QVBoxLayout(&dialog);
+    InWindowDialog dialog(centralWidget());
+    QWidget *panel = dialog.contentWidget();
+    auto *layout = new QVBoxLayout(panel);
     layout->setContentsMargins(8, 6, 8, 8);
     layout->setSpacing(5);
 
-    auto *hint = new QLabel("Enter frequency: 7.123.123 or 7123123 Hz", &dialog);
+    auto *hint = new QLabel("Enter frequency: 7.123.123 or 7123123 Hz", panel);
     hint->setAlignment(Qt::AlignCenter);
     hint->setStyleSheet(QString("color: %1; font-size: 14px;").arg(K4Styles::Colors::TextGray));
     layout->addWidget(hint);
 
-    auto *entry = new QLineEdit(&dialog);
+    auto *entry = new QLineEdit(panel);
     entry->setReadOnly(true);
     entry->setAlignment(Qt::AlignCenter);
     auto formatFrequency = [](quint64 hertz) {
@@ -5811,8 +5876,8 @@ void MainWindow::showFrequencyEntry(bool vfoB) {
 
     auto *keypad = new QGridLayout();
     keypad->setSpacing(4);
-    auto addKey = [&dialog, keypad](const QString &text, int row, int column) {
-        auto *button = new QPushButton(text, &dialog);
+    auto addKey = [panel, keypad](const QString &text, int row, int column) {
+        auto *button = new QPushButton(text, panel);
         button->setMinimumSize(72, 34);
         button->setStyleSheet(K4Styles::menuBarButton());
         keypad->addWidget(button, row, column);
@@ -5838,17 +5903,14 @@ void MainWindow::showFrequencyEntry(bool vfoB) {
             entry->insert(".");
     });
     layout->addLayout(keypad);
-    connect(cancel, &QPushButton::clicked, &dialog, &QDialog::reject);
-    connect(set, &QPushButton::clicked, &dialog, &QDialog::accept);
+    connect(cancel, &QPushButton::clicked, &dialog, &InWindowDialog::reject);
+    connect(set, &QPushButton::clicked, &dialog, &InWindowDialog::accept);
 
-    if (QScreen *targetScreen = screen()) {
-        const QRect available = targetScreen->availableGeometry();
-        dialog.adjustSize();
-        dialog.resize(qMin(400, available.width() - 16), qMin(dialog.sizeHint().height(), available.height() - 12));
-        dialog.move(available.center() - dialog.rect().center());
-    }
+    layout->activate();
+    dialog.setPanelSize(QSize(qMin(400, centralWidget()->width() - 16),
+                              qMin(layout->sizeHint().height(), centralWidget()->height() - 12)));
 
-    if (dialog.exec() != QDialog::Accepted || !m_tcpClient->isConnected())
+    if (dialog.exec() != InWindowDialog::Accepted || !m_tcpClient->isConnected())
         return;
 
     bool ok = false;
@@ -5856,7 +5918,8 @@ void MainWindow::showFrequencyEntry(bool vfoB) {
     normalized.remove('.');
     const quint64 hertz = normalized.toULongLong(&ok);
     if (!ok || hertz < 100000 || hertz > 60000000) {
-        QMessageBox::warning(this, "Invalid frequency", "Enter a frequency from 100000 to 60000000 Hz.");
+        showInWindowMessage(centralWidget(), "Invalid frequency",
+                            "Enter a frequency from 100000 to 60000000 Hz.");
         return;
     }
 
@@ -6054,6 +6117,13 @@ void MainWindow::showEvent(QShowEvent *event) {
     QMainWindow::showEvent(event);
 }
 
+void MainWindow::resizeEvent(QResizeEvent *event) {
+    QMainWindow::resizeEvent(event);
+    if (m_radioManager && centralWidget()) {
+        m_radioManager->setGeometry(centralWidget()->rect());
+    }
+}
+
 void MainWindow::changeEvent(QEvent *event) {
     // Audio runs on its own thread now — no flush needed on minimize/restore.
     // The audio thread keeps playing smoothly; the waterfall catches up visually on restore.
@@ -6091,20 +6161,12 @@ void MainWindow::setPanadapterMode(PanadapterMode mode) {
 }
 
 void MainWindow::showMenuOverlay() {
-    // Close display popup if visible
-    if (m_displayPopup && m_displayPopup->isVisible()) {
-        m_displayPopup->hidePopup();
-    }
+    const bool wasVisible = m_menuOverlay && m_menuOverlay->isVisible();
+    closeAllPopups();
 
     // Toggle menu overlay visibility
     if (m_spectrumContainer && m_menuOverlay) {
-        if (m_menuOverlay->isVisible()) {
-            // Hide the overlay
-            m_menuOverlay->hide();
-            if (m_bottomMenuBar) {
-                m_bottomMenuBar->setMenuActive(false);
-            }
-        } else {
+        if (!wasVisible) {
             // Show the overlay
             QPoint pos = m_spectrumContainer->mapTo(this, QPoint(0, 0));
             m_menuOverlay->setGeometry(pos.x(), pos.y(), m_spectrumContainer->width(), m_spectrumContainer->height());
@@ -6207,6 +6269,12 @@ void MainWindow::toggleDisplayPopup() {
 }
 
 void MainWindow::closeAllPopups() {
+    if (m_closingTransientMenus)
+        return;
+    m_closingTransientMenus = true;
+
+    closeSecondaryPopups();
+
     // Close menu overlay
     if (m_menuOverlay && m_menuOverlay->isVisible()) {
         m_menuOverlay->hide();
@@ -6262,6 +6330,32 @@ void MainWindow::closeAllPopups() {
             m_bottomMenuBar->setTxActive(false);
         }
     }
+
+    m_closingTransientMenus = false;
+}
+
+void MainWindow::closeSecondaryPopups() {
+    const bool wasClosing = m_closingTransientMenus;
+    m_closingTransientMenus = true;
+
+    // These are all sibling overlays on Android. Closing a parent row does
+    // not implicitly hide one of its editors, so close the complete operating
+    // menu layer explicitly.
+    if (m_modePopup && m_modePopup->isVisible()) m_modePopup->hidePopup();
+    if (m_featureMenuBar && m_featureMenuBar->isVisible()) m_featureMenuBar->hideMenu();
+    if (m_mainRxAntCfgPopup && m_mainRxAntCfgPopup->isVisible()) m_mainRxAntCfgPopup->hidePopup();
+    if (m_subRxAntCfgPopup && m_subRxAntCfgPopup->isVisible()) m_subRxAntCfgPopup->hidePopup();
+    if (m_txAntCfgPopup && m_txAntCfgPopup->isVisible()) m_txAntCfgPopup->hidePopup();
+    if (m_rxEqPopup && m_rxEqPopup->isVisible()) m_rxEqPopup->hidePopup();
+    if (m_txEqPopup && m_txEqPopup->isVisible()) m_txEqPopup->hidePopup();
+    if (m_lineOutPopup && m_lineOutPopup->isVisible()) m_lineOutPopup->hidePopup();
+    if (m_lineInPopup && m_lineInPopup->isVisible()) m_lineInPopup->hidePopup();
+    if (m_micInputPopup && m_micInputPopup->isVisible()) m_micInputPopup->hidePopup();
+    if (m_micConfigPopup && m_micConfigPopup->isVisible()) m_micConfigPopup->hidePopup();
+    if (m_voxPopup && m_voxPopup->isVisible()) m_voxPopup->hidePopup();
+    if (m_ssbBwPopup && m_ssbBwPopup->isVisible()) m_ssbBwPopup->hidePopup();
+
+    m_closingTransientMenus = wasClosing;
 }
 
 void MainWindow::toggleBandPopup() {
@@ -6592,17 +6686,20 @@ void MainWindow::onMainRxButtonClicked(int index) {
     switch (index) {
     case 0: // ANT CFG - show Main RX antenna config popup
         if (m_mainRxAntCfgPopup && m_mainRxPopup) {
+            closeSecondaryPopups();
             m_mainRxAntCfgPopup->showAboveWidget(m_mainRxPopup);
         }
         break;
     case 1: // RX EQ - show graphic equalizer popup
         if (m_rxEqPopup && m_mainRxPopup) {
             // Show EQ popup above the MAIN RX popup (keep both visible)
+            closeSecondaryPopups();
             m_rxEqPopup->showAboveWidget(m_mainRxPopup);
         }
         break;
     case 2: // LINE OUT - show Line Out popup
         if (m_lineOutPopup && m_mainRxPopup) {
+            closeSecondaryPopups();
             m_lineOutPopup->showAboveWidget(m_mainRxPopup);
         }
         break;
@@ -6690,16 +6787,19 @@ void MainWindow::onSubRxButtonClicked(int index) {
     switch (index) {
     case 0: // ANT CFG - show Sub RX antenna config popup
         if (m_subRxAntCfgPopup && m_subRxPopup) {
+            closeSecondaryPopups();
             m_subRxAntCfgPopup->showAboveWidget(m_subRxPopup);
         }
         break;
     case 1: // RX EQ - show graphic equalizer popup (shares same EQ as Main RX)
         if (m_rxEqPopup && m_subRxPopup) {
+            closeSecondaryPopups();
             m_rxEqPopup->showAboveWidget(m_subRxPopup);
         }
         break;
     case 2: // LINE OUT - show Line Out popup
         if (m_lineOutPopup && m_subRxPopup) {
+            closeSecondaryPopups();
             m_lineOutPopup->showAboveWidget(m_subRxPopup);
         }
         break;

@@ -1,5 +1,6 @@
 #include "k4popupbase.h"
 #include "k4styles.h"
+#include "inwindowpopup.h"
 #include <QApplication>
 #include <QHideEvent>
 #include <QKeyEvent>
@@ -7,9 +8,7 @@
 #include <QScreen>
 
 K4PopupBase::K4PopupBase(QWidget *parent) : QWidget(parent) {
-    setWindowFlags(Qt::Popup | Qt::FramelessWindowHint);
-    setAttribute(Qt::WA_TranslucentBackground);
-    setFocusPolicy(Qt::StrongFocus);
+    InWindowPopup::configure(this);
 }
 
 QMargins K4PopupBase::contentMargins() const {
@@ -86,9 +85,11 @@ void K4PopupBase::showAboveWidget(QWidget *referenceWidget) {
     }
 
     // Position the popup - move after show to override Qt's popup positioning
-    move(popupX, popupY);
+    InWindowPopup::moveFromGlobal(this, QPoint(popupX, popupY));
     show();
+#ifndef Q_OS_ANDROID
     move(popupX, popupY); // Move again after show in case Qt repositioned it
+#endif
     raise();
     setFocus();
 }

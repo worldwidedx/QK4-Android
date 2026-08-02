@@ -1,5 +1,6 @@
 #include "ssbbwpopup.h"
 #include "k4styles.h"
+#include "inwindowpopup.h"
 #include <QApplication>
 #include <QHBoxLayout>
 #include <QHideEvent>
@@ -21,9 +22,7 @@ const int TitleWidth = 180; // "SSB TX BANDWIDTH" or "ESSB TX BANDWIDTH"
 } // namespace
 
 SsbBwPopupWidget::SsbBwPopupWidget(QWidget *parent) : QWidget(parent) {
-    setWindowFlags(Qt::Popup | Qt::FramelessWindowHint);
-    setAttribute(Qt::WA_TranslucentBackground);
-    setFocusPolicy(Qt::StrongFocus);
+    InWindowPopup::configure(this);
     setupUi();
     hide();
 }
@@ -98,7 +97,7 @@ void SsbBwPopupWidget::setupUi() {
 
     connect(m_incrementBtn, &QPushButton::clicked, this, [this]() { adjustValue(1); });
 
-    connect(m_closeBtn, &QPushButton::clicked, this, &SsbBwPopupWidget::hidePopup);
+    connect(m_closeBtn, &QPushButton::clicked, this, &SsbBwPopupWidget::doneRequested);
 
     updateTitle();
     updateValueDisplay();
@@ -165,7 +164,7 @@ void SsbBwPopupWidget::showAboveWidget(QWidget *referenceWidget) {
         popupY = refGlobal.y() + referenceWidget->height() + 4 - K4Styles::Dimensions::ShadowMargin;
     }
 
-    move(popupX, popupY);
+    InWindowPopup::moveFromGlobal(this, QPoint(popupX, popupY));
     show();
     setFocus();
     update();

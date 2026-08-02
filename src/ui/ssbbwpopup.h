@@ -22,6 +22,7 @@ public:
 
 signals:
     void bandwidthChanged(int bw);
+    void doneRequested();
     void closed();
 
 protected:

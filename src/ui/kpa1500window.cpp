@@ -17,8 +17,13 @@ const int CloseButtonSize = 20;
 } // namespace
 
 KPA1500Window::KPA1500Window(QWidget *parent)
+#ifdef Q_OS_ANDROID
+    : QWidget(parent) {
+    setAttribute(Qt::WA_StyledBackground, true);
+#else
     : QWidget(parent, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint) {
     setAttribute(Qt::WA_TranslucentBackground);
+#endif
     setupUi();
     restorePosition();
 }
@@ -109,14 +114,23 @@ QRect KPA1500Window::titleBarRect() const {
 void KPA1500Window::mousePressEvent(QMouseEvent *event) {
     if (event->button() == Qt::LeftButton && titleBarRect().contains(event->pos())) {
         m_dragging = true;
+#ifdef Q_OS_ANDROID
+        m_dragPosition = event->position().toPoint();
+#else
         m_dragPosition = event->globalPosition().toPoint() - frameGeometry().topLeft();
+#endif
     }
     QWidget::mousePressEvent(event);
 }
 
 void KPA1500Window::mouseMoveEvent(QMouseEvent *event) {
     if (m_dragging) {
+#ifdef Q_OS_ANDROID
+        const QPoint parentPoint = parentWidget()->mapFromGlobal(event->globalPosition().toPoint());
+        move(parentPoint - m_dragPosition);
+#else
         move(event->globalPosition().toPoint() - m_dragPosition);
+#endif
     } else {
         // Update cursor for title bar
         if (titleBarRect().contains(event->pos())) {

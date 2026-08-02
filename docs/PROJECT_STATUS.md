@@ -4,14 +4,15 @@ Last updated: 2026-08-01
 
 ## Released build
 
-**QK4 Mobile v0.7.1** is released as a public GitHub ARM64 APK and is signed
+**QK4 Mobile v0.7.2** is released as a public GitHub ARM64 APK and is signed
 with the permanent QK4 Mobile release certificate. It is installed and accepted
 by Android on the development phone. The product package is
 `com.ai5qk.qk4phone`, with Android API 26 minimum and API 34 target.
 
-Version 0.7.1 removes the app-owned case conversion from connection-profile
-inputs. Android keyboards now control Shift and case normally for Name,
-Host/IP, Password, and TLS Identity fields.
+Version 0.7.2 retains the v0.7.1 connection-profile case correction and moves
+Android transient dialogs and menus into the live application window. This
+avoids Android 17/Pixel crashes associated with separate Qt popup windows
+without changing K4 connection, control, audio, or panadapter plumbing.
 
 The only physical UI acceptance device so far is a Samsung Galaxy S26 Ultra in
 landscape. The compact layout is selected from logical dimensions, density, and
@@ -27,6 +28,9 @@ physical screen size; broader device validation is still required.
   user-adjustable waterfall height.
 - Phone-oriented Control, TX, DISP, FN, Main RX, and Sub RX touch menus;
   touch-safe scrolling and long-press alternate actions.
+- TX secondary editors dismiss with their parent menu after confirmation; the
+  right CTRL-bank REV control is guarded against accidental activation while
+  vertically scrolling.
 - AF controls for main/sub receiver; relevant slider controls and mode-aware
   filter shift/bandwidth ranges.
 - RIT/XIT activation and long-press jog control.

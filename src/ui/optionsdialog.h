@@ -2,6 +2,7 @@
 #define OPTIONSDIALOG_H
 
 #include <QDialog>
+#include <QWidget>
 #include <QListWidget>
 #include <QStackedWidget>
 #include <QLabel>
@@ -20,7 +21,13 @@ class KpodDevice;
 class CatServer;
 class HalikeyDevice;
 
-class OptionsDialog : public QDialog {
+#ifdef Q_OS_ANDROID
+using OptionsDialogBase = QWidget;
+#else
+using OptionsDialogBase = QDialog;
+#endif
+
+class OptionsDialog : public OptionsDialogBase {
     Q_OBJECT
 
 public:

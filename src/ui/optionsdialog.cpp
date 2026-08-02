@@ -1,6 +1,7 @@
 #include "optionsdialog.h"
 #include "k4styles.h"
 #include "micmeterwidget.h"
+#include "inwindowdialog.h"
 #include "../models/radiostate.h"
 #include "../hardware/kpoddevice.h"
 #include "../hardware/halikeydevice.h"
@@ -20,7 +21,6 @@
 #include <QPushButton>
 #include <QApplication>
 #include <QSignalBlocker>
-#include <QMessageBox>
 #include <QPointer>
 #ifdef Q_OS_ANDROID
 #include <QPermissions>
@@ -30,14 +30,19 @@
 
 OptionsDialog::OptionsDialog(RadioState *radioState, AudioEngine *audioEngine, KpodDevice *kpodDevice,
                              CatServer *catServer, HalikeyDevice *halikeyDevice, QWidget *parent)
-    : QDialog(parent), m_radioState(radioState), m_audioEngine(audioEngine), m_kpodDevice(kpodDevice),
+    : OptionsDialogBase(parent), m_radioState(radioState), m_audioEngine(audioEngine), m_kpodDevice(kpodDevice),
       m_catServer(catServer), m_halikeyDevice(halikeyDevice), m_micDeviceCombo(nullptr), m_micGainSlider(nullptr),
       m_micGainValueLabel(nullptr), m_micTestBtn(nullptr), m_micMeter(nullptr), m_speakerDeviceCombo(nullptr),
       m_catServerEnableCheckbox(nullptr), m_catServerPortEdit(nullptr), m_catServerStatusLabel(nullptr),
       m_catServerClientsLabel(nullptr), m_cwKeyerDeviceTypeCombo(nullptr), m_cwKeyerDescLabel(nullptr),
       m_cwKeyerPortCombo(nullptr), m_cwKeyerRefreshBtn(nullptr), m_cwKeyerConnectBtn(nullptr),
       m_cwKeyerStatusLabel(nullptr) {
+#ifndef Q_OS_ANDROID
     setWindowModality(Qt::ApplicationModal);
+#else
+    setObjectName("optionsOverlay");
+    setAttribute(Qt::WA_StyledBackground, true);
+#endif
     setupUi();
 
     // Connect to KPOD device signals for real-time status updates
@@ -70,11 +75,15 @@ OptionsDialog::~OptionsDialog() {
 
 void OptionsDialog::setupUi() {
     setWindowTitle("Options");
+#ifdef Q_OS_ANDROID
+    setMinimumSize(0, 0);
+#else
     setMinimumSize(700, 550);
     resize(800, 650);
+#endif
 
     // Dark theme styling
-    setStyleSheet(QString("QDialog { background-color: %1; }"
+    setStyleSheet(QString("QDialog, QWidget#optionsOverlay { background-color: %1; }"
                           "QLabel { color: %2; }"
                           "QListWidget { background-color: %3; color: %2; border: 1px solid %4; "
                           "             font-size: %6px; outline: none; }"
@@ -86,7 +95,27 @@ void OptionsDialog::setupUi() {
                       .arg(K4Styles::Dimensions::FontSizePopup)
                       .arg(K4Styles::Colors::GradientBottom));
 
+#ifdef Q_OS_ANDROID
+    auto *outerLayout = new QVBoxLayout(this);
+    outerLayout->setContentsMargins(6, 4, 6, 6);
+    outerLayout->setSpacing(4);
+    auto *header = new QHBoxLayout();
+    auto *title = new QLabel("QK4 SETTINGS", this);
+    title->setStyleSheet(QString("color: %1; font-size: 16px; font-weight: bold;")
+                             .arg(K4Styles::Colors::AccentAmber));
+    auto *close = new QPushButton("RETURN TO OPERATE", this);
+    close->setMinimumHeight(30);
+    close->setStyleSheet(K4Styles::menuBarButton());
+    connect(close, &QPushButton::clicked, this, &QWidget::hide);
+    header->addWidget(title);
+    header->addStretch(1);
+    header->addWidget(close);
+    outerLayout->addLayout(header);
+    auto *mainLayout = new QHBoxLayout();
+    outerLayout->addLayout(mainLayout, 1);
+#else
     auto *mainLayout = new QHBoxLayout(this);
+#endif
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(0);
 
@@ -152,7 +181,7 @@ void OptionsDialog::ensurePageCreated(int index) {
 }
 
 void OptionsDialog::showEvent(QShowEvent *event) {
-    QDialog::showEvent(event);
+    OptionsDialogBase::showEvent(event);
     refreshCurrentPage();
 }
 
@@ -166,7 +195,7 @@ void OptionsDialog::hideEvent(QHideEvent *event) {
         if (m_micMeter)
             m_micMeter->setLevel(0.0f);
     }
-    QDialog::hideEvent(event);
+    OptionsDialogBase::hideEvent(event);
 }
 
 void OptionsDialog::refreshCurrentPage() {
@@ -793,8 +822,8 @@ void OptionsDialog::onMicTestToggled(bool checked) {
             QPointer<OptionsDialog> safeThis(this);
             qApp->requestPermission(permission, this, [safeThis](const QPermission &result) {
                 if (result.status() == Qt::PermissionStatus::Denied && safeThis) {
-                    QMessageBox::warning(safeThis, "Microphone Permission Required",
-                                         "Grant microphone permission to use microphone test.");
+                    showInWindowMessage(safeThis, "Microphone Permission Required",
+                                        "Grant microphone permission to use microphone test.");
                 }
             });
             if (m_micTestBtn) {
@@ -806,8 +835,8 @@ void OptionsDialog::onMicTestToggled(bool checked) {
         }
 
         if (status == Qt::PermissionStatus::Denied) {
-            QMessageBox::warning(this, "Microphone Permission Required",
-                                 "Microphone permission is currently denied. Enable it in Android Settings.");
+            showInWindowMessage(this, "Microphone Permission Required",
+                                "Microphone permission is currently denied. Enable it in Android Settings.");
             if (m_micTestBtn) {
                 QSignalBlocker block(m_micTestBtn);
                 m_micTestBtn->setChecked(false);

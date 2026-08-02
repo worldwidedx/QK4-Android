@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(QK4 VERSION 0.7.1 LANGUAGES CXX)
+project(QK4 VERSION 0.7.2 LANGUAGES CXX)
 
 # Optional override paths for Opus when cross-compiling (primarily Android)
 set(QK4_OPUS_INCLUDE_DIR "" CACHE PATH "Directory containing opus/opus.h for the target platform")
@@ -180,6 +180,7 @@ set(SOURCES
     src/ui/buttonrowpopup.cpp
     src/ui/displaypopupwidget.cpp
     src/ui/optionsdialog.cpp
+    src/ui/inwindowdialog.cpp
     src/ui/rightsidepanel.cpp
     src/ui/featuremenubar.cpp
     src/ui/modepopupwidget.cpp
@@ -270,6 +271,8 @@ set(HEADERS
     src/ui/notificationwidget.h
     src/ui/k4styles.h
     src/ui/k4popupbase.h
+    src/ui/inwindowpopup.h
+    src/ui/inwindowdialog.h
     src/ui/kpa1500panel.h
     src/ui/kpa1500window.h
     src/ui/sidecontroloverlay.h

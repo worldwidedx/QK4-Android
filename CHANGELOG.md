@@ -11,6 +11,20 @@ but upstream QK4 history is intentionally not repeated here.
 - Use **Added**, **Changed**, **Fixed**, and **Known limitations** as needed.
 - Do not list unverified radio behavior as fixed.
 
+## [0.7.2] - 2026-08-01
+
+### Fixed
+
+- Reworked Android transient dialogs and menus as in-window overlays. This
+  prevents the Android 17/Pixel crash caused by opening a separate Qt window
+  from the live GPU-rendered radio console, while retaining the panadapter,
+  TCP/TLS connection, radio control, and TX/RX audio paths.
+- Closing or switching a primary phone menu now also dismisses its related
+  secondary editor. In particular, confirming SSB bandwidth from TX closes the
+  bandwidth editor and TX menu together, retaining the selected setting.
+- Right CTRL-bank scrolling now suppresses accidental REV activation. An
+  intentional tap or hold retains the original momentary REV behavior.
+
 ## [0.7.1] - 2026-08-01
 
 ### Fixed

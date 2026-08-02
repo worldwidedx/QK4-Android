@@ -1,5 +1,6 @@
 #include "lineoutpopup.h"
 #include "k4styles.h"
+#include "inwindowpopup.h"
 #include <QHBoxLayout>
 #include <QPainter>
 #include <QApplication>
@@ -14,9 +15,7 @@ const int ContentMargin = 12;
 } // namespace
 
 LineOutPopupWidget::LineOutPopupWidget(QWidget *parent) : QWidget(parent) {
-    setWindowFlags(Qt::Popup | Qt::FramelessWindowHint);
-    setAttribute(Qt::WA_TranslucentBackground);
-    setFocusPolicy(Qt::StrongFocus);
+    InWindowPopup::configure(this);
     setupUi();
     hide();
 }
@@ -236,7 +235,7 @@ void LineOutPopupWidget::showAboveWidget(QWidget *referenceWidget) {
         popupY = refGlobal.y() + referenceWidget->height() + 4 - K4Styles::Dimensions::ShadowMargin;
     }
 
-    move(popupX, popupY);
+    InWindowPopup::moveFromGlobal(this, QPoint(popupX, popupY));
     show();
     setFocus();
     update();

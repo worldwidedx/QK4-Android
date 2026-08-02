@@ -132,11 +132,17 @@ private:
     // Qt maps a desktop secondary action to a right click. Android has no
     // such gesture, so a held touch triggers the same alternate action.
     QTimer *m_longPressTimer = nullptr;
+    // REV is a momentary primary-only control.  Delay its press just long
+    // enough for the enclosing CTRL bank to recognize a vertical scroll.
+    QTimer *m_revPressTimer = nullptr;
     QObject *m_longPressTarget = nullptr;
     bool m_longPressHandled = false;
     bool m_suppressNextRelease = false;
     QPoint m_pressPosition;
     bool m_dragging = false;
+    bool m_revPressPending = false;
+    bool m_revActive = false;
+    bool m_revDragging = false;
 };
 
 #endif // RIGHTSIDEPANEL_H

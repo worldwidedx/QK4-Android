@@ -75,10 +75,12 @@ void VfoRowWidget::setLockB(bool locked) {
 void VfoRowWidget::setupWidgets() {
     // No layout manager - we use absolute positioning
     // All containers are children of this widget
+    constexpr int touchPadding = 8;
+    const int vfoTapWidth = K4Styles::Dimensions::VfoSquareSize + touchPadding * 2;
 
     // === VFO A Container (square + mode label) ===
     m_vfoAContainer = new QWidget(this);
-    m_vfoAContainer->setFixedWidth(K4Styles::Dimensions::VfoSquareSize);
+    m_vfoAContainer->setFixedSize(vfoTapWidth, K4Styles::Dimensions::VfoRowHeight);
     auto *vfoAColumn = new QVBoxLayout(m_vfoAContainer);
     vfoAColumn->setContentsMargins(0, 0, 0, 0);
     vfoAColumn->setSpacing(2);
@@ -94,6 +96,13 @@ void VfoRowWidget::setupWidgets() {
                                     .arg(K4Styles::Colors::TextWhite)
                                     .arg(K4Styles::Dimensions::FontSizeLarge));
     vfoAColumn->addWidget(m_modeALabel, 0, Qt::AlignHCenter);
+
+    // The visual controls remain their original size. This transparent layer
+    // catches taps just outside them, giving the phone a forgiving VFO A mode
+    // target without extending toward the central TX selector.
+    m_vfoAHitZone = new QWidget(m_vfoAContainer);
+    m_vfoAHitZone->setGeometry(m_vfoAContainer->rect());
+    m_vfoAHitZone->lower();
 
     // === TX Container (TEST label + triangles + TX) ===
     m_txContainer = new QWidget(this);
@@ -138,7 +147,7 @@ void VfoRowWidget::setupWidgets() {
 
     // === VFO B Container (square + mode label) ===
     m_vfoBContainer = new QWidget(this);
-    m_vfoBContainer->setFixedWidth(K4Styles::Dimensions::VfoSquareSize);
+    m_vfoBContainer->setFixedSize(vfoTapWidth, K4Styles::Dimensions::VfoRowHeight);
     auto *vfoBColumn = new QVBoxLayout(m_vfoBContainer);
     vfoBColumn->setContentsMargins(0, 0, 0, 0);
     vfoBColumn->setSpacing(2);
@@ -154,6 +163,11 @@ void VfoRowWidget::setupWidgets() {
                                     .arg(K4Styles::Colors::TextWhite)
                                     .arg(K4Styles::Dimensions::FontSizeLarge));
     vfoBColumn->addWidget(m_modeBLabel, 0, Qt::AlignHCenter);
+
+    // See VFO A above. The B hit zone is separate so it cannot overlap TX.
+    m_vfoBHitZone = new QWidget(m_vfoBContainer);
+    m_vfoBHitZone->setGeometry(m_vfoBContainer->rect());
+    m_vfoBHitZone->lower();
 
     // === SUB/DIV Container ===
     m_subDivContainer = new QWidget(this);

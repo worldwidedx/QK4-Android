@@ -1,10 +1,10 @@
 # Project status
 
-Last updated: 2026-08-02
+Last updated: 2026-08-03
 
 ## Released build
 
-**QK4 Mobile v0.7.4** is released as a public GitHub ARM64 APK and is signed
+**QK4 Mobile v0.7.5** is released as a public GitHub ARM64 APK and is signed
 with the permanent QK4 Mobile release certificate. It is installed and accepted
 by Android on the development phone. The product package is
 `com.ai5qk.qk4phone`, with Android API 26 minimum and API 34 target.
@@ -13,6 +13,13 @@ Version 0.7.4 adds an **experimental** in-window TX input shield. During a
 phone-initiated transmit state, it blocks all other console touch input while
 leaving the red TX ON control available to return to RX. It is UI-only and
 does not alter K4 PTT, CAT, microphone, or audio-stream behavior.
+
+Version 0.7.5 adds Android spectrum-renderer compatibility for devices that
+could render waterfall data while omitting the normal spectrum trace. It also
+adds touch-first B SET cancellation, receiver-specific filter cycling from the
+displayed filter shapes, and more forgiving A/B MODE touch targets. The normal
+spectrum renderer remains the only rendering path changed; waterfall, K4
+protocol, audio, and PTT behavior are unchanged.
 
 The only physical UI acceptance device so far is a Samsung Galaxy S26 Ultra in
 landscape. The compact layout is selected from logical dimensions, density, and

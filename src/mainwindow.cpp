@@ -3291,7 +3291,6 @@ void MainWindow::setupUi() {
         if (m_modePopup->isVisible()) {
             m_modePopup->hidePopup();
         } else {
-            showControlFeedback("MODE controls opened");
             // Update current state before showing - use A or B based on B SET
             bool bSet = m_radioState->bSetEnabled();
             if (bSet) {
@@ -3773,6 +3772,8 @@ void MainWindow::setupVfoSection(QWidget *parent) {
     m_vfoBSquare->installEventFilter(this);
     m_modeALabel->installEventFilter(this);
     m_modeBLabel->installEventFilter(this);
+    m_vfoRow->vfoAHitZone()->installEventFilter(this);
+    m_vfoRow->vfoBHitZone()->installEventFilter(this);
 
     // SPLIT indicator
     m_splitLabel = new QLabel("SPLIT OFF", centerWidget);
@@ -3792,6 +3793,10 @@ void MainWindow::setupVfoSection(QWidget *parent) {
                                        "padding: 2px 8px;")
                                    .arg(K4Styles::Colors::StatusGreen)
                                    .arg(K4Styles::Dimensions::FontSizeButton));
+    // The indicator is an off-only shortcut. Activating B SET remains a CTRL
+    // panel action so the nearby TX transmit-VFO selector keeps its own target.
+    m_bSetLabel->setCursor(Qt::PointingHandCursor);
+    m_bSetLabel->installEventFilter(this);
     m_bSetLabel->setVisible(false);
     centerLayout->addWidget(m_bSetLabel, 0, Qt::AlignHCenter);
 
@@ -3869,6 +3874,8 @@ void MainWindow::setupVfoSection(QWidget *parent) {
     // VFO A filter indicator (left side, cyan #00BFFF to match VFO A square/slider)
     m_filterAWidget = new FilterIndicatorWidget(centerWidget);
     m_filterAWidget->setShapeColor(QColor(0x00, 0xBF, 0xFF), QColor(0x00, 0xBF, 0xFF)); // Cyan solid
+    m_filterAWidget->setCursor(Qt::PointingHandCursor);
+    m_filterAWidget->installEventFilter(this);
     filterRitXitRow->addWidget(m_filterAWidget);
     filterRitXitRow->addStretch();
 
@@ -3880,6 +3887,8 @@ void MainWindow::setupVfoSection(QWidget *parent) {
     // VFO B filter indicator (right side, green #00FF00 to match VFO B square/slider)
     m_filterBWidget = new FilterIndicatorWidget(centerWidget);
     m_filterBWidget->setShapeColor(QColor(0x00, 0xFF, 0x00), QColor(0x00, 0xFF, 0x00)); // Green solid
+    m_filterBWidget->setCursor(Qt::PointingHandCursor);
+    m_filterBWidget->installEventFilter(this);
     filterRitXitRow->addWidget(m_filterBWidget);
 
     centerLayout->addLayout(filterRitXitRow);
@@ -6023,6 +6032,37 @@ void MainWindow::onPttReleased() {
 }
 
 bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
+    // Match the K4 console: tapping either displayed filter shape selects the
+    // next smaller filter setting: FIL1 -> FIL3 -> FIL2 -> FIL1.
+    if ((watched == m_filterAWidget || watched == m_filterBWidget)
+        && event->type() == QEvent::MouseButtonPress) {
+        auto *mouseEvent = static_cast<QMouseEvent *>(event);
+        if (mouseEvent->button() == Qt::LeftButton && m_tcpClient && m_tcpClient->isConnected()) {
+            const bool isSub = watched == m_filterBWidget;
+            const int current = isSub ? m_radioState->filterPositionB() : m_radioState->filterPosition();
+            const int next = current >= 1 && current <= 3 ? (current == 1 ? 3 : current - 1) : 3;
+            const QString command = QString("FP%1%2;").arg(isSub ? "$" : "").arg(next);
+            m_tcpClient->sendCAT(command);
+            // The K4 does not reliably echo an FP set immediately. Update
+            // the normal state model now so the next tap advances again and
+            // the existing position signal refreshes the FIL label.
+            m_radioState->parseCATCommand(command);
+        }
+        return true;
+    }
+
+    // B SET can only be enabled from CTRL. When it is already active, tapping
+    // its separate on-screen indicator is a quick way to return to VFO A.
+    if (watched == m_bSetLabel && event->type() == QEvent::MouseButtonPress) {
+        auto *mouseEvent = static_cast<QMouseEvent *>(event);
+        if (mouseEvent->button() == Qt::LeftButton && m_tcpClient && m_tcpClient->isConnected()
+            && m_radioState->bSetEnabled()) {
+            queueControlFeedback("BSET", "B SET changed");
+            m_tcpClient->sendCAT("SW44;");
+        }
+        return true;
+    }
+
     // Match main QK4: tapping the central TX label switches the transmit VFO
     // (SPLIT OFF = VFO A TX, SPLIT ON = VFO B TX).  PTT remains separate.
     if (watched == m_txIndicator && event->type() == QEvent::MouseButtonPress) {
@@ -6034,7 +6074,8 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
     }
 
     // Handle clicks on VFO A square/mode label -> open mode popup for VFO A
-    if ((watched == m_vfoASquare || watched == m_modeALabel) && event->type() == QEvent::MouseButtonPress) {
+    if ((watched == m_vfoASquare || watched == m_modeALabel || watched == m_vfoRow->vfoAHitZone())
+        && event->type() == QEvent::MouseButtonPress) {
         // Toggle popup - close if open, otherwise show for VFO A
         if (m_modePopup->isVisible()) {
             m_modePopup->hidePopup();
@@ -6049,7 +6090,8 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
     }
 
     // Handle clicks on VFO B square/mode label -> open mode popup for VFO B
-    if ((watched == m_vfoBSquare || watched == m_modeBLabel) && event->type() == QEvent::MouseButtonPress) {
+    if ((watched == m_vfoBSquare || watched == m_modeBLabel || watched == m_vfoRow->vfoBHitZone())
+        && event->type() == QEvent::MouseButtonPress) {
         // Toggle popup - close if open, otherwise show for VFO B
         if (m_modePopup->isVisible()) {
             m_modePopup->hidePopup();

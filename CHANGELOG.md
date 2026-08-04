@@ -11,14 +11,26 @@ but upstream QK4 history is intentionally not repeated here.
 - Use **Added**, **Changed**, **Fixed**, and **Known limitations** as needed.
 - Do not list unverified radio behavior as fixed.
 
-## [0.7.5] - Unreleased
+## [0.7.5] - 2026-08-03
 
-### Changed
+### Fixed
 
 - Android spectrum-renderer compatibility: use a universally supported RGBA8
   normalized spectrum texture on Android, while preserving QK4's R32F desktop
   renderer unchanged. This targets devices that render waterfall data but omit
   the normal spectrum trace.
+
+### Improved touch operation
+
+- Tap the green on-screen **B SET** indicator to turn B SET off quickly. B
+  SET remains enabled only from CTRL to avoid accidental activation.
+- Tap either displayed filter shape to cycle that receiver's setting like the
+  K4 console: **FIL1 → FIL3 → FIL2 → FIL1**. The visible FIL label updates
+  immediately; no redundant feedback popup is shown.
+- Expanded the A and B VFO/mode touch targets without extending either one
+  toward the central TX selector. Tapping the colored VFO block, its mode
+  label, or a small outer/bottom margin opens that receiver's MODE popup.
+- Removed the redundant “MODE controls opened” feedback flash from CTRL MODE.
 
 ## [0.7.4] - 2026-08-02
 

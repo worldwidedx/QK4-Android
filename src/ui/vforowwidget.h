@@ -52,6 +52,8 @@ public:
     VfoSquareWidget *vfoBSquare() const { return m_vfoBSquare; }
     QLabel *modeALabel() const { return m_modeALabel; }
     QLabel *modeBLabel() const { return m_modeBLabel; }
+    QWidget *vfoAHitZone() const { return m_vfoAHitZone; }
+    QWidget *vfoBHitZone() const { return m_vfoBHitZone; }
     QLabel *txIndicator() const { return m_txIndicator; }
     QLabel *txTriangle() const { return m_txTriangle; }
     QLabel *txTriangleB() const { return m_txTriangleB; }
@@ -78,6 +80,8 @@ private:
     // Labels within containers
     QLabel *m_modeALabel;
     QLabel *m_modeBLabel;
+    QWidget *m_vfoAHitZone;
+    QWidget *m_vfoBHitZone;
     QLabel *m_txIndicator;
     QLabel *m_txTriangle;
     QLabel *m_txTriangleB;

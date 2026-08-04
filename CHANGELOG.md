@@ -11,6 +11,15 @@ but upstream QK4 history is intentionally not repeated here.
 - Use **Added**, **Changed**, **Fixed**, and **Known limitations** as needed.
 - Do not list unverified radio behavior as fixed.
 
+## [0.7.5] - Unreleased
+
+### Changed
+
+- Android spectrum-renderer compatibility: use a universally supported RGBA8
+  normalized spectrum texture on Android, while preserving QK4's R32F desktop
+  renderer unchanged. This targets devices that render waterfall data but omit
+  the normal spectrum trace.
+
 ## [0.7.4] - 2026-08-02
 
 ### Added

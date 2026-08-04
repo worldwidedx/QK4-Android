@@ -500,8 +500,14 @@ void PanadapterRhiWidget::initialize(QRhiCommandBuffer *cb) {
     m_colorLutTexture.reset(m_rhi->newTexture(QRhiTexture::RGBA8, QSize(256, 1)));
     m_colorLutTexture->create();
 
-    // Create spectrum data texture (1D texture for fragment shader spectrum)
+    // Android GPU drivers do not consistently support linearly filtered R32F
+    // textures. RGBA8 is universally supported by QRhi and preserves the
+    // normalized 0..1 value sampled from the red component by the shader.
+#ifdef Q_OS_ANDROID
+    m_spectrumDataTexture.reset(m_rhi->newTexture(QRhiTexture::RGBA8, QSize(m_textureWidth, 1)));
+#else
     m_spectrumDataTexture.reset(m_rhi->newTexture(QRhiTexture::R32F, QSize(m_textureWidth, 1)));
+#endif
     m_spectrumDataTexture->create();
 
     // Create spectrum color LUT texture (256x1 RGBA) - for BlueAmplitude style
@@ -851,15 +857,31 @@ void PanadapterRhiWidget::render(QRhiCommandBuffer *cb) {
         int specSize = m_currentSpectrum.size();
         int offset = (m_textureWidth - specSize) / 2;
 
-        QVector<float> normalizedSpectrum(m_textureWidth, 0.0f); // Initialize to zero
+        // The Android path uses a universally supported normalized RGBA8
+        // texture. Desktop keeps QK4's original R32F upload unchanged.
+#ifdef Q_OS_ANDROID
+        QByteArray normalizedSpectrum(m_textureWidth * 4, '\0');
+#else
+        QVector<float> normalizedSpectrum(m_textureWidth, 0.0f);
+#endif
         for (int i = 0; i < specSize; ++i) {
             float normalized = normalizeDb(m_currentSpectrum[i]);
             float adjusted = qMax(0.0f, normalized - m_smoothedBaseline);
+#ifdef Q_OS_ANDROID
+            const int pixelOffset = (offset + i) * 4;
+            normalizedSpectrum[pixelOffset] = static_cast<char>(qRound(qBound(0.0f, adjusted * 0.95f, 1.0f) * 255.0f));
+            normalizedSpectrum[pixelOffset + 3] = static_cast<char>(255);
+#else
             normalizedSpectrum[offset + i] = adjusted * 0.95f;
+#endif
         }
 
+#ifdef Q_OS_ANDROID
+        QRhiTextureSubresourceUploadDescription specDataUpload(normalizedSpectrum.constData(), normalizedSpectrum.size());
+#else
         QRhiTextureSubresourceUploadDescription specDataUpload(normalizedSpectrum.constData(),
                                                                normalizedSpectrum.size() * sizeof(float));
+#endif
         specDataUpload.setSourceSize(QSize(m_textureWidth, 1));
         rub->uploadTexture(m_spectrumDataTexture.get(), QRhiTextureUploadEntry(0, 0, specDataUpload));
 

@@ -1,10 +1,10 @@
 # Project status
 
-Last updated: 2026-08-03
+Last updated: 2026-08-04
 
 ## Released build
 
-**QK4 Mobile v0.7.5** is released as a public GitHub ARM64 APK and is signed
+**QK4 Mobile v0.7.5.1** is released as a public GitHub ARM64 APK and is signed
 with the permanent QK4 Mobile release certificate. It is installed and accepted
 by Android on the development phone. The product package is
 `com.ai5qk.qk4phone`, with Android API 26 minimum and API 34 target.
@@ -60,7 +60,11 @@ physical screen size; broader device validation is still required.
   and Play App Signing.
 - DR+ indication remains deferred until its source/state semantics are proven.
 - Peak Hold is intentionally local: K4 stream data does not provide a rendered
-  radio peak trace. WTR CLRS is local too; do not conflate it with `#WFC`.
+radio peak trace. WTR CLRS is local too; do not conflate it with `#WFC`.
+
+Version 0.7.5.1 restores the original A/B VFO mode-control geometry. The
+v0.7.5 extra touch padding pushed the SUB/DIV badges toward the VFO B frequency
+and meter display on some layouts; this point release removes only that padding.
 
 ## References
 

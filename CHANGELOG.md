@@ -11,6 +11,14 @@ but upstream QK4 history is intentionally not repeated here.
 - Use **Added**, **Changed**, **Fixed**, and **Known limitations** as needed.
 - Do not list unverified radio behavior as fixed.
 
+## [0.7.5.1] - 2026-08-04
+
+### Fixed
+
+- Restored the original A/B VFO mode-control geometry by removing the extra
+  v0.7.5 touch padding. This keeps the SUB/DIV indicators clear of the VFO B
+  frequency and meter area.
+
 ## [0.7.5] - 2026-08-03
 
 ### Fixed

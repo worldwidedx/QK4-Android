@@ -3772,8 +3772,6 @@ void MainWindow::setupVfoSection(QWidget *parent) {
     m_vfoBSquare->installEventFilter(this);
     m_modeALabel->installEventFilter(this);
     m_modeBLabel->installEventFilter(this);
-    m_vfoRow->vfoAHitZone()->installEventFilter(this);
-    m_vfoRow->vfoBHitZone()->installEventFilter(this);
 
     // SPLIT indicator
     m_splitLabel = new QLabel("SPLIT OFF", centerWidget);
@@ -6074,8 +6072,7 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
     }
 
     // Handle clicks on VFO A square/mode label -> open mode popup for VFO A
-    if ((watched == m_vfoASquare || watched == m_modeALabel || watched == m_vfoRow->vfoAHitZone())
-        && event->type() == QEvent::MouseButtonPress) {
+    if ((watched == m_vfoASquare || watched == m_modeALabel) && event->type() == QEvent::MouseButtonPress) {
         // Toggle popup - close if open, otherwise show for VFO A
         if (m_modePopup->isVisible()) {
             m_modePopup->hidePopup();
@@ -6090,8 +6087,7 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
     }
 
     // Handle clicks on VFO B square/mode label -> open mode popup for VFO B
-    if ((watched == m_vfoBSquare || watched == m_modeBLabel || watched == m_vfoRow->vfoBHitZone())
-        && event->type() == QEvent::MouseButtonPress) {
+    if ((watched == m_vfoBSquare || watched == m_modeBLabel) && event->type() == QEvent::MouseButtonPress) {
         // Toggle popup - close if open, otherwise show for VFO B
         if (m_modePopup->isVisible()) {
             m_modePopup->hidePopup();

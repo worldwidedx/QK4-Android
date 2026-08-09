@@ -135,6 +135,17 @@ void TcpClient::connectToHost(const QString &host, quint16 port, const QString &
 
 void TcpClient::attemptConnection() {
     if (m_useTls) {
+        // On Android the TLS backend is present in Qt, but OpenSSL itself is a
+        // separately bundled runtime.  Fail before opening the K4 socket if
+        // that runtime could not be loaded, rather than reporting the opaque
+        // TLSInitializationFailedError from QSslSocket.
+        if (!QSslSocket::supportsSsl()) {
+            m_connectTimer->stop();
+            emit errorOccurred(QStringLiteral("TLS is unavailable: the OpenSSL runtime could not be loaded."));
+            setState(Disconnected);
+            return;
+        }
+
         // Log OpenSSL version Qt is using
         qDebug() << "=== SSL Library Info ===";
         qDebug() << "  Build version:" << QSslSocket::sslLibraryBuildVersionString();

@@ -11,6 +11,21 @@ but upstream QK4 history is intentionally not repeated here.
 - Use **Added**, **Changed**, **Fixed**, and **Known limitations** as needed.
 - Do not list unverified radio behavior as fixed.
 
+## [0.7.6] - 2026-08-08
+
+### Fixed
+
+- TLS connections to K4 radios now bundle the required Android OpenSSL 3
+  runtime and select the application-packaged libraries reliably.
+- Bluetooth audio routing now retains headset RX audio through TX/RX changes
+  and selects the active two-way Bluetooth endpoint for transmit audio.
+
+### Known limitations
+
+- Hot-swapping a USB-C audio headset after connecting to the radio is not yet
+  supported. Connect the headset before connecting to the K4. Bluetooth audio
+  routing is unaffected.
+
 ## [0.7.5.1] - 2026-08-04
 
 ### Fixed

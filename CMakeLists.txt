@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(QK4 VERSION 0.7.5.1 LANGUAGES CXX)
+project(QK4 VERSION 0.7.6 LANGUAGES CXX)
 
 # Optional override paths for Opus when cross-compiling (primarily Android)
 set(QK4_OPUS_INCLUDE_DIR "" CACHE PATH "Directory containing opus/opus.h for the target platform")
@@ -350,6 +350,17 @@ foreach(dir ${QT_GUI_INCLUDE_DIRS})
     target_include_directories(${PROJECT_NAME} PRIVATE "${dir}/${Qt6_VERSION}/QtGui")
 endforeach()
 
+# Qt's Android AAudio backend accepts an Android AudioDeviceInfo id through a
+# QAudioDevice. The USB headset types missing from Qt's public enumerator need
+# the private device factory to create that endpoint.
+if(ANDROID)
+    get_target_property(QT_MULTIMEDIA_INCLUDE_DIRS Qt6::Multimedia INTERFACE_INCLUDE_DIRECTORIES)
+    foreach(dir ${QT_MULTIMEDIA_INCLUDE_DIRS})
+        target_include_directories(${PROJECT_NAME} PRIVATE "${dir}/${Qt6_VERSION}")
+        target_include_directories(${PROJECT_NAME} PRIVATE "${dir}/${Qt6_VERSION}/QtMultimedia")
+    endforeach()
+endif()
+
 target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::Core
     Qt6::Widgets
@@ -437,6 +448,24 @@ if(ANDROID)
         QT_ANDROID_TARGET_SDK_VERSION 34
         QT_ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android"
     )
+
+    # Qt ships the Android OpenSSL TLS backend plugin, but not OpenSSL itself.
+    # Bundle the ARM64 OpenSSL 3 runtime under suffixed names so it cannot be
+    # confused with Android's system SSL libraries.  main.cpp selects this
+    # suffix before QSslSocket is first used.
+    set(QK4_ANDROID_OPENSSL_DIR
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/android/openssl/arm64-v8a")
+    set(QK4_ANDROID_OPENSSL_LIBS
+        "${QK4_ANDROID_OPENSSL_DIR}/libcrypto_3.so"
+        "${QK4_ANDROID_OPENSSL_DIR}/libssl_3.so")
+    foreach(_qk4_openssl_library IN LISTS QK4_ANDROID_OPENSSL_LIBS)
+        if(NOT EXISTS "${_qk4_openssl_library}")
+            message(FATAL_ERROR "Missing bundled Android OpenSSL runtime: ${_qk4_openssl_library}")
+        endif()
+    endforeach()
+    set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY
+        QT_ANDROID_EXTRA_LIBS ${QK4_ANDROID_OPENSSL_LIBS})
+    unset(_qk4_openssl_library)
     # Qt 6.11 encodes Android permission entries as structured metadata.  The
     # direct property strings used by older Qt releases produce invalid APK
     # deployment JSON, so use Qt's helper to retain the required permissions.

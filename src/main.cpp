@@ -64,6 +64,11 @@ int main(int argc, char *argv[]) {
     // has unreliable Shift behavior with QWidget line edits. Supported by the
     // Qt 6.11.1 Android platform plugin used by this build.
     qputenv("QT_ANDROID_NO_FULLSCREEN_KEYBOARD", "1");
+
+    // Qt's Android TLS plugin dynamically loads the OpenSSL libraries bundled
+    // with the APK.  Android also exposes unrelated system libraries under the
+    // unsuffixed names, so use the names packaged by this application.
+    qputenv("ANDROID_OPENSSL_SUFFIX", "_3");
 #endif
 
 #ifdef Q_OS_MACOS

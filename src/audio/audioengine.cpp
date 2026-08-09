@@ -3,8 +3,64 @@
 #include "../network/protocol.h"
 #include <QMediaDevices>
 #include <QAudioDevice>
+#ifdef Q_OS_ANDROID
+#include <QtMultimedia/private/qaudiodevice_p.h>
+#endif
 #include <QDebug>
 #include <cmath>
+#ifdef Q_OS_ANDROID
+#include <QJniObject>
+#include <qcoreapplication_platform.h>
+#endif
+
+#ifdef Q_OS_ANDROID
+namespace {
+void setAndroidTransmitRoute(bool active) {
+    const QJniObject context = QNativeInterface::QAndroidApplication::context();
+    if (!context.isValid())
+        return;
+
+    QJniObject::callStaticMethod<void>(
+            "com/ai5qk/qk4phone/AndroidAudioRouter", "setTransmitActive",
+            "(Landroid/content/Context;Z)V", context.object(), active);
+}
+
+int androidWiredOutputDeviceId() {
+    const QJniObject context = QNativeInterface::QAndroidApplication::context();
+    if (!context.isValid())
+        return -1;
+
+    return QJniObject::callStaticMethod<jint>(
+            "com/ai5qk/qk4phone/AndroidAudioRouter", "getPreferredWiredOutputDeviceId",
+            "(Landroid/content/Context;)I", context.object());
+}
+
+int androidOutputSampleRate(int deviceId) {
+    const QJniObject context = QNativeInterface::QAndroidApplication::context();
+    if (!context.isValid() || deviceId < 0)
+        return 0;
+
+    return QJniObject::callStaticMethod<jint>(
+            "com/ai5qk/qk4phone/AndroidAudioRouter", "getOutputSampleRate",
+            "(Landroid/content/Context;I)I", context.object(), deviceId);
+}
+
+QAudioDevice androidExplicitOutputDevice(int deviceId, const QAudioFormat &format) {
+    QAudioDevicePrivate::AudioDeviceFormat deviceFormat;
+    deviceFormat.preferredFormat = format;
+    deviceFormat.minimumSampleRate = 8000;
+    deviceFormat.maximumSampleRate = 192000;
+    deviceFormat.minimumChannelCount = 1;
+    deviceFormat.maximumChannelCount = 8;
+    deviceFormat.supportedSampleFormats = qAllSupportedSampleFormats();
+    deviceFormat.channelConfiguration = QAudioFormat::ChannelConfigUnknown;
+
+    return QAudioDevicePrivate::createQAudioDevice(std::make_unique<QAudioDevicePrivate>(
+            QByteArray::number(deviceId), QAudioDevice::Output,
+            QStringLiteral("Android wired/USB media output"), false, std::move(deviceFormat)));
+}
+} // namespace
+#endif
 
 AudioEngine::AudioEngine(QObject *parent)
     : QObject(parent), m_audioSink(nullptr), m_audioSinkDevice(nullptr), m_audioSource(nullptr),
@@ -16,6 +72,7 @@ AudioEngine::AudioEngine(QObject *parent)
     m_outputFormat.setSampleRate(12000);
     m_outputFormat.setChannelCount(2);
     m_outputFormat.setSampleFormat(QAudioFormat::Float);
+    m_sinkFormat = m_outputFormat;
 
     // Input format: Use native 48kHz for microphone capture (most hardware supports this)
     // We'll resample to 12kHz before encoding for K4 TX
@@ -31,6 +88,24 @@ AudioEngine::AudioEngine(QObject *parent)
     m_feedTimer = new QTimer(this);
     m_feedTimer->setInterval(FEED_INTERVAL_MS);
     connect(m_feedTimer, &QTimer::timeout, this, &AudioEngine::feedAudioDevice);
+
+    // Android may switch a Bluetooth endpoint between media playback and
+    // headset capture without changing Qt's device identifier.  Coalesce
+    // route notifications and rebuild only our local sink after it settles.
+    m_routeRefreshTimer = new QTimer(this);
+    m_routeRefreshTimer->setSingleShot(true);
+    connect(m_routeRefreshTimer, &QTimer::timeout, this, &AudioEngine::refreshSystemAudioRoute);
+
+#ifdef Q_OS_ANDROID
+    // QMediaDevices omits several USB-C audio classes on Android. Poll the
+    // platform device list at a low rate so attach/remove is detected even
+    // when Qt never emits audioOutputsChanged(). The actual rebuild remains
+    // debounced by m_routeRefreshTimer.
+    m_androidRoutePollTimer = new QTimer(this);
+    m_androidRoutePollTimer->setInterval(300);
+    connect(m_androidRoutePollTimer, &QTimer::timeout,
+            this, &AudioEngine::pollAndroidOutputRoute);
+#endif
 
     // Size the microphone hot-path buffers before the first PTT.
     m_micBuffer.reserve(2 * 1440 * static_cast<int>(sizeof(qint16)));
@@ -53,6 +128,9 @@ bool AudioEngine::start() {
 
     if (outputOk) {
         m_feedTimer->start();
+#ifdef Q_OS_ANDROID
+        m_androidRoutePollTimer->start();
+#endif
     }
 
     // Keep input setup lazy. Opening it with the first PTT prevents Android's
@@ -66,6 +144,13 @@ void AudioEngine::stop() {
     if (m_feedTimer) {
         m_feedTimer->stop();
     }
+#ifdef Q_OS_ANDROID
+    if (m_androidRoutePollTimer)
+        m_androidRoutePollTimer->stop();
+    if (m_routeRefreshTimer)
+        m_routeRefreshTimer->stop();
+    m_pendingAndroidWiredOutputId = -1;
+#endif
     {
         QMutexLocker lock(&m_queueMutex);
         m_audioQueue.clear();
@@ -84,7 +169,6 @@ void AudioEngine::stop() {
         m_audioSink = nullptr;
         m_audioSinkDevice = nullptr;
     }
-
     if (m_audioSource) {
         delete m_audioSource;
         m_audioSource = nullptr;
@@ -95,9 +179,24 @@ void AudioEngine::stop() {
     m_micReadOffset = 0;
 }
 
-bool AudioEngine::setupAudioOutput() {
+bool AudioEngine::setupAudioOutput(bool resetPlayback) {
     // Find the output device - use selected device or fall back to default
     QAudioDevice outputDevice;
+
+#ifdef Q_OS_ANDROID
+    // Qt's Android device enumerator omits USB_HEADSET and some USB_DEVICE
+    // types. Query Android directly and feed its id to the AAudio stream so a
+    // USB-C headset is used from app launch as well as when hot-plugged.
+    const int wiredOutputId = androidWiredOutputDeviceId();
+    m_activeAndroidWiredOutputId = wiredOutputId;
+    m_pendingAndroidWiredOutputId = wiredOutputId;
+    if (wiredOutputId >= 0) {
+        outputDevice = androidExplicitOutputDevice(wiredOutputId, m_outputFormat);
+        const int nativeRate = androidOutputSampleRate(wiredOutputId);
+        if (nativeRate >= 8000)
+            m_sinkSampleRate = nativeRate;
+    }
+#endif
 
     if (!m_selectedOutputDeviceId.isEmpty()) {
         // Try to find the selected device
@@ -112,6 +211,7 @@ bool AudioEngine::setupAudioOutput() {
     // Fall back to default if selected device not found
     if (outputDevice.isNull()) {
         outputDevice = QMediaDevices::defaultAudioOutput();
+        m_sinkSampleRate = m_outputFormat.sampleRate();
     }
 
     if (outputDevice.isNull()) {
@@ -119,14 +219,40 @@ bool AudioEngine::setupAudioOutput() {
         return false;
     }
 
-    if (!outputDevice.isFormatSupported(m_outputFormat)) {
-        qWarning() << "AudioEngine: 12kHz output format not supported by device";
+    m_sinkFormat = m_outputFormat;
+    m_sinkFormat.setSampleRate(m_sinkSampleRate);
+    if (!outputDevice.isFormatSupported(m_sinkFormat)) {
+        qWarning() << "AudioEngine: output format not supported by device" << m_sinkFormat;
         return false;
     }
 
     m_activeOutputDeviceId = outputDevice.id();
-    m_audioSink = new QAudioSink(outputDevice, m_outputFormat, this);
-    m_audioSink->setBufferSize(OUTPUT_BUFFER_SIZE);
+    m_audioSink = new QAudioSink(outputDevice, m_sinkFormat, this);
+    const int outputBytesPerMs = (m_sinkSampleRate * m_sinkFormat.channelCount()
+                                  * static_cast<int>(sizeof(float))) / 1000;
+    m_audioSink->setBufferSize(500 * outputBytesPerMs);
+
+    QAudioSink *const observedSink = m_audioSink;
+    connect(observedSink, &QAudioSink::stateChanged, this,
+            [this, observedSink](QtAudio::State state) {
+#ifdef Q_OS_ANDROID
+        // Ignore queued state changes from a sink that has already been
+        // retired.  Android otherwise reports the old sink as stopped after
+        // its successor has opened, which immediately destroys the successor.
+        if (observedSink != m_audioSink)
+            return;
+
+        // A physical route/profile transition can stop the active Android
+        // sink.  Recreate only after the device-change burst has settled; do
+        // not affect the K4 stream or PTT gate.
+        if (!m_replacingAudioOutput && state == QtAudio::StoppedState &&
+            observedSink->error() != QtAudio::NoError) {
+            scheduleSystemAudioRouteRefresh(900);
+        }
+#else
+        Q_UNUSED(state)
+#endif
+    });
 
     m_audioSinkDevice = m_audioSink->start();
     if (!m_audioSinkDevice) {
@@ -139,7 +265,22 @@ bool AudioEngine::setupAudioOutput() {
     // Receiver volume is applied by the per-channel mixer. Keep the platform
     // sink at unity, matching current QK4 mainline.
     m_audioSink->setVolume(1.0f);
-    flushQueue();
+
+    if (resetPlayback)
+        flushQueue();
+
+    // Android's AAudio backend asks for data immediately after start. Prime
+    // the local sink so a route-replacement stream cannot be closed before
+    // the next K4 RX packet arrives.
+    const QByteArray initialSilence(50 * outputBytesPerMs, '\0');
+    m_audioSinkDevice->write(initialSilence);
+
+    if (!resetPlayback) {
+        // Preserve the K4 RX jitter buffer through a physical device change.
+        // m_writeBuffer is cleared by the caller because it may have been
+        // resampled for the retired device's rate.
+        feedAudioDevice();
+    }
 
     return true;
 }
@@ -272,10 +413,32 @@ void AudioEngine::feedAudioDevice() {
     // Apply mix/volume and write to audio sink without holding the lock
     for (QByteArray &packet : m_feedBatch) {
         applyMixAndVolume(packet);
-        qint64 written = m_audioSinkDevice->write(packet.constData(), packet.size());
-        if (written < packet.size()) {
+        const QByteArray *playbackPacket = &packet;
+        if (m_sinkSampleRate != m_outputFormat.sampleRate()) {
+            const int inputFrames = packet.size() / (2 * static_cast<int>(sizeof(float)));
+            const int outputFrames = qRound(static_cast<double>(inputFrames) * m_sinkSampleRate
+                                            / m_outputFormat.sampleRate());
+            m_outputResampleBuffer.resize(outputFrames * 2 * static_cast<int>(sizeof(float)));
+            const float *input = reinterpret_cast<const float *>(packet.constData());
+            float *output = reinterpret_cast<float *>(m_outputResampleBuffer.data());
+            for (int frame = 0; frame < outputFrames; ++frame) {
+                const double position = static_cast<double>(frame) * m_outputFormat.sampleRate()
+                                        / m_sinkSampleRate;
+                const int before = qBound(0, static_cast<int>(position), inputFrames - 1);
+                const int after = qMin(before + 1, inputFrames - 1);
+                const float fraction = static_cast<float>(position - before);
+                output[frame * 2] = input[before * 2] + (input[after * 2] - input[before * 2]) * fraction;
+                output[frame * 2 + 1] = input[before * 2 + 1]
+                        + (input[after * 2 + 1] - input[before * 2 + 1]) * fraction;
+            }
+            playbackPacket = &m_outputResampleBuffer;
+        }
+
+        qint64 written = m_audioSinkDevice->write(playbackPacket->constData(), playbackPacket->size());
+        if (written < playbackPacket->size()) {
             // Partial write — save remainder for next feed cycle
-            m_writeBuffer.append(packet.constData() + written, packet.size() - static_cast<int>(written));
+            m_writeBuffer.append(playbackPacket->constData() + written,
+                                 playbackPacket->size() - static_cast<int>(written));
         }
     }
 }
@@ -392,11 +555,31 @@ void AudioEngine::closeMic() {
 void AudioEngine::setPttActive(bool active) {
     m_pttActive.store(active, std::memory_order_release);
     if (active) {
+#ifdef Q_OS_ANDROID
+        // Ask Android to select a two-way external endpoint before opening
+        // capture, so QAudioSource receives the headset microphone.
+        setAndroidTransmitRoute(true);
+#endif
         m_txSequence = 0;
         openMic();
         m_micBuffer.clear();
         m_micReadOffset = 0;
     }
+#ifdef Q_OS_ANDROID
+    else {
+        // Android must release capture after TX. Keeping it open pins
+        // Bluetooth in communications mode and leaves media RX silent. This
+        // is local device lifecycle only; the K4 PTT and packet protocol stay
+        // unchanged.
+        closeMic();
+        delete m_audioSource;
+        m_audioSource = nullptr;
+        m_audioSourceDevice = nullptr;
+        m_activeMicDeviceId.clear();
+        setAndroidTransmitRoute(false);
+        scheduleSystemAudioRouteRefresh(150);
+    }
+#endif
     // On release capture remains running; complete frames are consumed but
     // not sent. This is the current QK4 mainline lifecycle.
 }
@@ -543,6 +726,12 @@ void AudioEngine::setMicGain(float gain) {
 }
 
 void AudioEngine::setMicDevice(const QString &deviceId) {
+#ifdef Q_OS_ANDROID
+    Q_UNUSED(deviceId)
+    // Android headset and USB routes are dynamic.  Always use its current
+    // default input rather than pinning an old, device-specific Qt id.
+    return;
+#else
     if (m_selectedMicDeviceId != deviceId) {
         m_selectedMicDeviceId = deviceId;
 
@@ -559,6 +748,7 @@ void AudioEngine::setMicDevice(const QString &deviceId) {
         if (wasEnabled)
             openMic();
     }
+#endif
 }
 
 QString AudioEngine::micDeviceId() const {
@@ -580,6 +770,11 @@ QList<QPair<QString, QString>> AudioEngine::availableInputDevices() {
 }
 
 void AudioEngine::setOutputDevice(const QString &deviceId) {
+#ifdef Q_OS_ANDROID
+    Q_UNUSED(deviceId)
+    // See setMicDevice(): mobile routes must remain under Android's control.
+    return;
+#else
     if (m_selectedOutputDeviceId != deviceId) {
         m_selectedOutputDeviceId = deviceId;
 
@@ -593,9 +788,28 @@ void AudioEngine::setOutputDevice(const QString &deviceId) {
             setupAudioOutput();
         }
     }
+#endif
 }
 
 void AudioEngine::onSystemDefaultInputChanged() {
+#ifdef Q_OS_ANDROID
+    // Recreate capture only when Android reports an input-device change.  This
+    // adopts a headset microphone (when it has one) while retaining the
+    // established PTT packet gate and its normal open-capture lifecycle.
+    if (m_audioSource) {
+        const bool wasOpen = m_micEnabled.load(std::memory_order_relaxed);
+        if (wasOpen)
+            closeMic();
+        delete m_audioSource;
+        m_audioSource = nullptr;
+        m_audioSourceDevice = nullptr;
+        m_activeMicDeviceId.clear();
+        if (wasOpen)
+            openMic();
+    }
+    scheduleSystemAudioRouteRefresh(900);
+    return;
+#endif
     if (!m_selectedMicDeviceId.isEmpty() || !m_audioSource)
         return;
 
@@ -613,6 +827,10 @@ void AudioEngine::onSystemDefaultInputChanged() {
 }
 
 void AudioEngine::onSystemDefaultOutputChanged() {
+#ifdef Q_OS_ANDROID
+    scheduleSystemAudioRouteRefresh(900);
+    return;
+#endif
     if (!m_selectedOutputDeviceId.isEmpty() || !m_audioSink)
         return;
 
@@ -625,6 +843,65 @@ void AudioEngine::onSystemDefaultOutputChanged() {
     m_audioSink = nullptr;
     m_audioSinkDevice = nullptr;
     setupAudioOutput();
+}
+
+void AudioEngine::scheduleSystemAudioRouteRefresh(int delayMs) {
+#ifdef Q_OS_ANDROID
+    if (!m_routeRefreshTimer)
+        return;
+
+    // Android commonly emits several input/output notifications while a
+    // USB-C or Bluetooth endpoint is being attached or detached.  Restart
+    // the single-shot timer on every event; the sink is rebuilt once, only
+    // after the last event has been quiet long enough for AudioPolicy/AAudio
+    // to expose a stable route.
+    m_routeRefreshTimer->start(qMax(900, delayMs));
+#else
+    Q_UNUSED(delayMs)
+#endif
+}
+
+void AudioEngine::refreshSystemAudioRoute() {
+#ifdef Q_OS_ANDROID
+    if (!m_audioSink)
+        return;
+
+    m_replacingAudioOutput = true;
+    QAudioSink *const retiredSink = m_audioSink;
+    m_audioSink = nullptr;
+    m_audioSinkDevice = nullptr;
+    m_activeOutputDeviceId.clear();
+    retiredSink->stop();
+    delete retiredSink;
+
+    // Partial writes are encoded at the retired sink's rate and cannot carry
+    // across the route change. Keep the undecoded K4 RX jitter buffer instead
+    // so the replacement sink is primed with real receive audio.
+    m_writeBuffer.clear();
+
+    if (setupAudioOutput(false))
+        qDebug() << "AudioEngine: refreshed Android playback route";
+
+    m_replacingAudioOutput = false;
+#endif
+}
+
+void AudioEngine::pollAndroidOutputRoute() {
+#ifdef Q_OS_ANDROID
+    if (!m_audioSink || m_replacingAudioOutput)
+        return;
+
+    const int currentWiredOutputId = androidWiredOutputDeviceId();
+    if (currentWiredOutputId == m_activeAndroidWiredOutputId ||
+        currentWiredOutputId == m_pendingAndroidWiredOutputId) {
+        return;
+    }
+
+    // A direct Android route change is new. Do not restart the debounce timer
+    // on each poll; only restart it if the selected endpoint changes again.
+    m_pendingAndroidWiredOutputId = currentWiredOutputId;
+    scheduleSystemAudioRouteRefresh(900);
+#endif
 }
 
 QString AudioEngine::outputDeviceId() const {

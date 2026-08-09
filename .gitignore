@@ -4,6 +4,7 @@
 *.jks
 *.keystore
 android/local.properties
+android/.gradle/
 local.properties
 
 # Proprietary/internal documents
@@ -84,4 +85,3 @@ Release/
 x64/
 x86/
 out/
-

@@ -293,7 +293,11 @@ MainWindow::MainWindow(QWidget *parent)
     m_opusDecoder->initialize(12000, 2);
 
     // Load saved audio device settings BEFORE moveToThread (only stores strings/floats,
-    // no Qt audio objects exist yet, so direct calls are safe)
+    // no Qt audio objects exist yet, so direct calls are safe).
+    // Android deliberately follows the operating system's active route rather
+    // than a persisted desktop device id: USB-C and Bluetooth endpoints are
+    // dynamic and Android is the authority for their microphone capability.
+#ifndef Q_OS_ANDROID
     QString savedMicDevice = RadioSettings::instance()->micDevice();
     if (!savedMicDevice.isEmpty()) {
         m_audioEngine->setMicDevice(savedMicDevice);
@@ -302,6 +306,7 @@ MainWindow::MainWindow(QWidget *parent)
     if (!savedSpeakerDevice.isEmpty()) {
         m_audioEngine->setOutputDevice(savedSpeakerDevice);
     }
+#endif
     m_audioEngine->setMicGain(RadioSettings::instance()->micGain() / 100.0f);
 
     // Move AudioEngine to dedicated thread for glitch-free audio playback

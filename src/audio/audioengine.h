@@ -84,10 +84,13 @@ private slots:
     void feedAudioDevice();
     void onSystemDefaultInputChanged();
     void onSystemDefaultOutputChanged();
+    void refreshSystemAudioRoute();
+    void pollAndroidOutputRoute();
 
 private:
-    bool setupAudioOutput();
+    bool setupAudioOutput(bool resetPlayback = true);
     bool setupAudioInput();
+    void scheduleSystemAudioRouteRefresh(int delayMs);
 
     // Resample into a reusable buffer, avoiding allocations in the microphone hot path.
     const QByteArray &resample48kTo12k(const QByteArray &input48k);
@@ -98,6 +101,10 @@ private:
 
     // Audio output format: 12kHz stereo Float32 (K4 RX audio, L=Main R=Sub)
     QAudioFormat m_outputFormat;
+    // Physical playback format. USB audio commonly requires a 48 kHz stream
+    // even though K4 RX packets are fixed at 12 kHz.
+    QAudioFormat m_sinkFormat;
+    int m_sinkSampleRate = 12000;
 
     // Audio input format: 48kHz mono Float32 (native macOS rate, resampled to 12kHz)
     QAudioFormat m_inputFormat;
@@ -115,6 +122,15 @@ private:
     QString m_activeMicDeviceId;
     QString m_activeOutputDeviceId;
     QMediaDevices *m_mediaDevices = nullptr;
+    QTimer *m_routeRefreshTimer = nullptr;
+    bool m_replacingAudioOutput = false;
+#ifdef Q_OS_ANDROID
+    // Qt 6.11 does not enumerate every USB-C endpoint, so USB attach/remove
+    // must be observed from Android's own audio-device list.
+    QTimer *m_androidRoutePollTimer = nullptr;
+    int m_activeAndroidWiredOutputId = -1;
+    int m_pendingAndroidWiredOutputId = -1;
+#endif
 
     // Channel volume controls (0.0 to 1.0)
     std::atomic<float> m_mainVolume{1.0f};
@@ -173,6 +189,7 @@ private:
     // Write staging buffer: holds processed PCM that couldn't be written in one feed cycle
     // Audio-thread-only (no mutex needed) — safety net for partial QIODevice::write()
     QByteArray m_writeBuffer;
+    QByteArray m_outputResampleBuffer;
     QList<QByteArray> m_feedBatch;
 
     // Jitter buffer constants (adapt to any SL level automatically)

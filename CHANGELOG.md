@@ -11,6 +11,25 @@ but upstream QK4 history is intentionally not repeated here.
 - Use **Added**, **Changed**, **Fixed**, and **Known limitations** as needed.
 - Do not list unverified radio behavior as fixed.
 
+## [0.7.6.1] - 2026-08-08
+
+### Fixed
+
+- Fixed USB-C headset hot-swap for both receive and transmit audio.
+  - A USB-C headset can now be connected or disconnected after the radio
+    session is already active.
+  - RX audio follows the available audio route.
+  - When a USB-C headset microphone is present, TX uses that microphone rather
+    than the phone's built-in microphone.
+  - TX/RX switching remains stable while using USB-C audio.
+
+### Improved mixed-headset routing
+
+- If Bluetooth RX audio is already active and a USB-C headset/microphone is
+  connected, Android may keep RX on Bluetooth while using the USB-C microphone
+  for TX. This permits separate receive and transmit audio paths when
+  supported by the phone's audio system.
+
 ## [0.7.6] - 2026-08-08
 
 ### Fixed

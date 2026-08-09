@@ -2,7 +2,7 @@
 
 QK4 Android is a phone-focused Android client for Elecraft K4 transceivers. It preserves the proven radio-control, TCP/TLS, panadapter-stream, and TX/RX audio architecture of QK4 while replacing its desktop-oriented interaction model with a landscape touch interface.
 
-The application is under active development and is intended for testing with an Elecraft K4/K4D on the same network. Version 0.7.6 is available as a release-signed ARM64 APK.
+The application is under active development and is intended for testing with an Elecraft K4/K4D on the same network. Version 0.7.6.1 is available as a release-signed ARM64 APK.
 
 ## Project lineage
 
@@ -15,6 +15,7 @@ This repository retains the GNU General Public License v3 used by the upstream p
 - K4 profile management and TCP/TLS connection
 - RX audio streaming for the main and sub receivers
 - Microphone audio and PTT transmission
+- USB-C headset RX/TX hot-swap, plus Bluetooth/USB mixed-route support where Android provides it
 - VFO A/B display, tuning, direct frequency entry, and selectable tuning steps
 - Touch tuning from the panadapter
 - Spectrum and waterfall display, including mini-pan

@@ -110,7 +110,11 @@ public final class AndroidAudioRouter {
 
     private static AudioDeviceInfo findTwoWayHeadset(List<AudioDeviceInfo> devices) {
         for (AudioDeviceInfo device : devices) {
-            if (!device.isSink() || !device.isSource())
+            // AudioManager communication devices are sink entries. Android
+            // selects their matching input automatically after
+            // setCommunicationDevice(); requiring isSource() here rejects
+            // USB headsets whose microphone is represented separately.
+            if (!device.isSink())
                 continue;
 
             switch (device.getType()) {

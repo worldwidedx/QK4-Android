@@ -112,6 +112,12 @@ private:
     // Audio output (speaker)
     QAudioSink *m_audioSink;
     QIODevice *m_audioSinkDevice;
+#ifdef Q_OS_ANDROID
+    bool m_androidNativePlaybackActive = false;
+    // USB capture alone bypasses Qt's Android device enumeration. Phone and
+    // Bluetooth capture continue to use QAudioSource unchanged.
+    bool m_androidUsbMicrophoneActive = false;
+#endif
 
     // Audio input (microphone)
     QAudioSource *m_audioSource;

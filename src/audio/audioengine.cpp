@@ -10,6 +10,7 @@
 #include <cmath>
 #ifdef Q_OS_ANDROID
 #include <QJniObject>
+#include <QJniEnvironment>
 #include <qcoreapplication_platform.h>
 #endif
 
@@ -43,6 +44,82 @@ int androidOutputSampleRate(int deviceId) {
     return QJniObject::callStaticMethod<jint>(
             "com/ai5qk/qk4phone/AndroidAudioRouter", "getOutputSampleRate",
             "(Landroid/content/Context;I)I", context.object(), deviceId);
+}
+
+bool startAndroidPlayback()
+{
+    const QJniObject context = QNativeInterface::QAndroidApplication::context();
+    return context.isValid() && QJniObject::callStaticMethod<jboolean>(
+            "com/ai5qk/qk4phone/AndroidAudioPlayback", "start",
+            "(Landroid/content/Context;II)Z", context.object(), 48000, 2);
+}
+
+void stopAndroidPlayback()
+{
+    const QJniObject context = QNativeInterface::QAndroidApplication::context();
+    if (context.isValid())
+        QJniObject::callStaticMethod<void>("com/ai5qk/qk4phone/AndroidAudioPlayback", "stop",
+                                            "(Landroid/content/Context;)V", context.object());
+}
+
+qint64 writeAndroidPlayback(const QByteArray &data)
+{
+    const QJniObject context = QNativeInterface::QAndroidApplication::context();
+    if (!context.isValid() || data.isEmpty())
+        return -1;
+    QJniEnvironment env;
+    jbyteArray bytes = env->NewByteArray(data.size());
+    if (!bytes || env.checkAndClearExceptions())
+        return -1;
+    env->SetByteArrayRegion(bytes, 0, data.size(),
+                            reinterpret_cast<const jbyte *>(data.constData()));
+    const jint result = QJniObject::callStaticMethod<jint>(
+            "com/ai5qk/qk4phone/AndroidAudioPlayback", "write",
+            "(Landroid/content/Context;[BI)I", context.object(), bytes, data.size());
+    env->DeleteLocalRef(bytes);
+    return result;
+}
+
+bool startAndroidUsbMicrophone()
+{
+    const QJniObject context = QNativeInterface::QAndroidApplication::context();
+    return context.isValid() && QJniObject::callStaticMethod<jboolean>(
+            "com/ai5qk/qk4phone/AndroidUsbMicrophone", "start",
+            "(Landroid/content/Context;)Z", context.object());
+}
+
+void stopAndroidUsbMicrophone()
+{
+    const QJniObject context = QNativeInterface::QAndroidApplication::context();
+    if (context.isValid())
+        QJniObject::callStaticMethod<void>(
+                "com/ai5qk/qk4phone/AndroidUsbMicrophone", "stop",
+                "(Landroid/content/Context;)V", context.object());
+}
+
+QByteArray readAndroidUsbMicrophone(int maximumBytes)
+{
+    const QJniObject context = QNativeInterface::QAndroidApplication::context();
+    if (!context.isValid() || maximumBytes <= 0)
+        return {};
+
+    QJniEnvironment env;
+    jbyteArray bytes = env->NewByteArray(maximumBytes);
+    if (!bytes || env.checkAndClearExceptions())
+        return {};
+
+    const jint read = QJniObject::callStaticMethod<jint>(
+            "com/ai5qk/qk4phone/AndroidUsbMicrophone", "read",
+            "(Landroid/content/Context;[BI)I", context.object(), bytes, maximumBytes);
+
+    QByteArray pcm16;
+    if (read > 0) {
+        pcm16.resize(read);
+        env->GetByteArrayRegion(bytes, 0, read,
+                                reinterpret_cast<jbyte *>(pcm16.data()));
+    }
+    env->DeleteLocalRef(bytes);
+    return pcm16;
 }
 
 QAudioDevice androidExplicitOutputDevice(int deviceId, const QAudioFormat &format) {
@@ -169,6 +246,15 @@ void AudioEngine::stop() {
         m_audioSink = nullptr;
         m_audioSinkDevice = nullptr;
     }
+#ifdef Q_OS_ANDROID
+    if (m_androidUsbMicrophoneActive) {
+        stopAndroidUsbMicrophone();
+        m_androidUsbMicrophoneActive = false;
+    }
+    if (m_androidNativePlaybackActive)
+        stopAndroidPlayback();
+    m_androidNativePlaybackActive = false;
+#endif
     if (m_audioSource) {
         delete m_audioSource;
         m_audioSource = nullptr;
@@ -180,6 +266,22 @@ void AudioEngine::stop() {
 }
 
 bool AudioEngine::setupAudioOutput(bool resetPlayback) {
+#ifdef Q_OS_ANDROID
+    // Qt 6.11's AAudio sink tears itself down when a USB endpoint is attached
+    // during receive. Use Android's media AudioTrack only for Android output;
+    // K4 decode, mix, resample, TCP/TLS, and TX input remain unchanged.
+    m_sinkSampleRate = 48000;
+    if (!startAndroidPlayback()) {
+        qWarning() << "AudioEngine: Failed to start Android audio playback";
+        return false;
+    }
+    m_androidNativePlaybackActive = true;
+    if (resetPlayback)
+        flushQueue();
+    if (!resetPlayback)
+        feedAudioDevice();
+    return true;
+#endif
     // Find the output device - use selected device or fall back to default
     QAudioDevice outputDevice;
 
@@ -356,15 +458,30 @@ void AudioEngine::flushQueue() {
 }
 
 void AudioEngine::feedAudioDevice() {
+#ifdef Q_OS_ANDROID
+    if (!m_androidNativePlaybackActive)
+        return;
+#else
     if (!m_audioSinkDevice)
         return;
+#endif
 
     // Drain any leftover write buffer from a previous partial write
     if (!m_writeBuffer.isEmpty()) {
-        int bytesFree = m_audioSink->bytesFree();
+        int bytesFree = 0;
+#ifdef Q_OS_ANDROID
+        bytesFree = m_writeBuffer.size();
+#else
+        bytesFree = m_audioSink->bytesFree();
+#endif
         if (bytesFree > 0) {
             qint64 toWrite = qMin(static_cast<qint64>(m_writeBuffer.size()), static_cast<qint64>(bytesFree));
-            qint64 written = m_audioSinkDevice->write(m_writeBuffer.constData(), toWrite);
+            qint64 written = 0;
+#ifdef Q_OS_ANDROID
+            written = writeAndroidPlayback(m_writeBuffer.left(toWrite));
+#else
+            written = m_audioSinkDevice->write(m_writeBuffer.constData(), toWrite);
+#endif
             if (written > 0)
                 m_writeBuffer.remove(0, static_cast<int>(written));
         }
@@ -373,7 +490,12 @@ void AudioEngine::feedAudioDevice() {
     }
 
     // Query sink capacity (audio-thread-only, no mutex needed)
-    int bytesFree = m_audioSink->bytesFree();
+    int bytesFree = 0;
+#ifdef Q_OS_ANDROID
+    bytesFree = MAX_QUEUE_BYTES;
+#else
+    bytesFree = m_audioSink->bytesFree();
+#endif
 
     // Reuse the batch instead of allocating at the 100 Hz feed rate.
     m_feedBatch.clear();
@@ -434,12 +556,31 @@ void AudioEngine::feedAudioDevice() {
             playbackPacket = &m_outputResampleBuffer;
         }
 
-        qint64 written = m_audioSinkDevice->write(playbackPacket->constData(), playbackPacket->size());
+        qint64 written = 0;
+#ifdef Q_OS_ANDROID
+        QByteArray pcm16;
+        const int sampleCount = playbackPacket->size() / static_cast<int>(sizeof(float));
+        pcm16.resize(sampleCount * static_cast<int>(sizeof(qint16)));
+        const float *input = reinterpret_cast<const float *>(playbackPacket->constData());
+        qint16 *output = reinterpret_cast<qint16 *>(pcm16.data());
+        for (int i = 0; i < sampleCount; ++i)
+            output[i] = static_cast<qint16>(qBound(-1.0f, input[i], 1.0f) * 32767.0f);
+        written = writeAndroidPlayback(pcm16);
+#else
+        written = m_audioSinkDevice->write(playbackPacket->constData(), playbackPacket->size());
+#endif
+#ifdef Q_OS_ANDROID
+        if (written < 0) {
+            qWarning() << "AudioEngine: Android playback write failed";
+            return;
+        }
+#else
         if (written < playbackPacket->size()) {
             // Partial write — save remainder for next feed cycle
             m_writeBuffer.append(playbackPacket->constData() + written,
                                  playbackPacket->size() - static_cast<int>(written));
         }
+#endif
     }
 }
 
@@ -521,6 +662,20 @@ void AudioEngine::applyMixAndVolume(QByteArray &packet) {
 }
 
 void AudioEngine::openMic() {
+#ifdef Q_OS_ANDROID
+    if (m_micEnabled.load(std::memory_order_relaxed) && m_androidUsbMicrophoneActive)
+        return;
+
+    // Native Android capture is used only when a physical wired/USB input is
+    // present and accepts explicit selection. Otherwise retain QAudioSource
+    // exactly for the phone microphone and Bluetooth headsets.
+    if (startAndroidUsbMicrophone()) {
+        m_androidUsbMicrophoneActive = true;
+        m_micEnabled.store(true, std::memory_order_relaxed);
+        m_micPollTimer->start();
+        return;
+    }
+#endif
     // Idempotent: after the first PTT, subsequent presses must be instant.
     if (m_micEnabled.load(std::memory_order_relaxed) && m_audioSourceDevice)
         return;
@@ -545,6 +700,12 @@ void AudioEngine::closeMic() {
         return;
 
     m_micPollTimer->stop();
+#ifdef Q_OS_ANDROID
+    if (m_androidUsbMicrophoneActive) {
+        stopAndroidUsbMicrophone();
+        m_androidUsbMicrophoneActive = false;
+    } else
+#endif
     if (m_audioSource)
         m_audioSource->stop();
     m_audioSourceDevice = nullptr;
@@ -615,10 +776,30 @@ const QByteArray &AudioEngine::resample48kTo12k(const QByteArray &input48k) {
 }
 
 void AudioEngine::onMicDataReady() {
-    if (!m_audioSourceDevice || !m_micEnabled.load(std::memory_order_relaxed))
+    if (!m_micEnabled.load(std::memory_order_relaxed))
         return;
 
-    QByteArray data48k = m_audioSourceDevice->readAll();
+    QByteArray data48k;
+#ifdef Q_OS_ANDROID
+    if (m_androidUsbMicrophoneActive) {
+        // Android provides S16 PCM at 48 kHz. Convert it to the Float32 48 kHz
+        // representation which the established QK4 resample/encode path uses.
+        const QByteArray pcm16 = readAndroidUsbMicrophone(INPUT_BUFFER_SIZE / 2);
+        const int sampleCount = pcm16.size() / static_cast<int>(sizeof(qint16));
+        if (sampleCount > 0) {
+            data48k.resize(sampleCount * static_cast<int>(sizeof(float)));
+            const qint16 *input = reinterpret_cast<const qint16 *>(pcm16.constData());
+            float *output = reinterpret_cast<float *>(data48k.data());
+            for (int i = 0; i < sampleCount; ++i)
+                output[i] = static_cast<float>(input[i]) / 32768.0f;
+        }
+    } else
+#endif
+    {
+        if (!m_audioSourceDevice)
+            return;
+        data48k = m_audioSourceDevice->readAll();
+    }
     if (data48k.isEmpty()) {
         // No data available yet - this is normal, just wait for next poll
         return;

@@ -4,9 +4,11 @@ Last updated: 2026-08-08
 
 ## Released build
 
-**QK4 Mobile v0.7.6** is the current release-signed ARM64 build. It adds the
-Android OpenSSL runtime required for K4 TLS connections and correct Bluetooth
-headset routing across TX/RX transitions. It is signed
+**QK4 Mobile v0.7.6.1** is the current release-signed ARM64 build. It adds
+USB-C headset RX/TX hot-swap after the radio session begins, while preserving
+the Android TLS runtime and Bluetooth headset routing across TX/RX transitions.
+Where Android supports independent routes, Bluetooth RX can remain active while
+a USB-C headset microphone provides TX audio. It is signed
 with the permanent QK4 Mobile release certificate. It is installed and accepted
 by Android on the development phone. The product package is
 `com.ai5qk.qk4phone`, with Android API 26 minimum and API 34 target.
@@ -32,6 +34,9 @@ physical screen size; broader device validation is still required.
 - K4 profile management, TCP/TLS connection, and disconnect/error handling.
 - K4 RX audio streaming plus microphone TX audio and deliberate phone PTT
   operation, physically retested on the development K4 after the v0.7.3 fix.
+- USB-C headset receive and transmit hot-swap, physically tested after radio
+  connection. Android reports the active USB headset microphone input during
+  transmit; Bluetooth RX remains available when Android maintains a split route.
 - Experimental TX input shield, physically tested during a successful contact
   on the Samsung Galaxy S26 Ultra; broader device and field testing remains
   required before treating it as fully validated.
@@ -67,12 +72,6 @@ radio peak trace. WTR CLRS is local too; do not conflate it with `#WFC`.
 Version 0.7.5.1 restores the original A/B VFO mode-control geometry. The
 v0.7.5 extra touch padding pushed the SUB/DIV badges toward the VFO B frequency
 and meter display on some layouts; this point release removes only that padding.
-
-### v0.7.6 known limitation
-
-- USB-C headset hot-swap after radio connection is not yet supported. Connect
-  the USB-C headset before connecting to the K4. Standard device audio and
-  Bluetooth headset routing remain available.
 
 ## References
 

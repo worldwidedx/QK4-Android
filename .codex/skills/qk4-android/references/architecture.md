@@ -24,6 +24,16 @@ K4 dB/bin stream
   -> local spectrum/waterfall display features
 ```
 
+## Android external audio routing
+
+- RX playback uses a native Android `AudioTrack` with media attributes and
+  rebuilds when Android reports output-device changes.
+- USB/wired endpoints and Android `TYPE_HEARING_AID` outputs are preferred RX
+  devices when present. This does not alter the received K4 Opus stream.
+- A hearing aid is RX-only unless Android explicitly exposes a supported
+  two-way communication input. Do not include `TYPE_HEARING_AID` in
+  `AndroidAudioRouter` TX device selection.
+
 ## Reference policy
 
 Use current upstream QK4 as the behavioral reference for:
@@ -43,4 +53,3 @@ Local Android rendering may intentionally diverge from radio display commands. I
 - `#WBS` controls waterfall color range.
 - `#WFC` selects a waterfall palette.
 - `#PKM` controls the radio's peak-mode state but does not provide a peak trace.
-

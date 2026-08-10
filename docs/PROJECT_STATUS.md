@@ -1,14 +1,21 @@
 # Project status
 
-Last updated: 2026-08-09
+Last updated: 2026-08-10
 
 ## Released build
 
-**QK4 Mobile v0.7.6.2** is the current point-release source state. It
-temporarily forces the proven compact landscape phone layout on every Android
-display size, including tablets, so unvalidated alternate tablet geometry is
-not selected. The original detection logic remains commented in
-`src/ui/k4styles.cpp` for restoration after physical tablet testing.
+**QK4 Mobile v0.7.6.3** is the current point-release source state. It adds an
+RX-only Android hearing-aid output preference for endpoints reported as
+`TYPE_HEARING_AID`. The change uses the existing native Android media playback
+track and device-change rebuild path; it does not change K4 audio streaming,
+TX, PTT, Bluetooth headset behavior, USB-C behavior, or microphone selection.
+Field validation with Starkey Livio 2400 hearing aids is pending.
+
+The preceding v0.7.6.2 point release temporarily forces the proven compact
+landscape phone layout on every Android display size, including tablets, so
+unvalidated alternate tablet geometry is not selected. The original detection
+logic remains commented in `src/ui/k4styles.cpp` for restoration after physical
+tablet testing.
 
 The preceding release-signed ARM64 build, v0.7.6.1, added USB-C headset RX/TX
 hot-swap after the radio session begins while preserving the Android TLS runtime
@@ -70,6 +77,9 @@ the compact layout; broader device validation is still required.
 - Android sideloading can still show a Play Protect/unknown-source notice even
   for the release-signed APK. Google Play distribution requires a signed AAB
   and Play App Signing.
+- Hearing-aid RX routing is unverified on physical hardware. It applies only
+  where Android exposes a `TYPE_HEARING_AID` output, and TX remains on the
+  phone microphone unless Android supplies a separately supported input route.
 - DR+ indication remains deferred until its source/state semantics are proven.
 - Peak Hold is intentionally local: K4 stream data does not provide a rendered
 radio peak trace. WTR CLRS is local too; do not conflate it with `#WFC`.

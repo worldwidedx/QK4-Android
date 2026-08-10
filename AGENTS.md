@@ -2,7 +2,7 @@
 
 ## Current release and scope
 
-- Current release: **QK4 Mobile v0.7.6.2** (`com.ai5qk.qk4phone`).
+- Current release: **QK4 Mobile v0.7.6.3** (`com.ai5qk.qk4phone`).
 - Product target: ARM64 Android touch devices in landscape orientation, API 26+.
 - Physical acceptance testing: Samsung Galaxy S26 Ultra. Other Android phones
   are expected to use the compact layout but remain a validation priority.
@@ -29,6 +29,8 @@
 - Keep local-rendered panadapter functions separate from radio CAT state.
 - Do not issue operator-setting commands merely as a connection side effect.
 - PTT represents deliberate transmit state; never emulate PTT using VOX.
+- Android hearing aids are an RX-only output route when Android exposes them as
+  `TYPE_HEARING_AID`; do not add them to TX communication-device selection.
 - Until tablet-specific validation is available, retain the compact phone layout
   override for all display sizes. The original tablet-selection logic is
   intentionally commented in `src/ui/k4styles.cpp`; do not remove it or

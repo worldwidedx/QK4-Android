@@ -11,6 +11,22 @@ but upstream QK4 history is intentionally not repeated here.
 - Use **Added**, **Changed**, **Fixed**, and **Known limitations** as needed.
 - Do not list unverified radio behavior as fixed.
 
+## [0.7.6.3] - 2026-08-10
+
+### Added
+
+- Added an Android RX audio preference for devices exposed by the operating
+  system as a dedicated hearing-aid output (`TYPE_HEARING_AID`). This follows
+  the existing external-output route and its reconnect handling, while keeping
+  the established K4 RX audio stream unchanged.
+
+### Known limitations
+
+- Hearing-aid routing is device- and phone-specific and awaits field
+  validation with Starkey Livio 2400 aids. This is an RX-only route; QK4
+  continues to use the phone microphone for TX unless Android exposes a
+  separate supported two-way input device.
+
 ## [0.7.6.2] - 2026-08-09
 
 ### Changed

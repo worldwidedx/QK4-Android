@@ -38,3 +38,12 @@ all Android screen sizes. This is an interim fallback while physical tablet
 testing is unavailable. The original screen-size selection code is preserved as
 comments in `src/ui/k4styles.cpp`; do not remove it. Restoring or replacing the
 tablet layout requires a visual test on a real tablet before release.
+
+## Hearing-aid RX validation
+
+Android hearing aids may be exposed as `TYPE_HEARING_AID` rather than a normal
+Bluetooth headset. For QK4 Mobile v0.7.6.3, verify that normal media and QK4
+RX both reach the aids after they are paired through Android's hearing-device
+settings. Verify that reconnecting the aids rebuilds RX playback. TX remains on
+the phone microphone unless Android separately reports a supported two-way
+input endpoint.

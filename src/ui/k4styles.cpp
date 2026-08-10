@@ -195,6 +195,16 @@ void configureForScreen(const QSize &availableSize, qreal devicePixelRatio, qrea
                         bool forceCompact) {
     applyDefaultDimensions();
 
+    // TEMPORARY: Until the tablet layout has been physically validated, use the
+    // proven landscape phone layout on every Android screen size. Keep the
+    // original size-based selection below for restoration once tablet testing
+    // is available.
+    Q_UNUSED(availableSize);
+    Q_UNUSED(devicePixelRatio);
+    Q_UNUSED(physicalDiagonalInches);
+    Q_UNUSED(forceCompact);
+    const bool useCompact = true;
+    /*
     bool forceCompactEnvOk = false;
     bool forceRegularEnvOk = false;
     const int forceCompactEnv = qEnvironmentVariableIntValue("QK4_FORCE_COMPACT_UI", &forceCompactEnvOk);
@@ -214,6 +224,7 @@ void configureForScreen(const QSize &availableSize, qreal devicePixelRatio, qrea
     if (forceRegularByEnv) {
         useCompact = false;
     }
+    */
 
     g_compactLayout = useCompact;
     if (useCompact) {

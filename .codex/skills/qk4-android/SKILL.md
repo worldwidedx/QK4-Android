@@ -24,4 +24,7 @@ description: Maintain and extend the QK4 Android ARM64 phone application, includ
 - Build when verification is appropriate; install only when the user asks.
 - Exclude radio credentials, signing files, APKs, build trees, logs, and screen captures from commits.
 - Report what was verified on a real K4 separately from what was inferred through source inspection.
-
+- Until physical tablet validation is available, keep the compact phone layout
+  enabled for every screen size. The original tablet-selection branch is
+  intentionally commented in `src/ui/k4styles.cpp`; preserve it for later
+  restoration rather than deleting or redesigning it without user direction.

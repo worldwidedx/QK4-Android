@@ -11,6 +11,23 @@ but upstream QK4 history is intentionally not repeated here.
 - Use **Added**, **Changed**, **Fixed**, and **Known limitations** as needed.
 - Do not list unverified radio behavior as fixed.
 
+## [0.7.6.2] - 2026-08-09
+
+### Changed
+
+- Temporarily use the proven compact landscape phone layout on every Android
+  display size, including tablets. This prevents devices from selecting the
+  unvalidated alternate tablet layout while dedicated tablet testing is not
+  available.
+- The original screen-size, density, physical-size, and environment-override
+  selection logic remains commented directly beside the temporary override for
+  restoration after tablet validation.
+
+### Known limitations
+
+- Tablet-specific layout has not yet been visually tested on physical hardware.
+  Tablets currently use the phone layout as an interim compatibility fallback.
+
 ## [0.7.6.1] - 2026-08-08
 
 ### Fixed

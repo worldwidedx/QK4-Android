@@ -1,17 +1,21 @@
 # Project status
 
-Last updated: 2026-08-08
+Last updated: 2026-08-09
 
 ## Released build
 
-**QK4 Mobile v0.7.6.1** is the current release-signed ARM64 build. It adds
-USB-C headset RX/TX hot-swap after the radio session begins, while preserving
-the Android TLS runtime and Bluetooth headset routing across TX/RX transitions.
-Where Android supports independent routes, Bluetooth RX can remain active while
-a USB-C headset microphone provides TX audio. It is signed
-with the permanent QK4 Mobile release certificate. It is installed and accepted
-by Android on the development phone. The product package is
-`com.ai5qk.qk4phone`, with Android API 26 minimum and API 34 target.
+**QK4 Mobile v0.7.6.2** is the current point-release source state. It
+temporarily forces the proven compact landscape phone layout on every Android
+display size, including tablets, so unvalidated alternate tablet geometry is
+not selected. The original detection logic remains commented in
+`src/ui/k4styles.cpp` for restoration after physical tablet testing.
+
+The preceding release-signed ARM64 build, v0.7.6.1, added USB-C headset RX/TX
+hot-swap after the radio session begins while preserving the Android TLS runtime
+and Bluetooth headset routing across TX/RX transitions. Where Android supports
+independent routes, Bluetooth RX can remain active while a USB-C headset
+microphone provides TX audio. The product package is `com.ai5qk.qk4phone`,
+with Android API 26 minimum and API 34 target.
 
 Version 0.7.4 adds an **experimental** in-window TX input shield. During a
 phone-initiated transmit state, it blocks all other console touch input while
@@ -26,8 +30,8 @@ spectrum renderer remains the only rendering path changed; waterfall, K4
 protocol, audio, and PTT behavior are unchanged.
 
 The only physical UI acceptance device so far is a Samsung Galaxy S26 Ultra in
-landscape. The compact layout is selected from logical dimensions, density, and
-physical screen size; broader device validation is still required.
+landscape. Until tablet testing is available, all screen sizes deliberately use
+the compact layout; broader device validation is still required.
 
 ## Verified Android behavior
 
@@ -61,7 +65,8 @@ physical screen size; broader device validation is still required.
 
 - Validate landscape usability, system insets, font scaling, touch scrolling,
   and audio behavior on smaller Android phones, a Pixel/non-Samsung phone, and
-  a foldable or tablet. Do not call those devices supported until tested.
+  a foldable or tablet. Tablet devices temporarily use the compact phone layout;
+  do not call them supported until tested.
 - Android sideloading can still show a Play Protect/unknown-source notice even
   for the release-signed APK. Google Play distribution requires a signed AAB
   and Play App Signing.

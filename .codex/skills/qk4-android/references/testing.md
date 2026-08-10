@@ -31,3 +31,10 @@ Use `adb devices` first when more than one device may be attached.
 
 Do not promote a result from one level as proof of the next.
 
+## Tablet-layout interim policy
+
+QK4 Mobile v0.7.6.2 deliberately uses the compact landscape phone layout on
+all Android screen sizes. This is an interim fallback while physical tablet
+testing is unavailable. The original screen-size selection code is preserved as
+comments in `src/ui/k4styles.cpp`; do not remove it. Restoring or replacing the
+tablet layout requires a visual test on a real tablet before release.

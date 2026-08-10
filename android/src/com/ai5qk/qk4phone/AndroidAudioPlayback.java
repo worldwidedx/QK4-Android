@@ -69,7 +69,7 @@ public final class AndroidAudioPlayback {
                         .setChannelMask(mask).setEncoding(AudioFormat.ENCODING_PCM_16BIT).build())
                 .setBufferSizeInBytes(Math.max(min * 4, sampleRate * channelCount))
                 .setTransferMode(AudioTrack.MODE_STREAM).build();
-        final AudioDeviceInfo output = wiredOutput();
+        final AudioDeviceInfo output = preferredExternalOutput();
         if (output != null)
             track.setPreferredDevice(output);
         track.play();
@@ -85,7 +85,12 @@ public final class AndroidAudioPlayback {
         track = null;
     }
 
-    private static AudioDeviceInfo wiredOutput() {
+    /**
+     * Prefer direct receive-only endpoints which Qt's Android device list can
+     * omit. Hearing aids remain an RX-only route; transmit input selection is
+     * intentionally handled separately by AndroidAudioRouter.
+     */
+    private static AudioDeviceInfo preferredExternalOutput() {
         if (audioManager == null)
             return null;
         for (AudioDeviceInfo device : audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)) {
@@ -95,6 +100,7 @@ public final class AndroidAudioPlayback {
                 case AudioDeviceInfo.TYPE_USB_ACCESSORY:
                 case AudioDeviceInfo.TYPE_WIRED_HEADSET:
                 case AudioDeviceInfo.TYPE_WIRED_HEADPHONES:
+                case AudioDeviceInfo.TYPE_HEARING_AID:
                     return device;
                 default:
                     break;

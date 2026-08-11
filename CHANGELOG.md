@@ -11,6 +11,16 @@ but upstream QK4 history is intentionally not repeated here.
 - Use **Added**, **Changed**, **Fixed**, and **Known limitations** as needed.
 - Do not list unverified radio behavior as fixed.
 
+## [0.7.6.4] - 2026-08-10
+
+### Fixed
+
+- Long-pressing **ATTN**, **NB LEVEL**, **NR ADJ**, or **NTCH MANUAL** in the
+  right-side K4 Controls panel now closes that panel before opening its
+  adjustment popup, so the editor and its controls remain fully accessible.
+- Added a standard **↩** return control to those adjustment popups so an
+  operator can explicitly close the editor when finished.
+
 ## [0.7.6.3] - 2026-08-10
 
 ### Added

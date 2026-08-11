@@ -4,12 +4,18 @@ Last updated: 2026-08-10
 
 ## Released build
 
-**QK4 Mobile v0.7.6.3** is the current point-release source state. It adds an
-RX-only Android hearing-aid output preference for endpoints reported as
-`TYPE_HEARING_AID`. The change uses the existing native Android media playback
-track and device-change rebuild path; it does not change K4 audio streaming,
-TX, PTT, Bluetooth headset behavior, USB-C behavior, or microphone selection.
-Field validation with Starkey Livio 2400 hearing aids is pending.
+**QK4 Mobile v0.7.6.4** is the current point-release source state. It fixes
+the four right-side CTRL long-press adjustment editors (ATTN, NB LEVEL, NR ADJ,
+and NTCH MANUAL): CTRL now dismisses before the requested popup opens, and
+each editor provides a visible **↩** close control. This is a touch-layout
+fix only; K4 radio/audio/protocol behavior is unchanged.
+
+The preceding v0.7.6.3 adds an RX-only Android hearing-aid output preference
+for endpoints reported as `TYPE_HEARING_AID`. The change uses the existing
+native Android media playback track and device-change rebuild path; it does
+not change K4 audio streaming, TX, PTT, Bluetooth headset behavior, USB-C
+behavior, or microphone selection. Field validation with Starkey Livio 2400
+hearing aids is pending.
 
 The preceding v0.7.6.2 point release temporarily forces the proven compact
 landscape phone layout on every Android display size, including tablets, so

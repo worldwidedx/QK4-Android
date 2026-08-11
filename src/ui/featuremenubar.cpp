@@ -99,6 +99,13 @@ void FeatureMenuBar::setupUi() {
     m_incrementBtn->setCursor(Qt::PointingHandCursor);
     m_incrementBtn->setStyleSheet(K4Styles::menuBarButtonSmall());
 
+    // Match the return control used by the other phone adjustment popups.
+    m_closeBtn = new QPushButton("\u21A9", this); // ↩
+    m_closeBtn->setFixedSize(K4Styles::Dimensions::NavButtonWidth,
+                             K4Styles::Dimensions::ButtonHeightMedium);
+    m_closeBtn->setCursor(Qt::PointingHandCursor);
+    m_closeBtn->setStyleSheet(K4Styles::menuBarButton());
+
     // Layout - compact, no stretches (popup is centered by showAboveWidget)
     layout->addWidget(m_titleLabel);
     layout->addWidget(m_toggleBtn);
@@ -107,6 +114,7 @@ void FeatureMenuBar::setupUi() {
     layout->addWidget(m_valueLabel);
     layout->addWidget(m_decrementBtn);
     layout->addWidget(m_incrementBtn);
+    layout->addWidget(m_closeBtn);
 
     // Connect signals
     connect(m_toggleBtn, &QPushButton::clicked, this, &FeatureMenuBar::toggleRequested);
@@ -114,6 +122,7 @@ void FeatureMenuBar::setupUi() {
     connect(m_decrementBtn, &QPushButton::clicked, this, &FeatureMenuBar::decrementRequested);
     connect(m_incrementBtn, &QPushButton::clicked, this, &FeatureMenuBar::incrementRequested);
     connect(m_extraBtn, &QPushButton::clicked, this, &FeatureMenuBar::extraButtonClicked);
+    connect(m_closeBtn, &QPushButton::clicked, this, &FeatureMenuBar::hideMenu);
 }
 
 void FeatureMenuBar::showForFeature(Feature feature) {
@@ -271,7 +280,7 @@ void FeatureMenuBar::paintEvent(QPaintEvent *event) {
 
     // Calculate tight bounding box from first to last visible widget
     int left = m_titleLabel->geometry().left() - 8; // 8px padding
-    int right = m_incrementBtn->geometry().right() + 8;
+    int right = m_closeBtn->geometry().right() + 8;
     QRect contentRect(left, K4Styles::Dimensions::ShadowMargin + 1, right - left, ContentHeight - 3);
 
     // Draw drop shadow
@@ -306,5 +315,6 @@ void FeatureMenuBar::paintEvent(QPaintEvent *event) {
         drawDelimiter(m_extraBtn); // After FILTER NONE (if shown)
     }
     drawDelimiter(m_valueLabel); // After value
-    // No delimiter after +/- buttons (they're at the end now)
+    drawDelimiter(m_incrementBtn); // Before the return control
+    // No delimiter after the return control (it is at the end).
 }

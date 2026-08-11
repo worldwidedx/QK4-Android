@@ -54,6 +54,7 @@ private:
     QLabel *m_valueLabel;
     QPushButton *m_decrementBtn;
     QPushButton *m_incrementBtn;
+    QPushButton *m_closeBtn;
 
     Feature m_currentFeature = Attenuator;
     bool m_featureEnabled = false;

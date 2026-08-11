@@ -3313,14 +3313,18 @@ void MainWindow::setupUi() {
     });
 
     // Secondary (right-click) signals - these show feature menus with toggle behavior
-    // If same menu is open, close it; otherwise switch to the new menu
-    auto toggleFeatureMenu = [this](FeatureMenuBar::Feature feature) {
-        if (m_featureMenuBar->isMenuVisible() && m_featureMenuBar->currentFeature() == feature) {
+    // These editors are invoked from long presses inside the compact CTRL
+    // drawer. Hide that top-level drawer first; otherwise it stacks above the
+    // main-window FeatureMenuBar and makes its touch controls inaccessible.
+    auto showFeatureAdjustment = [this](FeatureMenuBar::Feature feature) {
+        if (m_phoneControlsDialog)
+            m_phoneControlsDialog->hide();
+        if (m_featureMenuBar->isMenuVisible())
             m_featureMenuBar->hideMenu();
-        } else {
-            // Populate initial state from RadioState (use Sub RX state if B SET enabled)
-            bool bSet = m_radioState->bSetEnabled();
-            switch (feature) {
+
+        // Populate initial state from RadioState (use Sub RX state if B SET enabled)
+        bool bSet = m_radioState->bSetEnabled();
+        switch (feature) {
             case FeatureMenuBar::Attenuator:
                 if (bSet) {
                     m_featureMenuBar->setFeatureEnabled(m_radioState->attenuatorEnabledB());
@@ -3370,20 +3374,20 @@ void MainWindow::setupUi() {
                     m_featureMenuBar->setValue(m_radioState->manualNotchPitch());
                 }
                 break;
-            }
-            // Show popup positioned above the bottom menu bar (like other popups)
-            m_featureMenuBar->showForFeature(feature);
-            m_featureMenuBar->showAboveWidget(m_bottomMenuBar);
         }
+        // Show the adjustment popup above the bottom menu bar, with no CTRL
+        // drawer remaining above it.
+        m_featureMenuBar->showForFeature(feature);
+        m_featureMenuBar->showAboveWidget(m_bottomMenuBar);
     };
     connect(m_rightSidePanel, &RightSidePanel::attnClicked, this,
-            [=]() { showControlFeedback("ATTENUATOR controls"); toggleFeatureMenu(FeatureMenuBar::Attenuator); });
+            [=]() { showFeatureAdjustment(FeatureMenuBar::Attenuator); });
     connect(m_rightSidePanel, &RightSidePanel::levelClicked, this,
-            [=]() { showControlFeedback("NOISE BLANKER controls"); toggleFeatureMenu(FeatureMenuBar::NbLevel); });
+            [=]() { showFeatureAdjustment(FeatureMenuBar::NbLevel); });
     connect(m_rightSidePanel, &RightSidePanel::adjClicked, this,
-            [=]() { showControlFeedback("NOISE REDUCTION controls"); toggleFeatureMenu(FeatureMenuBar::NrAdjust); });
+            [=]() { showFeatureAdjustment(FeatureMenuBar::NrAdjust); });
     connect(m_rightSidePanel, &RightSidePanel::manualClicked, this,
-            [=]() { showControlFeedback("MANUAL NOTCH controls"); toggleFeatureMenu(FeatureMenuBar::ManualNotch); });
+            [=]() { showFeatureAdjustment(FeatureMenuBar::ManualNotch); });
     connect(m_rightSidePanel, &RightSidePanel::apfClicked, this, [this]() {
         // Toggle APF on/off for Main RX or Sub RX based on B SET state
         queueControlFeedback("APF", "APF changed");

@@ -1,6 +1,7 @@
 #include "bandpopupwidget.h"
 #include "k4styles.h"
-#include <QHBoxLayout>
+#include "settings/radiosettings.h"
+#include <QGridLayout>
 #include <QVBoxLayout>
 
 namespace {
@@ -9,6 +10,22 @@ const int ButtonWidth = 70;
 const int ButtonHeight = 44;
 const int ButtonSpacing = 8;
 const int RowSpacing = 2;
+
+struct ShortwaveBand {
+    const char *label;
+    quint64 centerHz;
+};
+
+// International broadcast bands and their center frequencies. The labels and
+// frequency ranges are from https://en.wikipedia.org/wiki/Shortwave_bands;
+// international broadcast service is ordinarily AM, selected in MainWindow.
+const QList<ShortwaveBand> ShortwaveBands = {
+    {"120m",  2397500}, {"90m",  3300000}, {"75m",  3950000},
+    {"60m",   4872500}, {"49m",  6050000}, {"41m",  7325000},
+    {"31m",   9650000}, {"25m", 11850000}, {"22m", 13720000},
+    {"19m",  15450000}, {"16m", 17690000}, {"15m", 18960000},
+    {"13m",  21650000}, {"11m", 25885000},
+};
 
 // K4 Band Number mapping (BN command)
 // Band number -> button label
@@ -43,43 +60,57 @@ BandPopupWidget::BandPopupWidget(QWidget *parent)
 QSize BandPopupWidget::contentSize() const {
     int cm = K4Styles::Dimensions::PopupContentMargin;
 
-    int width = 7 * ButtonWidth + 6 * ButtonSpacing + 2 * cm;
-    int height = 2 * ButtonHeight + RowSpacing + 2 * cm;
+    const int columns = m_shortwaveBandsActive ? 5 : 7;
+    const int rows = m_shortwaveBandsActive ? 3 : 2;
+    int width = columns * ButtonWidth + (columns - 1) * ButtonSpacing + 2 * cm;
+    int height = rows * ButtonHeight + (rows - 1) * RowSpacing + 2 * cm;
     return QSize(width, height);
 }
 
 void BandPopupWidget::setupUi() {
     auto *mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(contentMargins());
-    mainLayout->setSpacing(RowSpacing);
-
-    // Row 1: 1.8, 3.5, 7, 14, 21, 28, MEM
-    QStringList row1Bands = {"1.8", "3.5", "7", "14", "21", "28", "MEM"};
-    auto *row1Layout = new QHBoxLayout();
-    row1Layout->setSpacing(ButtonSpacing);
-    for (const QString &band : row1Bands) {
-        QPushButton *btn = createBandButton(band);
-        m_buttonMap[band] = btn;
-        row1Layout->addWidget(btn);
-    }
-    mainLayout->addLayout(row1Layout);
-
-    // Row 2: GEN, 5, 10, 18, 24, 50, XVTR
-    QStringList row2Bands = {"GEN", "5", "10", "18", "24", "50", "XVTR"};
-    auto *row2Layout = new QHBoxLayout();
-    row2Layout->setSpacing(ButtonSpacing);
-    for (const QString &band : row2Bands) {
-        QPushButton *btn = createBandButton(band);
-        m_buttonMap[band] = btn;
-        row2Layout->addWidget(btn);
-    }
-    mainLayout->addLayout(row2Layout);
-
-    // Update styles to show selected band
-    updateButtonStyles();
+    mainLayout->setSpacing(0);
+    m_bandGrid = new QGridLayout();
+    m_bandGrid->setSpacing(ButtonSpacing);
+    mainLayout->addLayout(m_bandGrid);
+    rebuildBandGrid();
 
     // Initialize popup size from base class
     initPopup();
+}
+
+void BandPopupWidget::rebuildBandGrid() {
+    while (QLayoutItem *item = m_bandGrid->takeAt(0)) {
+        delete item->widget();
+        delete item;
+    }
+    m_buttonMap.clear();
+
+    QStringList bands;
+    int columns = 7;
+    if (m_shortwaveBandsActive) {
+        // Keep GEN at the lower-left as the selected return toggle. The other
+        // fourteen cells are the complete broadcast-band list in 3 x 5 form.
+        bands = {"120m", "90m", "75m", "60m", "49m",
+                 "41m", "31m", "25m", "22m", "19m",
+                 "GEN", "16m", "15m", "13m", "11m"};
+        columns = 5;
+    } else {
+        bands = {"1.8", "3.5", "7", "14", "21", "28", "MEM",
+                 "GEN", "5", "10", "18", "24", "50", "XVTR"};
+    }
+
+    for (int index = 0; index < bands.size(); ++index) {
+        const QString &band = bands.at(index);
+        QPushButton *btn = createBandButton(band);
+        m_buttonMap[band] = btn;
+        m_bandGrid->addWidget(btn, index / columns, index % columns);
+    }
+    updateButtonStyles();
+
+    const int sm = K4Styles::Dimensions::ShadowMargin;
+    setFixedSize(contentSize() + QSize(2 * sm, 2 * sm));
 }
 
 QPushButton *BandPopupWidget::createBandButton(const QString &text) {
@@ -95,7 +126,8 @@ QPushButton *BandPopupWidget::createBandButton(const QString &text) {
 
 void BandPopupWidget::updateButtonStyles() {
     for (auto it = m_buttonMap.begin(); it != m_buttonMap.end(); ++it) {
-        if (it.key() == m_selectedBand) {
+        if ((m_shortwaveBandsActive && it.key() == "GEN") ||
+            (!m_shortwaveBandsActive && it.key() == m_selectedBand)) {
             it.value()->setStyleSheet(K4Styles::popupButtonSelected());
         } else {
             it.value()->setStyleSheet(K4Styles::popupButtonNormal());
@@ -114,11 +146,61 @@ void BandPopupWidget::onBandButtonClicked() {
     QPushButton *btn = qobject_cast<QPushButton *>(sender());
     if (btn) {
         QString bandName = btn->property("bandName").toString();
+        if (bandName == "GEN") {
+            m_shortwaveBandsActive = !m_shortwaveBandsActive;
+            rebuildBandGrid();
+            emit bandBankChanged();
+            return;
+        }
+
         m_selectedBand = bandName;
         updateButtonStyles();
         emit bandSelected(bandName);
         hidePopup();
     }
+}
+
+bool BandPopupWidget::isShortwaveBand(const QString &bandName) const {
+    for (const auto &band : ShortwaveBands) {
+        if (bandName == QLatin1String(band.label))
+            return true;
+    }
+    return false;
+}
+
+quint64 BandPopupWidget::shortwaveBandTuneHz(const QString &bandName) const {
+    for (const auto &band : ShortwaveBands) {
+        if (bandName == QLatin1String(band.label)) {
+            return RadioSettings::instance()->swlBandFrequency(bandName, band.centerHz);
+        }
+    }
+    return 0;
+}
+
+void BandPopupWidget::setActiveShortwaveBand(bool vfoB, const QString &bandName) {
+    if (!isShortwaveBand(bandName))
+        return;
+    if (vfoB)
+        m_activeShortwaveBandB = bandName;
+    else
+        m_activeShortwaveBandA = bandName;
+}
+
+void BandPopupWidget::clearActiveShortwaveBand(bool vfoB) {
+    if (vfoB)
+        m_activeShortwaveBandB.clear();
+    else
+        m_activeShortwaveBandA.clear();
+}
+
+void BandPopupWidget::rememberVfoFrequency(bool vfoB, quint64 frequencyHz) {
+    const QString &bandName = vfoB ? m_activeShortwaveBandB : m_activeShortwaveBandA;
+    // A GEN selection is a local recall slot, not a K4 amateur-band stack.
+    // Once selected, it must retain the actual tuned frequency (for example,
+    // 27.185 MHz under the 11m entry), rather than reject it against the
+    // narrower international-broadcast table used for the initial default.
+    if (!bandName.isEmpty())
+        RadioSettings::instance()->setSwlBandFrequency(bandName, frequencyHz);
 }
 
 int BandPopupWidget::getBandNumber(const QString &bandName) const {

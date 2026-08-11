@@ -396,6 +396,16 @@ MainWindow::MainWindow(QWidget *parent)
     // Create band selection popup
     m_bandPopup = new BandPopupWidget(this);
     connect(m_bandPopup, &BandPopupWidget::bandSelected, this, &MainWindow::onBandSelected);
+    connect(m_radioState, &RadioState::frequencyChanged, this,
+            [this](quint64 frequencyHz) { m_bandPopup->rememberVfoFrequency(false, frequencyHz); });
+    connect(m_radioState, &RadioState::frequencyBChanged, this,
+            [this](quint64 frequencyHz) { m_bandPopup->rememberVfoFrequency(true, frequencyHz); });
+    connect(m_bandPopup, &BandPopupWidget::bandBankChanged, this, [this]() {
+        // GEN changes the popup's geometry (2 x 7 amateur grid / 3 x 5 SWL
+        // grid); re-position it above BAND after the size change.
+        if (m_bottomMenuBar && m_bandPopup->isVisible())
+            m_bandPopup->showAboveButton(m_bottomMenuBar->bandButton());
+    });
     connect(m_bandPopup, &BandPopupWidget::closed, this, [this]() {
         if (m_bottomMenuBar) {
             m_bottomMenuBar->setBandActive(false);
@@ -6551,6 +6561,31 @@ void MainWindow::toggleTxPopup() {
 void MainWindow::onBandSelected(const QString &bandName) {
     qDebug() << "Band selected:" << bandName;
 
+    // GEN's mobile SWL bank uses direct, deliberate frequency/mode selection.
+    // It is separate from K4 BN band-stack state so switching back to the ham
+    // bank preserves the normal K4 band behavior.
+    if (m_bandPopup->isShortwaveBand(bandName)) {
+        const quint64 frequencyHz = m_bandPopup->shortwaveBandTuneHz(bandName);
+        if (m_tcpClient->isConnected() && frequencyHz > 0) {
+            const bool bSetEnabled = m_radioState->bSetEnabled();
+            m_bandPopup->setActiveShortwaveBand(bSetEnabled, bandName);
+            const QString frequencyPrefix = bSetEnabled ? "FB" : "FA";
+            const QString modePrefix = bSetEnabled ? "MD$" : "MD";
+            const QString queryFrequency = bSetEnabled ? "FB;" : "FA;";
+            const QString queryMode = bSetEnabled ? "MD$;" : "MD;";
+
+            // International shortwave broadcast bands are AM service.
+            m_tcpClient->sendCAT(QString("%1%2;%3%4;%5%6")
+                                     .arg(frequencyPrefix)
+                                     .arg(frequencyHz, 11, 10, QChar('0'))
+                                     .arg(modePrefix)
+                                     .arg(5)
+                                     .arg(queryFrequency)
+                                     .arg(queryMode));
+        }
+        return;
+    }
+
     // Get band number from name
     int newBandNum = m_bandPopup->getBandNumber(bandName);
 
@@ -6560,9 +6595,13 @@ void MainWindow::onBandSelected(const QString &bandName) {
         return;
     }
 
+    // A normal K4 band selection ends the GEN-only local memory context even
+    // if the radio is currently disconnected.
+    const bool bSetEnabled = m_radioState->bSetEnabled();
+    m_bandPopup->clearActiveShortwaveBand(bSetEnabled);
+
     if (m_tcpClient->isConnected()) {
         // Check if BSET is enabled - target VFO B (Sub RX) instead of VFO A
-        bool bSetEnabled = m_radioState->bSetEnabled();
         int currentBand = bSetEnabled ? m_currentBandNumB : m_currentBandNum;
         QString cmdPrefix = bSetEnabled ? "BN$" : "BN";
 

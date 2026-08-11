@@ -204,6 +204,22 @@ void RadioSettings::setSpeakerDevice(const QString &deviceId) {
     }
 }
 
+quint64 RadioSettings::swlBandFrequency(const QString &bandName, quint64 fallbackHz) const {
+    bool ok = false;
+    quint64 frequencyHz = m_settings.value(QString("swlBandMemory/%1").arg(bandName)).toULongLong(&ok);
+    return ok && frequencyHz > 0 ? frequencyHz : fallbackHz;
+}
+
+void RadioSettings::setSwlBandFrequency(const QString &bandName, quint64 frequencyHz) {
+    if (bandName.isEmpty() || frequencyHz == 0)
+        return;
+    const QString key = QString("swlBandMemory/%1").arg(bandName);
+    if (m_settings.value(key).toULongLong() != frequencyHz) {
+        m_settings.setValue(key, frequencyHz);
+        m_settings.sync();
+    }
+}
+
 bool RadioSettings::catServerEnabled() const {
     return m_catServerEnabled;
 }

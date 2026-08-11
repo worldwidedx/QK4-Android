@@ -4,11 +4,18 @@ Last updated: 2026-08-10
 
 ## Released build
 
-**QK4 Mobile v0.7.6.4** is the current point-release source state. It fixes
-the four right-side CTRL long-press adjustment editors (ATTN, NB LEVEL, NR ADJ,
-and NTCH MANUAL): CTRL now dismisses before the requested popup opens, and
-each editor provides a visible **↩** close control. This is a touch-layout
-fix only; K4 radio/audio/protocol behavior is unchanged.
+**QK4 Mobile v0.7.7.0** is the current feature-release source state. It gives
+the formerly unused GEN BAND control a mobile-only shortwave-listening bank:
+the 14 broadcast-band labels tune the active VFO to AM defaults and retain a
+persistent, local last-used frequency per GEN band. GEN preserves the K4's
+normal direct-frequency and nearest amateur-band-stack behavior; it does not
+alter regular BN amateur-band selection or stacking.
+
+The preceding v0.7.6.4 fixes the four right-side CTRL long-press adjustment
+editors (ATTN, NB LEVEL, NR ADJ, and NTCH MANUAL): CTRL now dismisses before
+the requested popup opens, and each editor provides a visible **↩** close
+control. This is a touch-layout fix only; K4 radio/audio/protocol behavior is
+unchanged.
 
 The preceding v0.7.6.3 adds an RX-only Android hearing-aid output preference
 for endpoints reported as `TYPE_HEARING_AID`. The change uses the existing

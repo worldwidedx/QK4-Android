@@ -92,6 +92,11 @@ public:
     QString speakerDevice() const;
     void setSpeakerDevice(const QString &deviceId);
 
+    // Mobile GEN/SWL band-bank local frequency memory. This is intentionally
+    // independent of the K4's amateur-band stack and CAT state.
+    quint64 swlBandFrequency(const QString &bandName, quint64 fallbackHz) const;
+    void setSwlBandFrequency(const QString &bandName, quint64 frequencyHz);
+
     // CAT Server settings (local TCP server for external apps)
     bool catServerEnabled() const;
     void setCatServerEnabled(bool enabled);

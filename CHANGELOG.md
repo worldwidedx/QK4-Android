@@ -11,6 +11,39 @@ but upstream QK4 history is intentionally not repeated here.
 - Use **Added**, **Changed**, **Fixed**, and **Known limitations** as needed.
 - Do not list unverified radio behavior as fixed.
 
+## [0.7.7.0] - 2026-08-10
+
+### Added: GEN shortwave-listening band bank
+
+- The previously unused **GEN** control in the BAND menu is now a mobile-only
+  Shortwave Listening (SWL) band-bank selector.
+- Tap **GEN** to replace the normal amateur-band button grid with 120m, 90m,
+  75m, 60m, 49m, 41m, 31m, 25m, 22m, 19m, 16m, 15m, 13m, and 11m.
+- GEN remains visible and white while the SWL grid is active; tap it again to
+  restore the normal K4 amateur-band grid.
+- The first selection of an SWL band tunes the active VFO to its supplied
+  center-frequency default and selects **AM** mode. GEN respects **B SET**,
+  tuning VFO B when B SET is active and VFO A otherwise.
+
+### Added: per-band GEN frequency recall
+
+- Each GEN/SWL band remembers the last frequency tuned while that GEN band is
+  active. For example, tune 11m to 27.185 MHz AM, select another GEN band, and
+  return to 11m to recall 27.185 MHz.
+- Saved GEN frequencies persist across app restarts. The supplied SWL values
+  are first-use defaults only; they do not restrict an operator's chosen
+  listening frequency.
+
+### Compatibility and intended radio behavior
+
+- GEN is separate from normal Elecraft amateur-band selection and does not
+  replace, clear, or simulate the K4's native **BN** band-stack behavior.
+- The normal 1.8–50 MHz amateur-band buttons, MEM, XVTR, and K4 band-stack
+  handling remain unchanged.
+- GEN selections use direct VFO frequency commands, so the K4 may add the
+  selected frequency to its nearest applicable native amateur-band stack. This
+  expected K4 behavior is intentionally preserved.
+
 ## [0.7.6.4] - 2026-08-10
 
 ### Fixed

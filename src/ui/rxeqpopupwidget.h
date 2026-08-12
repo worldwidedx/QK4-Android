@@ -7,6 +7,7 @@
 #include <QMenu>
 #include <QPushButton>
 #include <QSlider>
+#include <QTimer>
 #include <QWidget>
 
 class EqPresetRowWidget;
@@ -209,6 +210,7 @@ signals:
 
 protected:
     void contextMenuEvent(QContextMenuEvent *event) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private slots:
     void onLoadClicked();
@@ -219,6 +221,11 @@ private:
     QString m_name;
     QPushButton *m_loadBtn;
     QPushButton *m_saveBtn;
+    QTimer m_longPressTimer;
+    QPoint m_pressPosition;
+    bool m_loadPressed = false;
+    bool m_longPressHandled = false;
+    bool m_pressCancelled = false;
 };
 
 #endif // RXEQPOPUPWIDGET_H

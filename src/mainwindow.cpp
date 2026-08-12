@@ -2371,7 +2371,9 @@ void MainWindow::showAboutDialog() {
 }
 
 QString MainWindow::requestText(const QString &title, const QString &label, const QString &initial, bool *accepted) {
-    InWindowDialog dialog(centralWidget());
+    // Popups are direct MainWindow children on Android. Keep this overlay at
+    // the same parent level so raise() can place the editor above them.
+    InWindowDialog dialog(this);
     QWidget *panel = dialog.contentWidget();
     auto *layout = new QVBoxLayout(panel);
     layout->setContentsMargins(14, 12, 14, 12);
@@ -2408,8 +2410,8 @@ QString MainWindow::requestText(const QString &title, const QString &label, cons
     connect(save, &QPushButton::clicked, &dialog, &InWindowDialog::accept);
     connect(entry, &QLineEdit::returnPressed, &dialog, &InWindowDialog::accept);
 
-    const int width = qMin(500, qMax(300, centralWidget()->width() - 24));
-    dialog.setPanelSize(QSize(width, qMin(220, centralWidget()->height() - 16)));
+    const int panelWidth = qMin(500, qMax(300, width() - 24));
+    dialog.setPanelSize(QSize(panelWidth, qMin(220, height() - 16)));
     const bool wasAccepted = dialog.exec() == InWindowDialog::Accepted;
     if (accepted)
         *accepted = wasAccepted;

@@ -3,6 +3,7 @@
 #include <QContextMenuEvent>
 #include <QHBoxLayout>
 #include <QMenu>
+#include <QMouseEvent>
 #include <QVBoxLayout>
 #include <QWheelEvent>
 
@@ -187,22 +188,33 @@ EqPresetRowWidget::EqPresetRowWidget(int presetIndex, QWidget *parent) : QWidget
 
     // Preset name/load button
     m_loadBtn = new QPushButton("---", this);
-    m_loadBtn->setFixedSize(48, 26);
+    m_loadBtn->setFixedSize(72, 34);
     m_loadBtn->setStyleSheet(
         K4Styles::menuBarButtonSmall() +
         QString("QPushButton { font-size: %1px; padding: 2px; }").arg(K4Styles::Dimensions::FontSizeSmall));
+    m_loadBtn->setToolTip("Tap to recall; press and hold to clear");
     connect(m_loadBtn, &QPushButton::clicked, this, &EqPresetRowWidget::onLoadClicked);
+    m_loadBtn->installEventFilter(this);
     layout->addWidget(m_loadBtn);
 
     // Save button
     m_saveBtn = new QPushButton("S", this);
-    m_saveBtn->setFixedSize(K4Styles::Dimensions::ButtonHeightMini, 26);
+    m_saveBtn->setFixedSize(36, 34);
     m_saveBtn->setStyleSheet(
         K4Styles::menuBarButtonSmall() +
         QString("QPushButton { font-size: %1px; font-weight: bold; }").arg(K4Styles::Dimensions::FontSizeSmall));
     m_saveBtn->setToolTip("Save current EQ to this preset");
     connect(m_saveBtn, &QPushButton::clicked, this, &EqPresetRowWidget::onSaveClicked);
     layout->addWidget(m_saveBtn);
+
+    m_longPressTimer.setSingleShot(true);
+    m_longPressTimer.setInterval(550);
+    connect(&m_longPressTimer, &QTimer::timeout, this, [this]() {
+        if (m_loadPressed && !m_pressCancelled && hasPreset()) {
+            m_longPressHandled = true;
+            emit clearRequested(m_presetIndex);
+        }
+    });
 }
 
 void EqPresetRowWidget::setPresetName(const QString &name) {
@@ -242,6 +254,44 @@ void EqPresetRowWidget::contextMenuEvent(QContextMenuEvent *event) {
     }
 }
 
+bool EqPresetRowWidget::eventFilter(QObject *watched, QEvent *event) {
+    if (watched != m_loadBtn)
+        return QWidget::eventFilter(watched, event);
+
+    if (event->type() == QEvent::MouseButtonPress) {
+        auto *mouseEvent = static_cast<QMouseEvent *>(event);
+        if (mouseEvent->button() == Qt::LeftButton) {
+            m_pressPosition = mouseEvent->pos();
+            m_loadPressed = true;
+            m_longPressHandled = false;
+            m_pressCancelled = false;
+            m_longPressTimer.start();
+        }
+    } else if (event->type() == QEvent::MouseMove && m_loadPressed) {
+        auto *mouseEvent = static_cast<QMouseEvent *>(event);
+        if ((mouseEvent->pos() - m_pressPosition).manhattanLength() > 12) {
+            m_pressCancelled = true;
+            m_longPressTimer.stop();
+        }
+    } else if (event->type() == QEvent::MouseButtonRelease) {
+        auto *mouseEvent = static_cast<QMouseEvent *>(event);
+        if (mouseEvent->button() == Qt::LeftButton && m_loadPressed) {
+            m_longPressTimer.stop();
+            m_loadPressed = false;
+            if (m_longPressHandled) {
+                m_longPressHandled = false;
+                m_loadBtn->setDown(false);
+                return true;
+            }
+        }
+    } else if (event->type() == QEvent::Leave && m_loadPressed) {
+        m_pressCancelled = true;
+        m_longPressTimer.stop();
+    }
+
+    return QWidget::eventFilter(watched, event);
+}
+
 // =============================================================================
 // RxEqPopupWidget Implementation
 // =============================================================================
@@ -272,7 +322,7 @@ void RxEqPopupWidget::setupUi(const QString &title, const QString &accentColor) 
 
     // Content area: bands + right side buttons
     auto *contentLayout = new QHBoxLayout();
-    contentLayout->setSpacing(4);
+    contentLayout->setSpacing(0);
 
     // EQ bands row
     auto *bandsLayout = new QHBoxLayout();
@@ -295,7 +345,8 @@ void RxEqPopupWidget::setupUi(const QString &title, const QString &accentColor) 
     dbLabel->setStyleSheet(QString("color: %1; font-size: %2px; font-weight: bold;")
                                .arg(K4Styles::Colors::TextWhite)
                                .arg(K4Styles::Dimensions::FontSizeMedium));
-    dbLabel->setAlignment(Qt::AlignCenter);
+    dbLabel->setFixedWidth(24);
+    dbLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     labelsLayout->addWidget(dbLabel);
 
     labelsLayout->addStretch();
@@ -304,7 +355,8 @@ void RxEqPopupWidget::setupUi(const QString &title, const QString &accentColor) 
     hzLabel->setStyleSheet(QString("color: %1; font-size: %2px; font-weight: bold;")
                                .arg(K4Styles::Colors::TextWhite)
                                .arg(K4Styles::Dimensions::FontSizeMedium));
-    hzLabel->setAlignment(Qt::AlignCenter);
+    hzLabel->setFixedWidth(24);
+    hzLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     labelsLayout->addWidget(hzLabel);
 
     contentLayout->addLayout(labelsLayout);
@@ -315,7 +367,7 @@ void RxEqPopupWidget::setupUi(const QString &title, const QString &accentColor) 
 
     // Close button
     m_closeBtn = new QPushButton(this);
-    m_closeBtn->setFixedSize(76, K4Styles::Dimensions::ButtonHeightMedium);
+    m_closeBtn->setFixedSize(110, K4Styles::Dimensions::ButtonHeightMedium);
     m_closeBtn->setText("\u21A9"); // ↩ return arrow
     m_closeBtn->setStyleSheet(K4Styles::popupButtonNormal() +
                               QString("QPushButton { font-size: %1px; }").arg(K4Styles::Dimensions::FontSizeTitle));
@@ -339,7 +391,7 @@ void RxEqPopupWidget::setupUi(const QString &title, const QString &accentColor) 
 
     // FLAT button
     m_flatBtn = new QPushButton("FLAT", this);
-    m_flatBtn->setFixedSize(76, K4Styles::Dimensions::ButtonHeightMedium);
+    m_flatBtn->setFixedSize(110, K4Styles::Dimensions::ButtonHeightMedium);
     m_flatBtn->setStyleSheet(K4Styles::popupButtonNormal());
     connect(m_flatBtn, &QPushButton::clicked, this, &RxEqPopupWidget::onFlatClicked);
     buttonsLayout->addWidget(m_flatBtn);
@@ -351,8 +403,8 @@ void RxEqPopupWidget::setupUi(const QString &title, const QString &accentColor) 
 
 QSize RxEqPopupWidget::contentSize() const {
     int cm = K4Styles::Dimensions::PopupContentMargin;
-    // 8 bands * 50px + 7 gaps * 8px + labels column ~30px + buttons column ~85px + margins
-    int width = 8 * 50 + 7 * 8 + 30 + 85 + 2 * cm;
+    // 8 bands * 50px + 7 gaps * 8px + labels + touch-sized preset controls + margins
+    int width = 8 * 50 + 7 * 8 + 24 + 110 + 2 * cm;
     // Height: title ~30px + bands ~250px + margins
     int height = 310 + 2 * cm;
     return QSize(width, height);

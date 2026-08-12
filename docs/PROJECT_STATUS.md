@@ -1,10 +1,16 @@
 # Project status
 
-Last updated: 2026-08-11
+Last updated: 2026-08-12
 
 ## Released build
 
-**QK4 Mobile v0.7.6.5** is the current feature-release source state. It
+**QK4 Mobile v0.7.6.6** is the current feature-release source state. It fixes
+the EQ preset-name editor so it appears above the graphic-EQ popup, enlarges
+the preset recall/save controls for touch use, aligns the dB and Hz labels,
+and adds deliberate long-press clearing for populated presets. The shared EQ
+popup applies these changes to Main RX, Sub RX, and TX.
+
+The preceding v0.7.6.5
 corrects the Main RX, Sub RX, and TX graphic-EQ **FLAT** controls: the first
 tap sets flat response and the second restores the exact prior eight-band
 curve. Main and Sub RX share their RX EQ restore curve, matching the K4's
@@ -113,4 +119,3 @@ and meter display on some layouts; this point release removes only that padding.
 - [Elecraft K4 manuals](https://elecraft.com/pages/k4-high-performance-direct-sampling-sdr-manuals)
 - [Elecraft K4 Programmer's Reference](https://ftp.elecraft.com/K4/Manuals%20Downloads/K4ProgrammersReferencerev.D12.html)
 - [Upstream QK4](https://github.com/mikeg-dal/QK4)
-

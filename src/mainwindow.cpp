@@ -64,6 +64,7 @@
 #include <QResizeEvent>
 #include <QRegularExpression>
 #include <QMouseEvent>
+#include <algorithm>
 #include <QShowEvent>
 #include <QPointer>
 #include <QScreen>
@@ -659,13 +660,39 @@ MainWindow::MainWindow(QWidget *parent)
     });
 
     connect(m_rxEqPopup, &RxEqPopupWidget::bandValueChanged, this, [this](int bandIndex, int dB) {
+        // A direct band adjustment supersedes any curve retained for the
+        // FLAT-toggle restore.
+        m_rxEqFlatActive = false;
+        m_rxEqBeforeFlat.clear();
         // Update optimistic state immediately (UI stays responsive)
         m_radioState->setRxEqBand(bandIndex, dB);
         // Restart debounce timer - will send after 100ms of no changes
         m_rxEqDebounceTimer->start();
     });
     connect(m_rxEqPopup, &RxEqPopupWidget::flatRequested, this, [this]() {
-        // Reset all bands to 0 and send CAT command
+        // Mirror the K4's FLAT touch behavior for both Main and Sub RX EQ.
+        // RX EQ is shared by the two receivers, therefore they share the
+        // same retained pre-flat curve.
+        m_rxEqDebounceTimer->stop();
+        const QVector<int> current = m_radioState->rxEqBands();
+        const bool isFlat = std::all_of(current.cbegin(), current.cend(), [](int dB) { return dB == 0; });
+
+        if (m_rxEqFlatActive && isFlat && m_rxEqBeforeFlat.size() == 8) {
+            const QVector<int> restore = m_rxEqBeforeFlat;
+            m_rxEqFlatActive = false;
+            m_rxEqBeforeFlat.clear();
+            m_radioState->setRxEqBands(restore);
+
+            QString cmd = "RE";
+            for (int value : restore)
+                cmd += QString("%1%2").arg(value >= 0 ? '+' : '-').arg(qAbs(value), 2, 10, QChar('0'));
+            m_tcpClient->sendCAT(cmd);
+            return;
+        }
+
+        // Reset all bands to 0 and send CAT command.
+        m_rxEqBeforeFlat = current;
+        m_rxEqFlatActive = !isFlat;
         QVector<int> flat(8, 0);
         m_radioState->setRxEqBands(flat);
         m_tcpClient->sendCAT("RE+00+00+00+00+00+00+00+00");
@@ -750,13 +777,39 @@ MainWindow::MainWindow(QWidget *parent)
     });
 
     connect(m_txEqPopup, &RxEqPopupWidget::bandValueChanged, this, [this](int bandIndex, int dB) {
+        // A direct band adjustment creates a new curve, so it supersedes any
+        // curve retained for the FLAT toggle restore.
+        m_txEqFlatActive = false;
+        m_txEqBeforeFlat.clear();
         // Update optimistic state immediately (UI stays responsive)
         m_radioState->setTxEqBand(bandIndex, dB);
         // Restart debounce timer - will send after 100ms of no changes
         m_txEqDebounceTimer->start();
     });
     connect(m_txEqPopup, &RxEqPopupWidget::flatRequested, this, [this]() {
-        // Reset all bands to 0 and send CAT command
+        // Match the K4 FLAT touch control: first tap stores the active curve
+        // and sets flat; the next tap restores the stored curve.  TE has no
+        // documented radio-side toggle form, so preserve this locally.
+        m_txEqDebounceTimer->stop();
+        const QVector<int> current = m_radioState->txEqBands();
+        const bool isFlat = std::all_of(current.cbegin(), current.cend(), [](int dB) { return dB == 0; });
+
+        if (m_txEqFlatActive && isFlat && m_txEqBeforeFlat.size() == 8) {
+            const QVector<int> restore = m_txEqBeforeFlat;
+            m_txEqFlatActive = false;
+            m_txEqBeforeFlat.clear();
+            m_radioState->setTxEqBands(restore);
+
+            QString cmd = "TE";
+            for (int value : restore)
+                cmd += QString("%1%2").arg(value >= 0 ? '+' : '-').arg(qAbs(value), 2, 10, QChar('0'));
+            m_tcpClient->sendCAT(cmd);
+            return;
+        }
+
+        // Reset all bands to 0 and send CAT command.
+        m_txEqBeforeFlat = current;
+        m_txEqFlatActive = !isFlat;
         QVector<int> flat(8, 0);
         m_radioState->setTxEqBands(flat);
         m_tcpClient->sendCAT("TE+00+00+00+00+00+00+00+00");

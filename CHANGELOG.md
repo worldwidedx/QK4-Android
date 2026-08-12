@@ -11,6 +11,25 @@ but upstream QK4 history is intentionally not repeated here.
 - Use **Added**, **Changed**, **Fixed**, and **Known limitations** as needed.
 - Do not list unverified radio behavior as fixed.
 
+## [0.7.6.5] - 2026-08-11
+
+### Fixed: K4-style EQ FLAT restore
+
+- Corrected the **FLAT** control in Main RX EQ, Sub RX EQ, and TX EQ.
+- First tap sets the selected equalizer to a flat response. Tapping **FLAT** a
+  second time restores the exact eight-band EQ curve that was active before
+  FLAT was selected.
+- Main and Sub RX retain one shared RX EQ restore curve, matching their shared
+  K4 RX EQ behavior. TX EQ retains its own independent restore curve.
+- These controls update the associated **K4 radio EQ settings**; they are not
+  merely local phone-display changes.
+
+### Mobile operating recommendation
+
+- For mobile operation, set the K4 RX EQ flat, then use the phone or headset's
+  own tone/EQ controls for personal listening preference. This keeps the K4's
+  receive-audio path clean and predictable while allowing local tailoring.
+
 ## [0.7.7.0] - 2026-08-10
 
 ### Added: GEN shortwave-listening band bank

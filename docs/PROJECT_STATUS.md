@@ -1,15 +1,22 @@
 # Project status
 
-Last updated: 2026-08-10
+Last updated: 2026-08-11
 
 ## Released build
 
-**QK4 Mobile v0.7.7.0** is the current feature-release source state. It gives
-the formerly unused GEN BAND control a mobile-only shortwave-listening bank:
-the 14 broadcast-band labels tune the active VFO to AM defaults and retain a
-persistent, local last-used frequency per GEN band. GEN preserves the K4's
-normal direct-frequency and nearest amateur-band-stack behavior; it does not
-alter regular BN amateur-band selection or stacking.
+**QK4 Mobile v0.7.6.5** is the current feature-release source state. It
+corrects the Main RX, Sub RX, and TX graphic-EQ **FLAT** controls: the first
+tap sets flat response and the second restores the exact prior eight-band
+curve. Main and Sub RX share their RX EQ restore curve, matching the K4's
+shared RX EQ behavior, while TX EQ restores independently. These controls
+update K4 radio EQ settings. For mobile use, start with K4 RX EQ flat and use
+phone/headset tone controls for personal listening preference.
+
+The preceding v0.7.7.0 gives the formerly unused GEN BAND control a mobile-only
+shortwave-listening bank: the 14 broadcast-band labels tune the active VFO to
+AM defaults and retain a persistent, local last-used frequency per GEN band.
+GEN preserves the K4's normal direct-frequency and nearest amateur-band-stack
+behavior; it does not alter regular BN amateur-band selection or stacking.
 
 The preceding v0.7.6.4 fixes the four right-side CTRL long-press adjustment
 editors (ATTN, NB LEVEL, NR ADJ, and NTCH MANUAL): CTRL now dismisses before
@@ -95,7 +102,7 @@ the compact layout; broader device validation is still required.
   phone microphone unless Android supplies a separately supported input route.
 - DR+ indication remains deferred until its source/state semantics are proven.
 - Peak Hold is intentionally local: K4 stream data does not provide a rendered
-radio peak trace. WTR CLRS is local too; do not conflate it with `#WFC`.
+  radio peak trace. WTR CLRS is local too; do not conflate it with `#WFC`.
 
 Version 0.7.5.1 restores the original A/B VFO mode-control geometry. The
 v0.7.5 extra touch padding pushed the SUB/DIV badges toward the VFO B frequency
@@ -106,3 +113,4 @@ and meter display on some layouts; this point release removes only that padding.
 - [Elecraft K4 manuals](https://elecraft.com/pages/k4-high-performance-direct-sampling-sdr-manuals)
 - [Elecraft K4 Programmer's Reference](https://ftp.elecraft.com/K4/Manuals%20Downloads/K4ProgrammersReferencerev.D12.html)
 - [Upstream QK4](https://github.com/mikeg-dal/QK4)
+

@@ -373,8 +373,18 @@ private:
     // Debounce timer for RX EQ slider changes
     QTimer *m_rxEqDebounceTimer;
 
+    // The shared Main/Sub RX EQ FLAT control follows the K4 behavior: first
+    // tap sets flat; the next tap restores the curve that preceded FLAT.
+    QVector<int> m_rxEqBeforeFlat;
+    bool m_rxEqFlatActive = false;
+
     // Debounce timer for TX EQ slider changes
     QTimer *m_txEqDebounceTimer;
+
+    // The K4's TX EQ FLAT control is a toggle: first tap recalls a flat
+    // response, second tap restores the curve that was active before FLAT.
+    QVector<int> m_txEqBeforeFlat;
+    bool m_txEqFlatActive = false;
 
     // K4 "Mouse L/R Button QSY" menu setting
     int m_mouseQsyMode = 0;      // 0=Left Only, 1=L=A R=B

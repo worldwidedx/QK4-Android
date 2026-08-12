@@ -388,7 +388,9 @@ void RxEqPopupWidget::onBandValueChanged(int bandIndex, int dB) {
 }
 
 void RxEqPopupWidget::onFlatClicked() {
-    resetToFlat();
+    // Let the owner apply FLAT.  TX EQ needs to preserve the current curve so
+    // a second tap can restore it, and clearing the sliders here would discard
+    // those values before the owner has a chance to save them.
     emit flatRequested();
 }
 

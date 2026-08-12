@@ -2,7 +2,7 @@
 
 ## Current release and scope
 
-- Current release: **QK4 Mobile v0.7.7.0** (`com.ai5qk.qk4phone`).
+- Current release: **QK4 Mobile v0.7.6.5** (`com.ai5qk.qk4phone`).
 - Product target: ARM64 Android touch devices in landscape orientation, API 26+.
 - Physical acceptance testing: Samsung Galaxy S26 Ultra. Other Android phones
   are expected to use the compact layout but remain a validation priority.

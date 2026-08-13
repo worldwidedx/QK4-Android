@@ -26,6 +26,7 @@ public:
     bool isExtEnabled() const { return m_extEnabled; }
     bool isVfoAEnabled() const { return m_vfoAEnabled; }
     bool isVfoBEnabled() const { return m_vfoBEnabled; }
+    bool autoRefLevelEnabled() const { return m_autoRef; }
 
 public slots:
     // Span VALUES are per-VFO (A and B can have different spans)
@@ -297,6 +298,7 @@ signals:
     void incrementClicked();
     void decrementClicked();
     void autoClicked();
+    void valueClicked();
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -311,6 +313,7 @@ private:
     bool m_autoEnabled = false;
     bool m_valueFaded = false; // Grey text when auto mode
     QRect m_autoRect;
+    QRect m_valueRect;
     QRect m_minusRect;
     QRect m_plusRect;
     WheelAccumulator m_wheelAccumulator;

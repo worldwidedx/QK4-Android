@@ -60,8 +60,8 @@ BandPopupWidget::BandPopupWidget(QWidget *parent)
 QSize BandPopupWidget::contentSize() const {
     int cm = K4Styles::Dimensions::PopupContentMargin;
 
-    const int columns = m_shortwaveBandsActive ? 5 : 7;
-    const int rows = m_shortwaveBandsActive ? 3 : 2;
+    const int columns = m_bank == ShortwaveBank ? 5 : (m_bank == TransverterBank ? 4 : 7);
+    const int rows = m_bank == ShortwaveBank ? 3 : (m_bank == TransverterBank ? 4 : 2);
     int width = columns * ButtonWidth + (columns - 1) * ButtonSpacing + 2 * cm;
     int height = rows * ButtonHeight + (rows - 1) * RowSpacing + 2 * cm;
     return QSize(width, height);
@@ -89,13 +89,18 @@ void BandPopupWidget::rebuildBandGrid() {
 
     QStringList bands;
     int columns = 7;
-    if (m_shortwaveBandsActive) {
+    if (m_bank == ShortwaveBank) {
         // Keep GEN at the lower-left as the selected return toggle. The other
         // fourteen cells are the complete broadcast-band list in 3 x 5 form.
         bands = {"120m", "90m", "75m", "60m", "49m",
                  "41m", "31m", "25m", "22m", "19m",
                  "GEN", "16m", "15m", "13m", "11m"};
         columns = 5;
+    } else if (m_bank == TransverterBank) {
+        bands = {"XVTR1", "XVTR2", "XVTR3", "XVTR4",
+                 "XVTR5", "XVTR6", "XVTR7", "XVTR8",
+                 "HF", "XVTR9", "XVTR10", "XVTR11", "XVTR12"};
+        columns = 4;
     } else {
         bands = {"1.8", "3.5", "7", "14", "21", "28", "MEM",
                  "GEN", "5", "10", "18", "24", "50", "XVTR"};
@@ -126,8 +131,10 @@ QPushButton *BandPopupWidget::createBandButton(const QString &text) {
 
 void BandPopupWidget::updateButtonStyles() {
     for (auto it = m_buttonMap.begin(); it != m_buttonMap.end(); ++it) {
-        if ((m_shortwaveBandsActive && it.key() == "GEN") ||
-            (!m_shortwaveBandsActive && it.key() == m_selectedBand)) {
+        if ((m_bank == ShortwaveBank && it.key() == "GEN") ||
+            (m_bank == TransverterBank && it.key() == "HF") ||
+            (m_bank == AmateurBank && it.key() == m_selectedBand) ||
+            (m_bank == TransverterBank && it.key() == m_selectedBand)) {
             it.value()->setStyleSheet(K4Styles::popupButtonSelected());
         } else {
             it.value()->setStyleSheet(K4Styles::popupButtonNormal());
@@ -147,7 +154,22 @@ void BandPopupWidget::onBandButtonClicked() {
     if (btn) {
         QString bandName = btn->property("bandName").toString();
         if (bandName == "GEN") {
-            m_shortwaveBandsActive = !m_shortwaveBandsActive;
+            m_bank = m_bank == ShortwaveBank ? AmateurBank : ShortwaveBank;
+            m_shortwaveBandsActive = m_bank == ShortwaveBank;
+            rebuildBandGrid();
+            emit bandBankChanged();
+            return;
+        }
+        if (bandName == "XVTR") {
+            m_bank = TransverterBank;
+            m_shortwaveBandsActive = false;
+            rebuildBandGrid();
+            emit bandBankChanged();
+            return;
+        }
+        if (bandName == "HF") {
+            m_bank = AmateurBank;
+            m_shortwaveBandsActive = false;
             rebuildBandGrid();
             emit bandBankChanged();
             return;
@@ -204,13 +226,18 @@ void BandPopupWidget::rememberVfoFrequency(bool vfoB, quint64 frequencyHz) {
 }
 
 int BandPopupWidget::getBandNumber(const QString &bandName) const {
+    if (bandName.startsWith("XVTR")) {
+        bool ok = false;
+        const int slot = bandName.mid(4).toInt(&ok);
+        if (ok && slot >= 1 && slot <= 12)
+            return 10 + slot; // K4/QK4 transverter band numbers BN11..BN22
+    }
     return BandNameToNum.value(bandName, -1); // -1 for GEN, MEM, or unknown
 }
 
 QString BandPopupWidget::getBandName(int bandNum) const {
-    // Transverter bands 16-25 all map to XVTR
-    if (bandNum >= 16 && bandNum <= 25) {
-        return "XVTR";
+    if (bandNum >= 11 && bandNum <= 22) {
+        return QString("XVTR%1").arg(bandNum - 10);
     }
     return BandNumToName.value(bandNum, QString());
 }

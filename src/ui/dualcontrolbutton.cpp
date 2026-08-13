@@ -68,6 +68,13 @@ void DualControlButton::swapFunctions() {
     update();
 }
 
+void DualControlButton::cancelPendingTouch() {
+    m_longPressTimer->stop();
+    // Suppress the eventual release click after QScroller takes this gesture.
+    m_dragging = true;
+    m_longPressHandled = false;
+}
+
 QColor DualControlButton::contextColor() const {
     switch (m_context) {
     case Global:

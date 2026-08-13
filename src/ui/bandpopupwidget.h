@@ -60,6 +60,8 @@ private:
     QMap<QString, QPushButton *> m_buttonMap;
 
     QString m_selectedBand;
+    enum Bank { AmateurBank, ShortwaveBank, TransverterBank };
+    Bank m_bank = AmateurBank;
     bool m_shortwaveBandsActive = false;
     QString m_activeShortwaveBandA;
     QString m_activeShortwaveBandB;

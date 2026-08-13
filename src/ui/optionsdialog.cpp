@@ -2,6 +2,7 @@
 #include "k4styles.h"
 #include "micmeterwidget.h"
 #include "inwindowdialog.h"
+#include "fnpopupwidget.h"
 #include "../models/radiostate.h"
 #include "../hardware/kpoddevice.h"
 #include "../hardware/halikeydevice.h"
@@ -22,6 +23,10 @@
 #include <QApplication>
 #include <QSignalBlocker>
 #include <QPointer>
+#include <QScroller>
+#include <QScrollerProperties>
+#include <QMouseEvent>
+#include <QStyle>
 #ifdef Q_OS_ANDROID
 #include <QPermissions>
 #endif
@@ -128,6 +133,13 @@ void OptionsDialog::setupUi() {
     m_tabList->addItem("Rig Control");
     m_tabList->addItem("CW Keyer");
     m_tabList->addItem("K-Pod");
+    m_tabList->addItem("Fn Key Setup");
+#ifdef Q_OS_ANDROID
+    // The phone settings surface intentionally contains only app information
+    // and the controls needed for the external BLE MIDI CW keyer.
+    for (Page hiddenPage : {PageAudioInput, PageAudioOutput, PageRigControl, PageKpod})
+        m_tabList->item(hiddenPage)->setHidden(true);
+#endif
     m_tabList->setCurrentRow(0);
 
     // Right side: stacked pages (lazy — only About is created eagerly)
@@ -168,6 +180,9 @@ void OptionsDialog::ensurePageCreated(int index) {
     case PageKpod:
         page = createKpodPage();
         break;
+    case PageFnKeySetup:
+        page = createFnKeySetupPage();
+        break;
     default:
         return;
     }
@@ -178,6 +193,113 @@ void OptionsDialog::ensurePageCreated(int index) {
     delete placeholder;
     m_pageStack->insertWidget(index, page);
     m_pageCreated[index] = true;
+}
+
+QWidget *OptionsDialog::createFnKeySetupPage() {
+    auto *page = new QWidget(this);
+    page->setStyleSheet(QString("background-color: %1;").arg(K4Styles::Colors::Background));
+    auto *layout = new QVBoxLayout(page);
+    layout->setContentsMargins(K4Styles::Dimensions::DialogMargin, K4Styles::Dimensions::DialogMargin,
+                               K4Styles::Dimensions::DialogMargin, K4Styles::Dimensions::DialogMargin);
+    layout->setSpacing(6);
+
+    auto *titleRow = new QHBoxLayout();
+    auto *title = new QLabel("Fn Key Setup", page);
+    title->setStyleSheet(QString("color: %1; font-size: %2px; font-weight: bold;")
+                             .arg(K4Styles::Colors::AccentAmber)
+                             .arg(K4Styles::Dimensions::FontSizeTitle));
+    auto *saveStatus = new QLabel("Changes save automatically", page);
+    saveStatus->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    saveStatus->setStyleSheet(QString("color: %1; font-size: %2px; font-style: italic;")
+                                  .arg(K4Styles::Colors::TextGray)
+                                  .arg(K4Styles::Dimensions::FontSizeLarge));
+    titleRow->addWidget(title);
+    titleRow->addStretch();
+    titleRow->addWidget(saveStatus);
+    layout->addLayout(titleRow);
+    auto *columnHeader = new QWidget(page);
+    auto *headerLayout = new QHBoxLayout(columnHeader);
+    headerLayout->setContentsMargins(12, 0, 12, 0);
+    for (const QString &heading : {QStringLiteral("Function"), QStringLiteral("Button label"),
+                                   QStringLiteral("CAT command")}) {
+        auto *label = new QLabel(heading, columnHeader);
+        label->setStyleSheet(QString("color: %1; font-size: %2px; font-weight: bold;")
+                                 .arg(K4Styles::Colors::TextGray)
+                                 .arg(K4Styles::Dimensions::FontSizeLarge));
+        headerLayout->addWidget(label, 1);
+    }
+    layout->addWidget(columnHeader);
+
+    auto *scroll = new QScrollArea(page);
+    scroll->setWidgetResizable(true);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scroll->setStyleSheet(QString("QScrollArea { border: 1px solid %1; background: %2; }")
+                              .arg(K4Styles::Colors::DialogBorder, K4Styles::Colors::DarkBackground));
+    scroll->viewport()->setStyleSheet(QString("background: %1;").arg(K4Styles::Colors::DarkBackground));
+    auto *rows = new QWidget(scroll);
+    rows->setStyleSheet(QString("background: %1;").arg(K4Styles::Colors::DarkBackground));
+    auto *rowsLayout = new QVBoxLayout(rows);
+    rowsLayout->setContentsMargins(0, 0, 0, 0);
+    rowsLayout->setSpacing(1);
+
+    const QVector<QPair<QString, QString>> macroSlots = {
+        {MacroIds::FnF1, "F1"}, {MacroIds::FnF2, "F2"}, {MacroIds::FnF3, "F3"}, {MacroIds::FnF4, "F4"},
+        {MacroIds::FnF5, "F5"}, {MacroIds::FnF6, "F6"}, {MacroIds::FnF7, "F7"}, {MacroIds::FnF8, "F8"}};
+    const QString editStyle = QString("QLineEdit { background: %1; color: %2; border: 1px solid %3; "
+                                      "padding: 7px; font-size: %4px; }")
+                                  .arg(K4Styles::Colors::GradientMid1, K4Styles::Colors::TextWhite,
+                                       K4Styles::Colors::DialogBorder)
+                                  .arg(K4Styles::Dimensions::FontSizePopup);
+    for (const auto &slot : macroSlots) {
+        auto *row = new QWidget(rows);
+        row->setMinimumHeight(52);
+        row->setStyleSheet(QString("background: %1;").arg(K4Styles::Colors::OverlayItemBg));
+        auto *rowLayout = new QHBoxLayout(row);
+        rowLayout->setContentsMargins(12, 5, 12, 5);
+        rowLayout->setSpacing(10);
+        auto *function = new QLabel(slot.second, row);
+        function->setStyleSheet(QString("color: %1; font-size: %2px; font-weight: bold;")
+                                    .arg(K4Styles::Colors::AccentAmber)
+                                    .arg(K4Styles::Dimensions::FontSizePopup));
+        auto *labelEdit = new QLineEdit(row);
+        auto *commandEdit = new QLineEdit(row);
+        const MacroEntry macro = RadioSettings::instance()->macro(slot.first);
+        labelEdit->setText(macro.label);
+        labelEdit->setPlaceholderText("F-key label");
+        labelEdit->setMaxLength(12);
+        commandEdit->setText(macro.command);
+        commandEdit->setPlaceholderText("CAT command");
+        commandEdit->setMaxLength(64);
+        labelEdit->setStyleSheet(editStyle);
+        commandEdit->setStyleSheet(editStyle);
+        rowLayout->addWidget(function, 1);
+        rowLayout->addWidget(labelEdit, 1);
+        rowLayout->addWidget(commandEdit, 1);
+        const auto saveRow = [id = slot.first, labelEdit, commandEdit, saveStatus]() {
+            RadioSettings::instance()->setMacro(id, labelEdit->text().trimmed(), commandEdit->text().trimmed());
+            saveStatus->setText("Saved");
+            saveStatus->setStyleSheet(QString("color: %1; font-size: %2px; font-weight: bold;")
+                                          .arg(K4Styles::Colors::AccentAmber)
+                                          .arg(K4Styles::Dimensions::FontSizeLarge));
+        };
+        connect(labelEdit, &QLineEdit::editingFinished, row, saveRow);
+        connect(commandEdit, &QLineEdit::editingFinished, row, saveRow);
+        rowsLayout->addWidget(row);
+    }
+    rowsLayout->addStretch();
+    scroll->setWidget(rows);
+    layout->addWidget(scroll, 1);
+#ifdef Q_OS_ANDROID
+    scroll->viewport()->setAttribute(Qt::WA_AcceptTouchEvents);
+    QScroller::grabGesture(scroll->viewport(), QScroller::TouchGesture);
+    if (QScroller *scroller = QScroller::scroller(scroll->viewport())) {
+        QScrollerProperties properties = scroller->scrollerProperties();
+        properties.setScrollMetric(QScrollerProperties::MousePressEventDelay, 0.25);
+        properties.setScrollMetric(QScrollerProperties::DragStartDistance, 0.0015);
+        scroller->setScrollerProperties(properties);
+    }
+#endif
+    return page;
 }
 
 void OptionsDialog::showEvent(QShowEvent *event) {
@@ -196,6 +318,48 @@ void OptionsDialog::hideEvent(QHideEvent *event) {
             m_micMeter->setLevel(0.0f);
     }
     OptionsDialogBase::hideEvent(event);
+}
+
+bool OptionsDialog::eventFilter(QObject *watched, QEvent *event) {
+#ifdef Q_OS_ANDROID
+    auto *slider = qobject_cast<QSlider *>(watched);
+    if (slider && (slider == m_cwSpeedSlider || slider == m_sidetoneVolumeSlider)) {
+        if (event->type() == QEvent::MouseButtonPress) {
+            auto *mouseEvent = static_cast<QMouseEvent *>(event);
+            if (mouseEvent->button() == Qt::LeftButton) {
+                m_touchSlider = slider;
+                setTouchSliderValue(slider, mouseEvent->position().x());
+                return true;
+            }
+        } else if (event->type() == QEvent::MouseMove && slider == m_touchSlider) {
+            auto *mouseEvent = static_cast<QMouseEvent *>(event);
+            setTouchSliderValue(slider, mouseEvent->position().x());
+            return true;
+        } else if (event->type() == QEvent::MouseButtonRelease && slider == m_touchSlider) {
+            auto *mouseEvent = static_cast<QMouseEvent *>(event);
+            setTouchSliderValue(slider, mouseEvent->position().x());
+            if (slider == m_cwSpeedSlider)
+                emit keyerSpeedRequested(slider->value());
+            m_touchSlider = nullptr;
+            return true;
+        } else if ((event->type() == QEvent::Leave || event->type() == QEvent::UngrabMouse) &&
+                   slider == m_touchSlider) {
+            m_touchSlider = nullptr;
+        }
+    }
+#endif
+    return OptionsDialogBase::eventFilter(watched, event);
+}
+
+void OptionsDialog::setTouchSliderValue(QSlider *slider, int xPosition) {
+    if (!slider)
+        return;
+
+    const int handleWidth = qMax(12, slider->height() / 2);
+    const int span = qMax(1, slider->width() - handleWidth);
+    const int position = qBound(0, xPosition - handleWidth / 2, span);
+    slider->setValue(QStyle::sliderValueFromPosition(slider->minimum(), slider->maximum(), position, span,
+                                                     slider->invertedAppearance()));
 }
 
 void OptionsDialog::refreshCurrentPage() {
@@ -260,6 +424,30 @@ QWidget *OptionsDialog::createAboutPage() {
     layout->setContentsMargins(K4Styles::Dimensions::DialogMargin, K4Styles::Dimensions::DialogMargin,
                                K4Styles::Dimensions::DialogMargin, K4Styles::Dimensions::DialogMargin);
     layout->setSpacing(K4Styles::Dimensions::PaddingLarge);
+
+#ifdef Q_OS_ANDROID
+    auto *title = new QLabel("QK4 Mobile", page);
+    title->setStyleSheet(QString("color: %1; font-size: %2px; font-weight: bold;")
+                             .arg(K4Styles::Colors::AccentAmber)
+                             .arg(K4Styles::Dimensions::FontSizeTitle));
+    auto *version = new QLabel(QString("Version %1").arg(QCoreApplication::applicationVersion()), page);
+    version->setStyleSheet(QString("color: %1; font-size: %2px;")
+                               .arg(K4Styles::Colors::TextWhite)
+                               .arg(K4Styles::Dimensions::FontSizePopup));
+    layout->addWidget(title);
+    layout->addWidget(version);
+    auto *credits = new QLabel(
+        "Android development and phone UX by WorldwideDX.com\n"
+        "Based on the original QK4 by Mike Garcia, KF5O\n"
+        "Licensed under GNU GPL v3.0 or later", page);
+    credits->setStyleSheet(QString("color: %1; font-size: %2px;")
+                               .arg(K4Styles::Colors::TextGray)
+                               .arg(K4Styles::Dimensions::FontSizeButton));
+    credits->setWordWrap(true);
+    layout->addWidget(credits);
+    layout->addStretch();
+    return page;
+#endif
 
     // Title
     auto *titleLabel = new QLabel("Connected Radio", page);
@@ -1162,7 +1350,9 @@ void OptionsDialog::updateCatServerStatus() {
 
 QWidget *OptionsDialog::createCwKeyerPage() {
     auto *page = new QWidget(this);
+#ifndef Q_OS_ANDROID
     page->setStyleSheet(QString("background-color: %1;").arg(K4Styles::Colors::Background));
+#endif
 
     auto *layout = new QVBoxLayout(page);
     layout->setContentsMargins(K4Styles::Dimensions::DialogMargin, K4Styles::Dimensions::DialogMargin,
@@ -1170,26 +1360,227 @@ QWidget *OptionsDialog::createCwKeyerPage() {
     layout->setSpacing(K4Styles::Dimensions::PaddingLarge);
 
 #ifdef Q_OS_ANDROID
+    layout->setContentsMargins(12, 8, 12, 8);
+    layout->setSpacing(6);
     auto *androidTitleLabel = new QLabel("CW Keyer", page);
     androidTitleLabel->setStyleSheet(QString("color: %1; font-size: %2px; font-weight: bold;")
                                          .arg(K4Styles::Colors::AccentAmber)
                                          .arg(K4Styles::Dimensions::FontSizeTitle));
     layout->addWidget(androidTitleLabel);
 
-    auto *helpLabel = new QLabel("HaliKey serial/MIDI keying is not available on Android in this build.", page);
+    auto *helpLabel = new QLabel("Connect a standard Bluetooth LE MIDI paddle interface. BLE MIDI devices are "
+                                 "discovered here rather than in Android's normal Bluetooth pairing list.", page);
     helpLabel->setStyleSheet(QString("color: %1; font-size: %2px;")
                                  .arg(K4Styles::Colors::TextGray)
                                  .arg(K4Styles::Dimensions::FontSizeButton));
     helpLabel->setWordWrap(true);
     layout->addWidget(helpLabel);
 
-    auto *androidSidetoneInfoLabel = new QLabel("Sidetone volume is still available from radio controls.", page);
-    androidSidetoneInfoLabel->setStyleSheet(QString("color: %1; font-size: %2px; font-style: italic;")
-                                                .arg(K4Styles::Colors::TextGray)
-                                                .arg(K4Styles::Dimensions::FontSizeLarge));
-    androidSidetoneInfoLabel->setWordWrap(true);
-    layout->addWidget(androidSidetoneInfoLabel);
-    layout->addStretch();
+    m_cwKeyerDeviceTypeCombo = new QComboBox(page);
+    m_cwKeyerDeviceTypeCombo->addItem("Bluetooth LE MIDI", 1);
+    m_cwKeyerDeviceTypeCombo->hide();
+
+    auto *androidStatusLayout = new QHBoxLayout();
+    auto *statusTitle = new QLabel("Status:", page);
+    statusTitle->setStyleSheet(QString("color: %1; font-size: %2px;")
+                                   .arg(K4Styles::Colors::TextGray)
+                                   .arg(K4Styles::Dimensions::FontSizePopup));
+    m_cwKeyerStatusLabel = new QLabel("Not connected", page);
+    androidStatusLayout->addWidget(statusTitle);
+    androidStatusLayout->addWidget(m_cwKeyerStatusLabel, 1);
+    layout->addLayout(androidStatusLayout);
+
+    auto *deviceLayout = new QHBoxLayout();
+    deviceLayout->setSpacing(8);
+    m_cwKeyerPortCombo = new QComboBox(page);
+    m_cwKeyerPortCombo->setMinimumHeight(42);
+    m_cwKeyerPortCombo->setStyleSheet(QString(
+        "QComboBox { background-color: %1; color: %2; border: 1px solid %3; padding: 8px; font-size: %4px; }"
+        "QComboBox QAbstractItemView { background-color: %1; color: %2; selection-background-color: %5; }")
+        .arg(K4Styles::Colors::DarkBackground, K4Styles::Colors::TextWhite,
+             K4Styles::Colors::DialogBorder)
+        .arg(K4Styles::Dimensions::FontSizePopup)
+        .arg(K4Styles::Colors::AccentAmber));
+    m_cwKeyerRefreshBtn = new QPushButton("SCAN", page);
+    m_cwKeyerRefreshBtn->setFixedSize(110, 42);
+    m_cwKeyerRefreshBtn->setStyleSheet(K4Styles::menuBarButton());
+    connect(m_cwKeyerRefreshBtn, &QPushButton::clicked, this, &OptionsDialog::onCwKeyerRefreshClicked);
+    deviceLayout->addWidget(m_cwKeyerPortCombo, 1);
+    deviceLayout->addWidget(m_cwKeyerRefreshBtn);
+
+    m_cwKeyerConnectBtn = new QPushButton("CONNECT", page);
+    m_cwKeyerConnectBtn->setFixedSize(140, 42);
+    m_cwKeyerConnectBtn->setStyleSheet(K4Styles::menuBarButton());
+    connect(m_cwKeyerConnectBtn, &QPushButton::clicked, this, &OptionsDialog::onCwKeyerConnectClicked);
+    deviceLayout->addWidget(m_cwKeyerConnectBtn);
+    layout->addLayout(deviceLayout);
+
+    auto *speedLayout = new QHBoxLayout();
+    speedLayout->setSpacing(8);
+    auto *speedTitle = new QLabel("CW speed:", page);
+    speedTitle->setMinimumWidth(150);
+    speedTitle->setStyleSheet(QString("color: %1; font-size: %2px;")
+                                  .arg(K4Styles::Colors::TextGray)
+                                  .arg(K4Styles::Dimensions::FontSizePopup));
+    auto *speedDown = new QPushButton(QString(QChar(0x2212)), page);
+    auto *speedUp = new QPushButton("+", page);
+    for (auto *button : {speedDown, speedUp}) {
+        button->setFixedSize(58, 42);
+        button->setStyleSheet(K4Styles::menuBarButton());
+    }
+    m_cwSpeedSlider = new QSlider(Qt::Horizontal, page);
+    m_cwSpeedSlider->setRange(8, 40);
+    m_cwSpeedSlider->setSingleStep(1);
+    m_cwSpeedSlider->setPageStep(5);
+    m_cwSpeedSlider->setTracking(true);
+    const int currentWpm = RadioSettings::instance()->cwKeyerSpeed();
+    m_cwSpeedSlider->setValue(currentWpm);
+    m_cwSpeedSlider->setStyleSheet(
+        K4Styles::sliderHorizontal(K4Styles::Colors::DarkBackground, K4Styles::Colors::AccentAmber));
+    m_cwSpeedSlider->installEventFilter(this);
+    m_cwSpeedValueLabel = new QLabel(QString("%1 WPM").arg(currentWpm), page);
+    m_cwSpeedValueLabel->setAlignment(Qt::AlignCenter);
+    m_cwSpeedValueLabel->setMinimumWidth(110);
+    m_cwSpeedValueLabel->setStyleSheet(QString("color: %1; font-size: %2px; font-weight: bold;")
+                                           .arg(K4Styles::Colors::AccentAmber)
+                                           .arg(K4Styles::Dimensions::FontSizePopup));
+    speedLayout->addWidget(speedTitle);
+    speedLayout->addWidget(speedDown);
+    speedLayout->addWidget(m_cwSpeedSlider, 1);
+    speedLayout->addWidget(m_cwSpeedValueLabel);
+    speedLayout->addWidget(speedUp);
+    layout->addLayout(speedLayout);
+
+    auto *speedHelp = new QLabel("Built-in touch paddles: up to 30 WPM. External paddle/key: up to 40 WPM.", page);
+    speedHelp->setWordWrap(true);
+    speedHelp->setStyleSheet(QString("color: %1; font-size: %2px; font-style: italic;")
+                                 .arg(K4Styles::Colors::TextGray)
+                                 .arg(K4Styles::Dimensions::FontSizeLarge));
+    layout->addWidget(speedHelp);
+
+    connect(speedDown, &QPushButton::clicked, this, [this]() {
+        m_cwSpeedSlider->setValue(m_cwSpeedSlider->value() - 1);
+        emit keyerSpeedRequested(m_cwSpeedSlider->value());
+    });
+    connect(speedUp, &QPushButton::clicked, this, [this]() {
+        m_cwSpeedSlider->setValue(m_cwSpeedSlider->value() + 1);
+        emit keyerSpeedRequested(m_cwSpeedSlider->value());
+    });
+    connect(m_cwSpeedSlider, &QSlider::valueChanged, this, [this](int wpm) {
+        m_cwSpeedValueLabel->setText(QString("%1 WPM").arg(wpm));
+        RadioSettings::instance()->setCwKeyerSpeed(wpm);
+    });
+    if (m_radioState) {
+        connect(m_radioState, &RadioState::keyerSpeedChanged, m_cwSpeedSlider, [this](int wpm) {
+            if (m_touchSlider != m_cwSpeedSlider && wpm >= m_cwSpeedSlider->minimum() &&
+                wpm <= m_cwSpeedSlider->maximum()) {
+                QSignalBlocker blocker(m_cwSpeedSlider);
+                m_cwSpeedSlider->setValue(wpm);
+                m_cwSpeedValueLabel->setText(QString("%1 WPM").arg(wpm));
+                RadioSettings::instance()->setCwKeyerSpeed(wpm);
+            }
+        });
+    }
+
+    auto *inputTestLayout = new QHBoxLayout();
+    auto *inputTestTitle = new QLabel("Paddle test:", page);
+    inputTestTitle->setStyleSheet(QString("color: %1; font-size: %2px;")
+                                      .arg(K4Styles::Colors::TextGray)
+                                      .arg(K4Styles::Dimensions::FontSizePopup));
+    auto *ditIndicator = new QLabel("DIT", page);
+    auto *dahIndicator = new QLabel("DAH", page);
+    const auto setInputIndicator = [](QLabel *indicator, bool pressed) {
+        indicator->setStyleSheet(QString("background-color: %1; color: %2; border: 1px solid %3; "
+                                         "padding: 8px 18px; font-size: %4px; font-weight: bold;")
+                                     .arg(pressed ? K4Styles::Colors::AccentAmber
+                                                  : K4Styles::Colors::DarkBackground,
+                                          pressed ? K4Styles::Colors::DarkBackground
+                                                  : K4Styles::Colors::TextGray,
+                                          K4Styles::Colors::DialogBorder)
+                                     .arg(K4Styles::Dimensions::FontSizePopup));
+    };
+    setInputIndicator(ditIndicator, false);
+    setInputIndicator(dahIndicator, false);
+    inputTestTitle->setMinimumWidth(150);
+    inputTestLayout->addWidget(inputTestTitle);
+    inputTestLayout->addWidget(ditIndicator);
+    inputTestLayout->addWidget(dahIndicator);
+    m_paddleMappingLabel = new QLabel(page);
+    const auto updatePaddleMappingLabel = [this]() {
+        if (!m_paddleMappingLabel)
+            return;
+        const bool reversed = RadioSettings::instance()->cwPaddlesReversed();
+        m_paddleMappingLabel->setText(reversed
+            ? "Paddles: REVERSED (synced from K4; saved)"
+            : "Paddles: NORMAL — left DIT / right DAH (K4-synced; saved)");
+    };
+    m_paddleMappingLabel->setStyleSheet(QString("color: %1; font-size: %2px; font-style: italic;")
+                                            .arg(K4Styles::Colors::TextGray)
+                                            .arg(K4Styles::Dimensions::FontSizeLarge));
+    updatePaddleMappingLabel();
+    connect(RadioSettings::instance(), &RadioSettings::cwPaddlesReversedChanged,
+            m_paddleMappingLabel, [updatePaddleMappingLabel](bool) { updatePaddleMappingLabel(); });
+    inputTestLayout->addWidget(m_paddleMappingLabel, 1);
+    inputTestLayout->addStretch();
+    layout->addLayout(inputTestLayout);
+    if (m_halikeyDevice) {
+        connect(m_halikeyDevice, &HalikeyDevice::ditStateChanged, ditIndicator,
+                [ditIndicator, dahIndicator, setInputIndicator](bool pressed) {
+                    setInputIndicator(RadioSettings::instance()->cwPaddlesReversed() ? dahIndicator : ditIndicator,
+                                      pressed);
+                });
+        connect(m_halikeyDevice, &HalikeyDevice::dahStateChanged, dahIndicator,
+                [ditIndicator, dahIndicator, setInputIndicator](bool pressed) {
+                    setInputIndicator(RadioSettings::instance()->cwPaddlesReversed() ? ditIndicator : dahIndicator,
+                                      pressed);
+                });
+        connect(m_halikeyDevice, &HalikeyDevice::disconnected, page, [=]() {
+            setInputIndicator(ditIndicator, false);
+            setInputIndicator(dahIndicator, false);
+        });
+    }
+
+    auto *sidetoneLayout = new QHBoxLayout();
+    auto *sidetoneTitle = new QLabel("Local sidetone:", page);
+    sidetoneTitle->setMinimumWidth(150);
+    sidetoneTitle->setStyleSheet(QString("color: %1; font-size: %2px;")
+                                     .arg(K4Styles::Colors::TextGray)
+                                     .arg(K4Styles::Dimensions::FontSizePopup));
+    m_sidetoneVolumeSlider = new QSlider(Qt::Horizontal, page);
+    m_sidetoneVolumeSlider->setRange(0, 100);
+    m_sidetoneVolumeSlider->setTracking(true);
+    m_sidetoneVolumeSlider->setValue(RadioSettings::instance()->sidetoneVolume());
+    m_sidetoneVolumeSlider->setStyleSheet(
+        K4Styles::sliderHorizontal(K4Styles::Colors::DarkBackground, K4Styles::Colors::AccentAmber));
+    m_sidetoneVolumeSlider->installEventFilter(this);
+    m_sidetoneVolumeValueLabel =
+        new QLabel(QString("%1%").arg(RadioSettings::instance()->sidetoneVolume()), page);
+    m_sidetoneVolumeValueLabel->setMinimumWidth(70);
+    m_sidetoneVolumeValueLabel->setAlignment(Qt::AlignCenter);
+    m_sidetoneVolumeValueLabel->setStyleSheet(QString("color: %1; font-size: %2px; font-weight: bold;")
+                                                   .arg(K4Styles::Colors::TextWhite)
+                                                   .arg(K4Styles::Dimensions::FontSizePopup));
+    connect(m_sidetoneVolumeSlider, &QSlider::valueChanged, this, [this](int value) {
+        m_sidetoneVolumeValueLabel->setText(QString("%1%").arg(value));
+        RadioSettings::instance()->setSidetoneVolume(value);
+    });
+    sidetoneLayout->addWidget(sidetoneTitle);
+    sidetoneLayout->addWidget(m_sidetoneVolumeSlider, 1);
+    sidetoneLayout->addWidget(m_sidetoneVolumeValueLabel);
+    layout->addLayout(sidetoneLayout);
+
+    auto *mapping = new QLabel("MIDI mapping: note 21 = left, note 20 = right.", page);
+    mapping->setStyleSheet(QString("color: %1; font-size: %2px; font-style: italic;")
+                               .arg(K4Styles::Colors::TextGray)
+                               .arg(K4Styles::Dimensions::FontSizeLarge));
+    mapping->setWordWrap(true);
+    layout->addWidget(mapping);
+    populateCwKeyerPorts();
+    HalikeyDevice::startMidiScan();
+    for (int delay : {1000, 3000, 6000})
+        QTimer::singleShot(delay, this, &OptionsDialog::populateCwKeyerPorts);
+    updateCwKeyerStatus();
+    layout->addStretch(1);
     return page;
 #endif
 
@@ -1428,11 +1819,29 @@ void OptionsDialog::populateCwKeyerPorts() {
         // MIDI device — enumerate MIDI ports
         QStringList midiDevices = HalikeyDevice::availableMidiDevices();
         for (int i = 0; i < midiDevices.size(); i++) {
+#ifdef Q_OS_ANDROID
+            const QStringList fields = midiDevices[i].split('|');
+            const QString name = fields.value(0, "BLE MIDI");
+            const QString address = fields.value(1);
+            if (address.isEmpty())
+                continue;
+            m_cwKeyerPortCombo->addItem(name, address);
+            if (address == savedPort) {
+                selectedIndex = i;
+            }
+#else
             m_cwKeyerPortCombo->addItem(midiDevices[i], midiDevices[i]);
             if (midiDevices[i] == savedPort) {
                 selectedIndex = i;
             }
+#endif
         }
+#ifdef Q_OS_ANDROID
+        if (selectedIndex < 0 && !savedPort.isEmpty()) {
+            m_cwKeyerPortCombo->addItem("Remembered MIDI device", savedPort);
+            selectedIndex = m_cwKeyerPortCombo->count() - 1;
+        }
+#endif
         // Auto-select first HaliKey MIDI device if no saved selection matched
         if (selectedIndex < 0) {
             for (int i = 0; i < midiDevices.size(); i++) {
@@ -1483,7 +1892,15 @@ void OptionsDialog::updateCwKeyerDescription() {
 }
 
 void OptionsDialog::onCwKeyerRefreshClicked() {
+#ifdef Q_OS_ANDROID
+    HalikeyDevice::startMidiScan();
+    if (m_cwKeyerStatusLabel)
+        m_cwKeyerStatusLabel->setText(m_halikeyDevice ? m_halikeyDevice->statusMessage() : "Scanning…");
+    for (int delay : {1000, 3000, 6000})
+        QTimer::singleShot(delay, this, &OptionsDialog::populateCwKeyerPorts);
+#else
     populateCwKeyerPorts();
+#endif
 }
 
 void OptionsDialog::onCwKeyerConnectClicked() {
@@ -1510,13 +1927,18 @@ void OptionsDialog::updateCwKeyerStatus() {
     bool isConnected = m_halikeyDevice && m_halikeyDevice->isConnected();
 
     if (isConnected) {
+#ifdef Q_OS_ANDROID
+        m_cwKeyerStatusLabel->setText(m_halikeyDevice->statusMessage());
+#else
         m_cwKeyerStatusLabel->setText(QString("Connected to %1").arg(m_halikeyDevice->portName()));
+#endif
         m_cwKeyerStatusLabel->setStyleSheet(QString("color: %1; font-size: %2px; font-weight: bold;")
                                                 .arg(K4Styles::Colors::StatusGreen)
                                                 .arg(K4Styles::Dimensions::FontSizePopup));
         m_cwKeyerConnectBtn->setText("Disconnect");
     } else {
-        m_cwKeyerStatusLabel->setText("Not Connected");
+        const QString status = m_halikeyDevice ? m_halikeyDevice->statusMessage() : QStringLiteral("Not connected");
+        m_cwKeyerStatusLabel->setText(status);
         m_cwKeyerStatusLabel->setStyleSheet(QString("color: %1; font-size: %2px; font-weight: bold;")
                                                 .arg(K4Styles::Colors::ErrorRed)
                                                 .arg(K4Styles::Dimensions::FontSizePopup));

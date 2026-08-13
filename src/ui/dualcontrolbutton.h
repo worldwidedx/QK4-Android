@@ -65,6 +65,9 @@ public:
     // Swap primary and alternate labels/values
     void swapFunctions();
 
+    // Called when the containing phone panel claims the gesture for scrolling.
+    void cancelPendingTouch();
+
 signals:
     void valueScrolled(int delta); // Scroll wheel changed value (only when indicator shown)
     void clicked();                // Button was clicked

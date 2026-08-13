@@ -101,13 +101,14 @@ void VfoRowWidget::setupWidgets() {
     txVLayout->setSpacing(0);
 
     // TEST indicator - hidden by default
-    m_testLabel = new QLabel("TEST", m_txContainer);
+    // TEST is positioned independently from the TX container below. Keeping it
+    // out of the TX layout ensures its adjustment cannot move the TX glyph.
+    m_testLabel = new QLabel("TEST", this);
     m_testLabel->setAlignment(Qt::AlignCenter);
     m_testLabel->setStyleSheet(QString("color: %1; font-size: %2px; font-weight: bold;")
                                    .arg(K4Styles::Colors::TxRed)
                                    .arg(K4Styles::Dimensions::FontSizePopup));
     m_testLabel->setVisible(false);
-    txVLayout->addWidget(m_testLabel);
 
     // TX row (triangles + TX label)
     auto *txIndicatorRow = new QHBoxLayout();
@@ -202,8 +203,12 @@ void VfoRowWidget::positionWidgets() {
     // TX container - centered at widget center, offset down to align with squares
     m_txContainer->adjustSize();
     int txWidth = m_txContainer->width();
-    int txY = 10; // Offset to align TX with the square (below lock arc space)
+    m_testLabel->adjustSize();
+    // The original TX row began after TEST's layout height. Preserve that TX
+    // position while lifting only TEST toward the top of the VFO row.
+    int txY = m_testLabel->height();
     m_txContainer->move(centerX - txWidth / 2, txY);
+    m_testLabel->move(centerX - m_testLabel->width() / 2, 2);
 
     // A container - left of TX with gap
     int gap = K4Styles::Dimensions::PaddingLarge;

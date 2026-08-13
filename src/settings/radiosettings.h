@@ -118,6 +118,10 @@ public:
     void setHalikeyDeviceType(int type); // 0=V14, 1=MiDi
     int sidetoneVolume() const;
     void setSidetoneVolume(int value); // 0-100, default 30
+    int cwKeyerSpeed() const;
+    void setCwKeyerSpeed(int wpm); // 8-40 WPM, default 20
+    bool cwPaddlesReversed() const;
+    void setCwPaddlesReversed(bool reversed);
 
     // RX EQ Presets (4 slots)
     EqPreset rxEqPreset(int index) const;                  // Get preset 0-3
@@ -145,6 +149,7 @@ signals:
     void halikeyPortNameChanged(const QString &portName);
     void halikeyDeviceTypeChanged(int type);
     void sidetoneVolumeChanged(int value);
+    void cwPaddlesReversedChanged(bool reversed);
     void rxEqPresetsChanged();
     void txEqPresetsChanged();
 
@@ -172,6 +177,8 @@ private:
     bool m_halikeyEnabled = false;
     int m_halikeyDeviceType = 0; // 0=V14, 1=MiDi
     int m_sidetoneVolume = 30;   // Default 30%
+    int m_cwKeyerSpeed = 20;     // Default 20 WPM
+    bool m_cwPaddlesReversed = false; // Normal: left=dit, right=dah
 
     // Macro settings
     QMap<QString, MacroEntry> m_macros;

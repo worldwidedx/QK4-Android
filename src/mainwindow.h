@@ -38,6 +38,11 @@ class MicInputPopupWidget;
 class MicConfigPopupWidget;
 class VoxPopupWidget;
 class SsbBwPopupWidget;
+class KeyingWeightPopupWidget;
+class FmPlPopupWidget;
+class DtmfPopupWidget;
+class TxModePopupWidget;
+class SoftwareListPopupWidget;
 class TextDecodeWindow;
 class MacroDialog;
 class FilterIndicatorWidget;
@@ -45,6 +50,7 @@ class FeatureMenuBar;
 class ModePopupWidget;
 class KpodDevice;
 class HalikeyDevice;
+class IambicKeyer;
 class TxMeterWidget;
 class KPA1500Client;
 class KPA1500Window;
@@ -164,6 +170,7 @@ private slots:
 
 private:
     void setupMenuBar();
+    void showSettings();
     void showAboutDialog();
     void setupUi();
     void setupTopStatusBar(QWidget *parent);
@@ -175,6 +182,8 @@ private:
     void updateConnectionState(TcpClient::ConnectionState state);
     QString formatFrequency(quint64 freq);
     void updateModeLabels();
+    void refreshTxPopupForMode();
+    RadioState::Mode txOperatingMode() const;
     void queueControlFeedback(const QString &key, const QString &fallback);
     void completeControlFeedback(const QString &key, const QString &message);
     void showControlFeedback(const QString &message);
@@ -328,6 +337,11 @@ private:
     MicConfigPopupWidget *m_micConfigPopup;
     VoxPopupWidget *m_voxPopup;
     SsbBwPopupWidget *m_ssbBwPopup;
+    KeyingWeightPopupWidget *m_keyingWeightPopup;
+    FmPlPopupWidget *m_fmPlPopup;
+    DtmfPopupWidget *m_dtmfPopup;
+    TxModePopupWidget *m_txModePopup;
+    SoftwareListPopupWidget *m_softwareListPopup;
     TextDecodeWindow *m_textDecodeWindowMain;
     TextDecodeWindow *m_textDecodeWindowSub;
     AntennaCfgPopupWidget *m_mainRxAntCfgPopup;
@@ -343,6 +357,10 @@ private:
     // again drives the phone renderer and popup.
     int m_phoneWaterfallHeight = 50;
     bool m_phoneWaterfallHeightAdjusted = false;
+    float m_autoRefLevelA = 0.0f;
+    float m_autoRefLevelB = 0.0f;
+    bool m_autoRefLevelAValid = false;
+    bool m_autoRefLevelBValid = false;
     int m_currentBandNum = -1;  // Current band number for VFO A (BN command)
     int m_currentBandNumB = -1; // Current band number for VFO B (BN$ command)
 
@@ -351,8 +369,8 @@ private:
 
     // HaliKey CW paddle device
     HalikeyDevice *m_halikeyDevice;
-    QTimer *m_ditRepeatTimer;
-    QTimer *m_dahRepeatTimer;
+    IambicKeyer *m_iambicKeyer = nullptr;
+    QThread *m_keyerThread = nullptr;
 
     // Local sidetone generator for CW keying
     SidetoneGenerator *m_sidetoneGenerator;

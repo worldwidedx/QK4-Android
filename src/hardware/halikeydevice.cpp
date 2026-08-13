@@ -3,11 +3,102 @@
 #ifdef Q_OS_ANDROID
 
 #include <QDebug>
+#include <QJniObject>
+#include <qcoreapplication_platform.h>
+
+namespace {
+// TinyMIDI's BLE firmware reports the physical left paddle as note 20 and the
+// physical right paddle as note 21. Keep this physical mapping separate from
+// the K4 KP orientation setting, which is applied later by MainWindow.
+constexpr int NoteLeftPaddle = 20;
+constexpr int NoteRightPaddle = 21;
+
+QJniObject androidContext() {
+    return QNativeInterface::QAndroidApplication::context();
+}
+}
 
 HalikeyDevice::HalikeyDevice(QObject *parent) : QObject(parent) {
     m_ditDebounceTimer = new QTimer(this);
     m_dahDebounceTimer = new QTimer(this);
     m_pttDebounceTimer = new QTimer(this);
+    for (QTimer *timer : {m_ditDebounceTimer, m_dahDebounceTimer, m_pttDebounceTimer}) {
+        timer->setSingleShot(true);
+        timer->setInterval(DEBOUNCE_MS);
+    }
+    connect(m_ditDebounceTimer, &QTimer::timeout, this, [this]() {
+        if (m_rawDitState != m_confirmedDitState) {
+            m_confirmedDitState = m_rawDitState;
+            emit ditStateChanged(m_confirmedDitState);
+        }
+    });
+    connect(m_dahDebounceTimer, &QTimer::timeout, this, [this]() {
+        if (m_rawDahState != m_confirmedDahState) {
+            m_confirmedDahState = m_rawDahState;
+            emit dahStateChanged(m_confirmedDahState);
+        }
+    });
+    connect(m_pttDebounceTimer, &QTimer::timeout, this, [this]() {
+        if (m_rawPttState != m_confirmedPttState) {
+            m_confirmedPttState = m_rawPttState;
+            emit pttStateChanged(m_confirmedPttState);
+        }
+    });
+
+    // Connection transitions do not need paddle-rate polling. Keeping this
+    // separate avoids a JNI status call every few milliseconds for the life
+    // of the app, including while no MIDI device is connected.
+    m_androidConnectionPollTimer = new QTimer(this);
+    m_androidConnectionPollTimer->setInterval(250);
+    connect(m_androidConnectionPollTimer, &QTimer::timeout, this, [this]() {
+        const int state = QJniObject::callStaticMethod<jint>(
+                "com/ai5qk/qk4phone/AndroidBleMidi", "getConnectionState", "()I");
+        if (state != m_androidConnectionState) {
+            const int previous = m_androidConnectionState;
+            m_androidConnectionState = state;
+            m_connected = state == 2;
+            if (state == 2) {
+                m_androidMidiPollTimer->start();
+                emit connected();
+            } else if (state == 3) {
+                m_androidMidiPollTimer->stop();
+                emit connectionError(statusMessage());
+                if (previous == 2)
+                    emit disconnected();
+            } else if (state == 0 && previous == 2) {
+                m_androidMidiPollTimer->stop();
+                emit disconnected();
+            }
+        }
+    });
+
+    // Eight milliseconds keeps paddle latency below one hundredth of a second
+    // while reducing main-thread JNI traffic. This timer runs only while the
+    // BLE MIDI endpoint is actually connected.
+    m_androidMidiPollTimer = new QTimer(this);
+    m_androidMidiPollTimer->setInterval(8);
+    connect(m_androidMidiPollTimer, &QTimer::timeout, this, [this]() {
+        for (int count = 0; count < 64; ++count) {
+            const int event = QJniObject::callStaticMethod<jint>(
+                    "com/ai5qk/qk4phone/AndroidBleMidi", "pollEvent", "()I");
+            if (event < 0)
+                break;
+            const int status = (event >> 16) & 0xff;
+            const int note = (event >> 8) & 0xff;
+            const int velocity = event & 0xff;
+            const int kind = status & 0xf0;
+            const bool pressed = kind == 0x90 && velocity > 0;
+            if (kind != 0x80 && kind != 0x90)
+                continue;
+            if (note == NoteLeftPaddle)
+                onRawDit(pressed);
+            else if (note == NoteRightPaddle)
+                onRawDah(pressed);
+            else
+                qDebug() << "Android BLE MIDI note" << note << "pressed" << pressed;
+        }
+    });
+    m_androidConnectionPollTimer->start();
 }
 
 HalikeyDevice::~HalikeyDevice() {
@@ -15,25 +106,57 @@ HalikeyDevice::~HalikeyDevice() {
 }
 
 void HalikeyDevice::onRawDit(bool pressed) {
-    Q_UNUSED(pressed);
+    m_rawDitState = pressed;
+    if (pressed && !m_confirmedDitState) {
+        m_confirmedDitState = true;
+        m_ditDebounceTimer->stop();
+        emit ditStateChanged(true);
+    } else {
+        m_ditDebounceTimer->start();
+    }
 }
 
 void HalikeyDevice::onRawDah(bool pressed) {
-    Q_UNUSED(pressed);
+    m_rawDahState = pressed;
+    if (pressed && !m_confirmedDahState) {
+        m_confirmedDahState = true;
+        m_dahDebounceTimer->stop();
+        emit dahStateChanged(true);
+    } else {
+        m_dahDebounceTimer->start();
+    }
 }
 
 void HalikeyDevice::onRawPtt(bool pressed) {
-    Q_UNUSED(pressed);
+    m_rawPttState = pressed;
+    if (pressed && !m_confirmedPttState) {
+        m_confirmedPttState = true;
+        m_pttDebounceTimer->stop();
+        emit pttStateChanged(true);
+    } else {
+        m_pttDebounceTimer->start();
+    }
 }
 
 bool HalikeyDevice::openPort(const QString &portName) {
     m_portName = portName;
-    emit connectionError("HaliKey is not supported on Android builds.");
-    return false;
+    const QJniObject context = androidContext();
+    const QJniObject address = QJniObject::fromString(portName);
+    if (!context.isValid() || !QJniObject::callStaticMethod<jboolean>(
+            "com/ai5qk/qk4phone/AndroidBleMidi", "connect",
+            "(Landroid/content/Context;Ljava/lang/String;)Z", context.object(), address.object<jstring>())) {
+        emit connectionError(statusMessage());
+        return false;
+    }
+    m_androidConnectionState = 1;
+    return true;
 }
 
 void HalikeyDevice::closePort() {
+    QJniObject::callStaticMethod<void>("com/ai5qk/qk4phone/AndroidBleMidi", "disconnect", "()V");
+    m_androidMidiPollTimer->stop();
     bool wasConnected = m_connected;
+    m_androidConnectionState = 0;
     m_connected = false;
     m_rawDitState = false;
     m_rawDahState = false;
@@ -48,7 +171,7 @@ void HalikeyDevice::closePort() {
 }
 
 bool HalikeyDevice::isConnected() const {
-    return false;
+    return m_connected;
 }
 
 QString HalikeyDevice::portName() const {
@@ -64,15 +187,30 @@ QList<HaliKeyPortInfo> HalikeyDevice::availablePortsDetailed() {
 }
 
 QStringList HalikeyDevice::availableMidiDevices() {
-    return {};
+    const QJniObject devices = QJniObject::callStaticObjectMethod(
+            "com/ai5qk/qk4phone/AndroidBleMidi", "getDevices", "()Ljava/lang/String;");
+    return devices.isValid() ? devices.toString().split('\n', Qt::SkipEmptyParts) : QStringList{};
+}
+
+void HalikeyDevice::startMidiScan() {
+    const QJniObject context = androidContext();
+    if (context.isValid())
+        QJniObject::callStaticMethod<void>("com/ai5qk/qk4phone/AndroidBleMidi", "startScan",
+                                           "(Landroid/content/Context;)V", context.object());
+}
+
+QString HalikeyDevice::statusMessage() const {
+    const QJniObject message = QJniObject::callStaticObjectMethod(
+            "com/ai5qk/qk4phone/AndroidBleMidi", "getStatusMessage", "()Ljava/lang/String;");
+    return message.isValid() ? message.toString() : QStringLiteral("BLE MIDI unavailable");
 }
 
 bool HalikeyDevice::ditPressed() const {
-    return false;
+    return m_confirmedDitState;
 }
 
 bool HalikeyDevice::dahPressed() const {
-    return false;
+    return m_confirmedDahState;
 }
 
 #else
@@ -291,6 +429,14 @@ QStringList HalikeyDevice::availableMidiDevices() {
         qWarning() << "HalikeyDevice: MIDI enumeration failed:" << QString::fromStdString(error.getMessage());
     }
     return devices;
+}
+
+void HalikeyDevice::startMidiScan() {
+    // Desktop RtMidi enumeration is synchronous in availableMidiDevices().
+}
+
+QString HalikeyDevice::statusMessage() const {
+    return m_connected ? QString("Connected to %1").arg(m_portName) : QStringLiteral("Not connected");
 }
 
 bool HalikeyDevice::ditPressed() const {

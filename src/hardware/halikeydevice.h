@@ -32,6 +32,8 @@ public:
     static QStringList availablePorts();
     static QList<HaliKeyPortInfo> availablePortsDetailed();
     static QStringList availableMidiDevices();
+    static void startMidiScan();
+    QString statusMessage() const;
 
     // Current paddle state
     bool ditPressed() const;
@@ -72,6 +74,9 @@ private:
     QTimer *m_ditDebounceTimer = nullptr;
     QTimer *m_dahDebounceTimer = nullptr;
     QTimer *m_pttDebounceTimer = nullptr;
+    QTimer *m_androidMidiPollTimer = nullptr;
+    QTimer *m_androidConnectionPollTimer = nullptr;
+    int m_androidConnectionState = 0;
     static constexpr int DEBOUNCE_MS = 10;
 };
 

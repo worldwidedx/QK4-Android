@@ -63,6 +63,7 @@ signals:
     void frequencyARequested();
     void frequencyBRequested();
     void controlsRequested();
+    void settingsRequested();
     void mainVolumeChanged(int value);
     void subVolumeChanged(int value);
 
@@ -79,6 +80,7 @@ private:
     QPushButton *m_frequencyABtn = nullptr;
     QPushButton *m_frequencyBBtn = nullptr;
     QPushButton *m_controlsBtn = nullptr;
+    QPushButton *m_settingsBtn = nullptr;
     QPushButton *m_fnBtn;
     QPushButton *m_displayBtn;
     QPushButton *m_bandBtn;

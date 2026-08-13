@@ -27,6 +27,11 @@
 #include "ui/micconfigpopup.h"
 #include "ui/voxpopup.h"
 #include "ui/ssbbwpopup.h"
+#include "ui/keyingweightpopup.h"
+#include "ui/fmplpopup.h"
+#include "ui/dtmfpopup.h"
+#include "ui/txmodepopup.h"
+#include "ui/softwarelistpopup.h"
 #include "ui/textdecodewindow.h"
 #include "ui/frequencydisplaywidget.h"
 #include "models/menumodel.h"
@@ -37,6 +42,7 @@
 #include "audio/sidetonegenerator.h"
 #include "hardware/kpoddevice.h"
 #include "hardware/halikeydevice.h"
+#include "hardware/iambickeyer.h"
 #include "network/kpa1500client.h"
 #include "ui/kpa1500window.h"
 #include "ui/kpa1500panel.h"
@@ -552,17 +558,36 @@ MainWindow::MainWindow(QWidget *parent)
         case 4: // VOX GN - show VOX Gain popup
             if (m_voxPopup && m_txPopup) {
                 closeSecondaryPopups();
-                bool isDataMode =
-                    (m_radioState->mode() == RadioState::DATA || m_radioState->mode() == RadioState::DATA_R);
+                const RadioState::Mode txMode = txOperatingMode();
+                const bool isDataMode = txMode == RadioState::DATA || txMode == RadioState::DATA_R;
                 m_voxPopup->setPopupMode(VoxPopupWidget::VoxGain);
                 m_voxPopup->setDataMode(isDataMode);
-                m_voxPopup->setValue(m_radioState->voxGainForCurrentMode());
-                m_voxPopup->setVoxEnabled(m_radioState->voxForCurrentMode());
+                m_voxPopup->setValue(isDataMode ? m_radioState->voxGainData() : m_radioState->voxGainVoice());
+                m_voxPopup->setVoxEnabled(txMode == RadioState::CW || txMode == RadioState::CW_R
+                                              ? m_radioState->voxCW()
+                                              : (isDataMode ? m_radioState->voxData()
+                                                            : m_radioState->voxVoice()));
                 m_voxPopup->showAboveWidget(m_txPopup);
             }
             break;
-        case 5: // SSB BW - show SSB TX Bandwidth popup
-            if (m_ssbBwPopup && m_txPopup) {
+        case 5: {
+            const auto mode = txOperatingMode();
+            const int dataSubMode = m_radioState->splitEnabled()
+                                        ? m_radioState->dataSubModeB()
+                                        : m_radioState->dataSubMode();
+            const bool usesKeyer = mode == RadioState::CW || mode == RadioState::CW_R
+                                   || ((mode == RadioState::DATA || mode == RadioState::DATA_R)
+                                       && (dataSubMode == 2 || dataSubMode == 3));
+            if (usesKeyer) {
+                const QChar iambic = m_radioState->iambicMode();
+                const QChar paddle = m_radioState->paddleOrientation() == 'R' ? QChar('R') : QChar('N');
+                const QChar nextPaddle = paddle == 'R' ? QChar('N') : QChar('R');
+                const QString command = QString("KP%1%2%3;").arg(iambic).arg(nextPaddle)
+                                            .arg(m_radioState->keyingWeight(), 3, 10, QChar('0'));
+                m_tcpClient->sendCAT(command);
+                m_radioState->parseCATCommand(command);
+                refreshTxPopupForMode();
+            } else if ((mode == RadioState::LSB || mode == RadioState::USB) && m_ssbBwPopup && m_txPopup) {
                 closeSecondaryPopups();
                 m_ssbBwPopup->setEssbEnabled(m_radioState->essbEnabled());
                 int bw = m_radioState->ssbTxBw();
@@ -570,9 +595,46 @@ MainWindow::MainWindow(QWidget *parent)
                     m_ssbBwPopup->setBandwidth(bw);
                 }
                 m_ssbBwPopup->showAboveWidget(m_txPopup);
+            } else if ((mode == RadioState::DATA || mode == RadioState::DATA_R)
+                       && (dataSubMode == 0 || dataSubMode == 1)) {
+                closeSecondaryPopups();
+                m_txModePopup->showDataBandwidth(m_radioState->dataTxBandwidth());
+                m_txModePopup->showAboveWidget(m_txPopup);
+            } else if (mode == RadioState::FM) {
+                closeSecondaryPopups();
+                m_txModePopup->showFmRepeater(m_radioState->repeaterMode(),
+                                              m_radioState->repeaterOffsetKhz(), false);
+                m_txModePopup->showAboveWidget(m_txPopup);
+            } else if (mode == RadioState::AM) {
+                showInWindowMessage(centralWidget(), "AM BW",
+                                    "AM TX bandwidth is not exposed by the documented K4 remote protocol.");
             }
             break;
-        case 6: { // ESSB toggle
+        }
+        case 6: {
+            const auto mode = txOperatingMode();
+            const int dataSubMode = m_radioState->splitEnabled()
+                                        ? m_radioState->dataSubModeB()
+                                        : m_radioState->dataSubMode();
+            const bool usesKeyer = mode == RadioState::CW || mode == RadioState::CW_R
+                                   || ((mode == RadioState::DATA || mode == RadioState::DATA_R)
+                                       && (dataSubMode == 2 || dataSubMode == 3));
+            if (usesKeyer) {
+                if (m_keyingWeightPopup && m_txPopup) {
+                    closeSecondaryPopups();
+                    m_keyingWeightPopup->setWeight(m_radioState->keyingWeight());
+                    m_keyingWeightPopup->showAboveWidget(m_txPopup);
+                }
+                break;
+            }
+            if (mode == RadioState::FM) {
+                closeSecondaryPopups();
+                m_fmPlPopup->setTone(m_radioState->plToneIndex(), m_radioState->plToneEnabled());
+                m_fmPlPopup->showAboveWidget(m_txPopup);
+                break;
+            }
+            if (mode != RadioState::LSB && mode != RadioState::USB)
+                break;
             bool newState = !m_radioState->essbEnabled();
             int bw = m_radioState->ssbTxBw();
             // Ensure bw is valid for the new mode
@@ -590,12 +652,7 @@ MainWindow::MainWindow(QWidget *parent)
             // Optimistic update
             m_radioState->setEssbEnabled(newState);
             m_radioState->setSsbTxBw(bw);
-            // Update button labels
-            if (m_txPopup) {
-                QString bwStr = QString("%1k").arg(bw / 10.0, 0, 'f', 1);
-                m_txPopup->setButtonLabel(5, "SSB BW", bwStr, false);
-                m_txPopup->setButtonLabel(6, "ESSB", newState ? "ON" : "OFF", false);
-            }
+            refreshTxPopupForMode();
             break;
         }
         default:
@@ -614,6 +671,31 @@ MainWindow::MainWindow(QWidget *parent)
                 m_voxPopup->setValue(m_radioState->antiVox());
                 m_voxPopup->setVoxEnabled(m_radioState->voxForCurrentMode());
                 m_voxPopup->showAboveWidget(m_txPopup);
+            }
+        } else if (index == 6 && txOperatingMode() == RadioState::FM) {
+            closeSecondaryPopups();
+            m_dtmfPopup->showAboveWidget(m_txPopup);
+        } else if (index == 5) {
+            const auto mode = txOperatingMode();
+            const int dataSubMode = m_radioState->splitEnabled()
+                                        ? m_radioState->dataSubModeB()
+                                        : m_radioState->dataSubMode();
+            const bool usesKeyer = mode == RadioState::CW || mode == RadioState::CW_R
+                                   || ((mode == RadioState::DATA || mode == RadioState::DATA_R)
+                                       && (dataSubMode == 2 || dataSubMode == 3));
+            if (usesKeyer) {
+                const QChar nextIambic = m_radioState->iambicMode() == 'B' ? QChar('A') : QChar('B');
+                const QChar paddle = m_radioState->paddleOrientation() == 'R' ? QChar('R') : QChar('N');
+                const QString command = QString("KP%1%2%3;").arg(nextIambic).arg(paddle)
+                                            .arg(m_radioState->keyingWeight(), 3, 10, QChar('0'));
+                m_tcpClient->sendCAT(command);
+                m_radioState->parseCATCommand(command);
+                refreshTxPopupForMode();
+            } else if (mode == RadioState::FM) {
+                closeSecondaryPopups();
+                m_txModePopup->showFmRepeater(m_radioState->repeaterMode(),
+                                              m_radioState->repeaterOffsetKhz(), true);
+                m_txModePopup->showAboveWidget(m_txPopup);
             }
         } else if (index == 3) { // MIC CFG
             int input = m_radioState->micInput();
@@ -1060,7 +1142,8 @@ MainWindow::MainWindow(QWidget *parent)
             return;
         if (m_voxPopup->popupMode() == VoxPopupWidget::VoxGain) {
             // VOX Gain: VGVnnn or VGDnnn depending on mode
-            bool isDataMode = (m_radioState->mode() == RadioState::DATA || m_radioState->mode() == RadioState::DATA_R);
+            const RadioState::Mode txMode = txOperatingMode();
+            const bool isDataMode = txMode == RadioState::DATA || txMode == RadioState::DATA_R;
             QString modeChar = isDataMode ? "D" : "V";
             if (isDataMode) {
                 m_radioState->setVoxGainData(value);
@@ -1078,7 +1161,7 @@ MainWindow::MainWindow(QWidget *parent)
         if (!m_tcpClient || !m_tcpClient->isConnected())
             return;
         // VXmn where m=C/V/D, n=0/1
-        RadioState::Mode mode = m_radioState->mode();
+        const RadioState::Mode mode = txOperatingMode();
         QString modeChar;
         if (mode == RadioState::CW || mode == RadioState::CW_R) {
             modeChar = "C";
@@ -1092,7 +1175,8 @@ MainWindow::MainWindow(QWidget *parent)
     // Connect RadioState to update popup when K4 sends VG/VI/VX response
     connect(m_radioState, &RadioState::voxGainChanged, this, [this](int mode, int gain) {
         if (m_voxPopup && m_voxPopup->popupMode() == VoxPopupWidget::VoxGain) {
-            bool isDataMode = (m_radioState->mode() == RadioState::DATA || m_radioState->mode() == RadioState::DATA_R);
+            const RadioState::Mode txMode = txOperatingMode();
+            const bool isDataMode = txMode == RadioState::DATA || txMode == RadioState::DATA_R;
             if ((mode == 1 && isDataMode) || (mode == 0 && !isDataMode)) {
                 m_voxPopup->setValue(gain);
             }
@@ -1104,13 +1188,64 @@ MainWindow::MainWindow(QWidget *parent)
         }
     });
     connect(m_radioState, &RadioState::voxChanged, this, [this](bool enabled) {
+        Q_UNUSED(enabled)
         if (m_voxPopup) {
-            m_voxPopup->setVoxEnabled(m_radioState->voxForCurrentMode());
+            const RadioState::Mode txMode = txOperatingMode();
+            if (txMode == RadioState::CW || txMode == RadioState::CW_R)
+                m_voxPopup->setVoxEnabled(m_radioState->voxCW());
+            else if (txMode == RadioState::DATA || txMode == RadioState::DATA_R)
+                m_voxPopup->setVoxEnabled(m_radioState->voxData());
+            else
+                m_voxPopup->setVoxEnabled(m_radioState->voxVoice());
         }
     });
 
     // Create SSB TX Bandwidth popup (TX menu button index 5)
     m_ssbBwPopup = new SsbBwPopupWidget(this);
+    m_keyingWeightPopup = new KeyingWeightPopupWidget(this);
+    m_fmPlPopup = new FmPlPopupWidget(this);
+    m_dtmfPopup = new DtmfPopupWidget(this);
+    m_txModePopup = new TxModePopupWidget(this);
+    m_softwareListPopup = new SoftwareListPopupWidget(this);
+    connect(m_txModePopup, &TxModePopupWidget::dataBandwidthChanged, this, [this](int value) {
+        const QString command = QString("DW%1;").arg(value, 2, 10, QChar('0'));
+        m_tcpClient->sendCAT(command);
+        m_radioState->parseCATCommand(command);
+        refreshTxPopupForMode();
+    });
+    connect(m_txModePopup, &TxModePopupWidget::repeaterChanged, this, [this](QChar mode, int offset) {
+        const QString command = QString("RP%1%2;").arg(mode).arg(offset, 5, 10, QChar('0'));
+        m_tcpClient->sendCAT(command);
+        m_radioState->parseCATCommand(command);
+        refreshTxPopupForMode();
+    });
+    connect(m_fmPlPopup, &FmPlPopupWidget::toneChanged, this, [this](int index, bool enabled) {
+        if (!m_tcpClient || !m_tcpClient->isConnected())
+            return;
+        const QString command = QString("PL$%1%2;").arg(index, 2, 10, QChar('0')).arg(enabled ? 1 : 0);
+        m_tcpClient->sendCAT(command);
+        m_radioState->parseCATCommand(command);
+        refreshTxPopupForMode();
+    });
+    connect(m_dtmfPopup, &DtmfPopupWidget::digitRequested, this, [this](QChar digit) {
+        if (m_tcpClient && m_tcpClient->isConnected())
+            m_tcpClient->sendCAT(QString("DM%1;").arg(digit));
+    });
+    connect(m_radioState, &RadioState::plToneChanged, this, [this](int index, bool enabled) {
+        m_fmPlPopup->setTone(index, enabled);
+        refreshTxPopupForMode();
+    });
+    connect(m_keyingWeightPopup, &KeyingWeightPopupWidget::weightChanged, this, [this](int weight) {
+        if (!m_tcpClient || !m_tcpClient->isConnected())
+            return;
+        const QChar iambic = m_radioState->iambicMode() == 'B' ? QChar('B') : QChar('A');
+        const QChar paddle = m_radioState->paddleOrientation() == 'R' ? QChar('R') : QChar('N');
+        const QString command = QString("KP%1%2%3;").arg(iambic).arg(paddle)
+                                    .arg(weight, 3, 10, QChar('0'));
+        m_tcpClient->sendCAT(command);
+        m_radioState->parseCATCommand(command);
+        refreshTxPopupForMode();
+    });
     connect(m_ssbBwPopup, &SsbBwPopupWidget::doneRequested, this, [this]() {
         // Bandwidth changes are applied immediately. Done returns from the
         // editor and closes the complete TX operating-menu stack.
@@ -1123,11 +1258,9 @@ MainWindow::MainWindow(QWidget *parent)
         int essbMode = m_radioState->essbEnabled() ? 1 : 0;
         m_radioState->setSsbTxBw(bw);
         m_tcpClient->sendCAT(QString("ES%1%2;").arg(essbMode).arg(bw, 2, 10, QChar('0')));
-        // Update button label with new bandwidth (optimistic)
-        if (m_txPopup) {
-            QString bwStr = QString("%1k").arg(bw / 10.0, 0, 'f', 1);
-            m_txPopup->setButtonLabel(5, "SSB BW", bwStr, false);
-        }
+        // Keep the row mode-aware if the radio changes mode while this
+        // editor is closing or an ES response is still in flight.
+        refreshTxPopupForMode();
     });
     // Connect RadioState to update popup and ESSB button when K4 sends ES response
     // SSB: 24-28 (2.4-2.8 kHz), ESSB: 30-45 (3.0-4.5 kHz)
@@ -1138,16 +1271,9 @@ MainWindow::MainWindow(QWidget *parent)
                 m_ssbBwPopup->setBandwidth(bw);
             }
         }
-        // Update TX popup button labels
-        if (m_txPopup) {
-            // Button 5: SSB BW with current bandwidth value (e.g., "2.8k" or "3.0k")
-            if (bw >= 24 && bw <= 45) {
-                QString bwStr = QString("%1k").arg(bw / 10.0, 0, 'f', 1);
-                m_txPopup->setButtonLabel(5, "SSB BW", bwStr, false);
-            }
-            // Button 6: ESSB toggle with ON/OFF state
-            m_txPopup->setButtonLabel(6, "ESSB", enabled ? "ON" : "OFF", false);
-        }
+        // ES replies are asynchronous and may arrive after an operating-mode
+        // change. Never let one repaint CW, AM, FM, or DATA as an SSB menu.
+        refreshTxPopupForMode();
         // Update mode labels to show USB+/LSB+ when ESSB enabled
         updateModeLabels();
     });
@@ -1283,7 +1409,10 @@ MainWindow::MainWindow(QWidget *parent)
         onVoxChanged(false); // Refresh VOX display when mode changes (VOX is mode-specific)
     });
     // Data sub-mode changes also update mode label (AFSK, FSK, PSK, DATA)
-    connect(m_radioState, &RadioState::dataSubModeChanged, this, [this](int) { updateModeLabels(); });
+    connect(m_radioState, &RadioState::dataSubModeChanged, this, [this](int) {
+        updateModeLabels();
+        refreshTxPopupForMode();
+    });
     connect(m_radioState, &RadioState::sMeterChanged, this, &MainWindow::onSMeterChanged);
     connect(m_radioState, &RadioState::filterBandwidthChanged, this, &MainWindow::onBandwidthChanged);
     // RX EQ state -> popup (Main and Sub RX share the same EQ)
@@ -1323,7 +1452,10 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_radioState, &RadioState::frequencyBChanged, this, &MainWindow::onFrequencyBChanged);
     connect(m_radioState, &RadioState::modeBChanged, this, &MainWindow::onModeBChanged);
     // Data sub-mode changes also update mode label (AFSK, FSK, PSK, DATA)
-    connect(m_radioState, &RadioState::dataSubModeBChanged, this, [this](int) { updateModeLabels(); });
+    connect(m_radioState, &RadioState::dataSubModeBChanged, this, [this](int) {
+        updateModeLabels();
+        refreshTxPopupForMode();
+    });
     connect(m_radioState, &RadioState::sMeterBChanged, this, &MainWindow::onSMeterBChanged);
     connect(m_radioState, &RadioState::filterBandwidthBChanged, this, &MainWindow::onBandwidthBChanged);
 
@@ -1836,11 +1968,14 @@ MainWindow::MainWindow(QWidget *parent)
     // DDC NB level control +/- -> CAT commands
     connect(m_displayPopup, &DisplayPopupWidget::nbToggleRequested, this, [this]() {
         // This is the panadapter NB shown beside the WTR CLRS controls, not
-        // the receiver's generic NB switch. Use #NB$ explicitly and report
-        // the requested state immediately, even if the K4 echo is delayed.
-        const bool enable = m_radioState->ddcNbMode() != 1;
-        showControlFeedback(enable ? "PAN NB ON" : "PAN NB OFF");
-        const QString command = QString("#NB$%1;").arg(enable ? 1 : 0);
+        // the receiver's generic NB switch. The K4 DDC blanker has all three
+        // OFF/ON/AUTO modes, so cycle through them rather than reducing it to
+        // a two-state toggle.
+        const int current = m_radioState->ddcNbMode();
+        const int next = current < 0 ? 0 : (current + 1) % 3;
+        static const char *modeNames[] = {"OFF", "ON", "AUTO"};
+        showControlFeedback(QString("PAN NB %1").arg(modeNames[next]));
+        const QString command = QString("#NB$%1;").arg(next);
         m_tcpClient->sendCAT(command);
         m_radioState->parseCATCommand(command);
     });
@@ -2063,32 +2198,22 @@ MainWindow::MainWindow(QWidget *parent)
     // HaliKey CW paddle device
     m_halikeyDevice = new HalikeyDevice(this);
 
-    // Repeat timers for continuous paddle input - K4 keyer handles timing
-    // Repeat timers for held paddles - DISABLED for now
-    // The K4's keyer handles element timing based on WPM setting.
-    // We send a single element on paddle press; K4 generates the element.
-    // TODO: Implement proper iambic repeat based on WPM timing if needed.
-    m_ditRepeatTimer = new QTimer(this);
-    m_ditRepeatTimer->setInterval(500); // Much slower - only for sustained holding
-    connect(m_ditRepeatTimer, &QTimer::timeout, this, [this]() {
-        if (m_halikeyDevice && m_halikeyDevice->ditPressed()) {
-            qDebug() << "Dit repeat timer fired - sending another dit";
-            m_tcpClient->sendCAT("KZ.;");
-        } else {
-            m_ditRepeatTimer->stop();
-        }
-    });
-
-    m_dahRepeatTimer = new QTimer(this);
-    m_dahRepeatTimer->setInterval(500); // Much slower
-    connect(m_dahRepeatTimer, &QTimer::timeout, this, [this]() {
-        if (m_halikeyDevice && m_halikeyDevice->dahPressed()) {
-            qDebug() << "Dah repeat timer fired - sending another dah";
-            m_tcpClient->sendCAT("KZ-;");
-        } else {
-            m_dahRepeatTimer->stop();
-        }
-    });
+    // Match current upstream QK4: raw paddle edges feed a high-priority local
+    // iambic keyer. It aligns alternating paddles to element boundaries and
+    // emits the complete K4 KZ stream instead of treating every edge as an
+    // unrelated one-shot command.
+    m_iambicKeyer = new IambicKeyer(nullptr);
+    m_keyerThread = new QThread(this);
+    m_keyerThread->setObjectName("CW Keyer");
+    m_iambicKeyer->moveToThread(m_keyerThread);
+    m_keyerThread->start(QThread::HighPriority);
+    const int initialWpm = m_radioState->keyerSpeed() > 0 ? m_radioState->keyerSpeed() : 20;
+    QMetaObject::invokeMethod(m_iambicKeyer, "setSpeed", Qt::QueuedConnection, Q_ARG(int, initialWpm));
+    QMetaObject::invokeMethod(m_iambicKeyer, "setReversed", Qt::QueuedConnection,
+                              Q_ARG(bool, RadioSettings::instance()->cwPaddlesReversed()));
+    QMetaObject::invokeMethod(m_iambicKeyer, "setMode", Qt::QueuedConnection,
+                              Q_ARG(IambicKeyer::Mode, m_radioState->iambicMode() == 'B'
+                                                           ? IambicKeyer::IambicB : IambicKeyer::IambicA));
 
     // Local sidetone generator for CW keying (low-latency local audio feedback)
     // MUST be created BEFORE HaliKey signal connections that use it
@@ -2120,42 +2245,48 @@ MainWindow::MainWindow(QWidget *parent)
         m_sidetoneGenerator->setKeyerSpeed(m_radioState->keyerSpeed());
     }
 
-    // Update sidetone keyer speed when it changes
-    connect(m_radioState, &RadioState::keyerSpeedChanged, this,
-            [this](int wpm) { m_sidetoneGenerator->setKeyerSpeed(wpm); });
-
-    // Connect HaliKey paddle signals - relay paddle state to K4 in real-time
-    // Also control local sidetone for immediate audio feedback
-    // Sidetone calls use invokeMethod since SidetoneGenerator lives on sidetone thread
-    connect(m_halikeyDevice, &HalikeyDevice::ditStateChanged, this, [this](bool pressed) {
-        if (!m_tcpClient->isConnected())
-            return;
-        if (pressed) {
-            m_tcpClient->sendCAT("KZ.;");
-            QMetaObject::invokeMethod(m_sidetoneGenerator, "startDit", Qt::QueuedConnection);
-        } else {
-            QMetaObject::invokeMethod(m_sidetoneGenerator, "stopElement", Qt::QueuedConnection);
-        }
-    });
-    connect(m_halikeyDevice, &HalikeyDevice::dahStateChanged, this, [this](bool pressed) {
-        if (!m_tcpClient->isConnected())
-            return;
-        if (pressed) {
-            m_tcpClient->sendCAT("KZ-;");
-            QMetaObject::invokeMethod(m_sidetoneGenerator, "startDah", Qt::QueuedConnection);
-        } else {
-            QMetaObject::invokeMethod(m_sidetoneGenerator, "stopElement", Qt::QueuedConnection);
-        }
+    connect(m_radioState, &RadioState::keyerSpeedChanged, this, [this](int wpm) {
+        m_sidetoneGenerator->setKeyerSpeed(wpm);
+        QMetaObject::invokeMethod(m_iambicKeyer, "setSpeed", Qt::QueuedConnection, Q_ARG(int, wpm));
+        if (m_tcpClient->isConnected())
+            m_tcpClient->sendCAT(QString("KZL%1;").arg(1200 / wpm, 2, 10, QChar('0')));
     });
 
-    // Stop sidetone when HaliKey disconnects (prevents runaway repeat timer
-    // if paddle was held when disconnected — Note Off never arrives)
-    connect(m_halikeyDevice, &HalikeyDevice::disconnected, this,
-            [this]() { QMetaObject::invokeMethod(m_sidetoneGenerator, "stopElement", Qt::QueuedConnection); });
+    connect(m_halikeyDevice, &HalikeyDevice::ditStateChanged, m_iambicKeyer,
+            [this](bool pressed) { m_iambicKeyer->setDitPaddle(pressed); }, Qt::DirectConnection);
+    connect(m_halikeyDevice, &HalikeyDevice::dahStateChanged, m_iambicKeyer,
+            [this](bool pressed) { m_iambicKeyer->setDahPaddle(pressed); }, Qt::DirectConnection);
+    connect(m_iambicKeyer, &IambicKeyer::elementStarted, m_tcpClient, [this](bool isDit) {
+        if (m_tcpClient->isConnected())
+            m_tcpClient->sendCAT(isDit ? "KZ.;" : "KZ-;");
+    }, Qt::QueuedConnection);
+    connect(m_iambicKeyer, &IambicKeyer::elementStarted, m_sidetoneGenerator, [this](bool isDit) {
+        isDit ? m_sidetoneGenerator->playSingleDit() : m_sidetoneGenerator->playSingleDah();
+    }, Qt::QueuedConnection);
+    connect(m_iambicKeyer, &IambicKeyer::characterSpace, m_tcpClient, [this]() {
+        if (m_tcpClient->isConnected())
+            m_tcpClient->sendCAT("KZ ;");
+    }, Qt::QueuedConnection);
+    connect(m_iambicKeyer, &IambicKeyer::restartAfterPause, m_tcpClient, [this](int ms) {
+        if (m_tcpClient->isConnected())
+            m_tcpClient->sendCAT(QString("KZP%1;").arg(ms, 4, 10, QChar('0')));
+    }, Qt::QueuedConnection);
 
-    // Send repeated KZ commands when sidetone repeat timer fires (V14 mode only)
-    connect(m_sidetoneGenerator, &SidetoneGenerator::ditRepeated, this, [this]() { m_tcpClient->sendCAT("KZ.;"); });
-    connect(m_sidetoneGenerator, &SidetoneGenerator::dahRepeated, this, [this]() { m_tcpClient->sendCAT("KZ-;"); });
+    connect(m_halikeyDevice, &HalikeyDevice::disconnected, this, [this]() {
+        QMetaObject::invokeMethod(m_iambicKeyer, "stop", Qt::QueuedConnection);
+    });
+    connect(m_radioState, &RadioState::keyerPaddleChanged, this, [this](QChar orientation) {
+        const bool reversed = orientation == 'R';
+        RadioSettings::instance()->setCwPaddlesReversed(reversed);
+        QMetaObject::invokeMethod(m_iambicKeyer, "setReversed", Qt::QueuedConnection, Q_ARG(bool, reversed));
+        refreshTxPopupForMode();
+    });
+    connect(m_radioState, &RadioState::iambicModeChanged, this, [this](QChar mode) {
+        QMetaObject::invokeMethod(m_iambicKeyer, "setMode", Qt::QueuedConnection,
+                                  Q_ARG(IambicKeyer::Mode, mode == 'B'
+                                                               ? IambicKeyer::IambicB : IambicKeyer::IambicA));
+        refreshTxPopupForMode();
+    });
 
     // KPA1500 amplifier client
     m_kpa1500Client = new KPA1500Client(this);
@@ -2274,6 +2405,14 @@ MainWindow::~MainWindow() {
         m_halikeyDevice->closePort();
     }
 
+    // Stop the KZ producer before the network thread it targets.
+    if (m_keyerThread) {
+        QMetaObject::invokeMethod(m_iambicKeyer, "stop", Qt::BlockingQueuedConnection);
+        m_keyerThread->quit();
+        m_keyerThread->wait(2000);
+    }
+    delete m_iambicKeyer;
+
     // Shut down I/O thread first (stop producing audio before stopping consumer)
     if (m_ioThread) {
         QMetaObject::invokeMethod(m_tcpClient, "disconnectFromHost", Qt::BlockingQueuedConnection);
@@ -2327,23 +2466,7 @@ void MainWindow::setupMenuBar() {
     QMenu *toolsMenu = menuBar()->addMenu("&Tools");
     QAction *optionsAction = new QAction("&Settings...", this);
     optionsAction->setMenuRole(QAction::PreferencesRole); // macOS: moves to app menu as Preferences
-    connect(optionsAction, &QAction::triggered, this, [this]() {
-        if (!m_optionsDialog) {
-            m_optionsDialog =
-                new OptionsDialog(m_radioState, m_audioEngine, m_kpodDevice, m_catServer, m_halikeyDevice,
-                                  centralWidget());
-        }
-#ifdef Q_OS_ANDROID
-        m_optionsDialog->setGeometry(centralWidget()->rect());
-#endif
-        m_optionsDialog->show();
-        m_optionsDialog->raise();
-#ifndef Q_OS_ANDROID
-        m_optionsDialog->activateWindow();
-#else
-        m_optionsDialog->setFocus(Qt::OtherFocusReason);
-#endif
-    });
+    connect(optionsAction, &QAction::triggered, this, &MainWindow::showSettings);
     toolsMenu->addAction(optionsAction);
 
     // View menu
@@ -2356,6 +2479,28 @@ void MainWindow::setupMenuBar() {
     aboutAction->setMenuRole(QAction::AboutRole); // macOS: moves to app menu
     connect(aboutAction, &QAction::triggered, this, &MainWindow::showAboutDialog);
     helpMenu->addAction(aboutAction);
+}
+
+void MainWindow::showSettings() {
+    if (!m_optionsDialog) {
+        m_optionsDialog = new OptionsDialog(m_radioState, m_audioEngine, m_kpodDevice, m_catServer,
+                                            m_halikeyDevice, centralWidget());
+        connect(m_optionsDialog, &OptionsDialog::keyerSpeedRequested, this, [this](int wpm) {
+            const int boundedWpm = qBound(8, wpm, 40);
+            m_tcpClient->sendCAT(QString("KS%1;").arg(boundedWpm, 3, 10, QChar('0')));
+            m_radioState->setKeyerSpeed(boundedWpm);
+        });
+    }
+#ifdef Q_OS_ANDROID
+    m_optionsDialog->setGeometry(centralWidget()->rect());
+#endif
+    m_optionsDialog->show();
+    m_optionsDialog->raise();
+#ifndef Q_OS_ANDROID
+    m_optionsDialog->activateWindow();
+#else
+    m_optionsDialog->setFocus(Qt::OtherFocusReason);
+#endif
 }
 
 void MainWindow::showAboutDialog() {
@@ -2978,6 +3123,7 @@ void MainWindow::setupUi() {
     connect(m_bottomMenuBar, &BottomMenuBar::frequencyBRequested, this,
             [this]() { showFrequencyEntry(true); });
     connect(m_bottomMenuBar, &BottomMenuBar::controlsRequested, this, &MainWindow::showPhoneControls);
+    connect(m_bottomMenuBar, &BottomMenuBar::settingsRequested, this, &MainWindow::showSettings);
     // Connect volume slider to AudioEngine (Main RX / VFO A)
     connect(m_sideControlPanel, &SideControlPanel::volumeChanged, this, [this](int value) {
         if (m_audioEngine) {
@@ -3253,7 +3399,10 @@ void MainWindow::setupUi() {
         queueControlFeedback("TX_ANT", "TX antenna changed");
         m_tcpClient->sendCAT("SW60;");
     });
-    // remAntClicked - not yet implemented (TBD)
+    connect(m_sideControlPanel, &SideControlPanel::remAntClicked, this, [this]() {
+        queueControlFeedback("REM_ANT", "REMOTE ANTENNA changed");
+        m_tcpClient->sendCAT("SW135;");
+    });
     connect(m_sideControlPanel, &SideControlPanel::rxAntClicked, this, [this]() {
         queueControlFeedback("RX_ANT", "Main RX antenna changed");
         m_tcpClient->sendCAT("SW70;");
@@ -4940,11 +5089,18 @@ void MainWindow::onAuthenticated() {
     m_tcpClient->sendCAT("#DSM;");  // Display mode (LCD) - not in RDY
     m_tcpClient->sendCAT("#HDSM;"); // Display mode (EXT) - not in RDY
     m_tcpClient->sendCAT("#PKM;");  // Peak trace - synchronize local renderer
+    m_tcpClient->sendCAT("#AR;");   // Auto reference-level mode
+    m_tcpClient->sendCAT("#NB$;");  // DDC/panadapter noise-blanker mode
+    m_tcpClient->sendCAT("#NBL$;"); // DDC/panadapter noise-blanker level
     m_tcpClient->sendCAT("#FRZ;");  // Freeze - not in RDY
     m_tcpClient->sendCAT("#FPS;");  // Display FPS - not in RDY
     m_tcpClient->sendCAT("#SCL;");  // Panadapter scale - not in RDY, needed for dB range
     m_tcpClient->sendCAT("RT$;");   // VFO B RIT state - needed for B SET and touch offset control
     m_tcpClient->sendCAT("RO$;");   // VFO B offset - used by split XIT and B SET RIT
+    m_tcpClient->sendCAT("KP;");    // Paddle N/R orientation - mirror into local CW mapping
+    m_tcpClient->sendCAT("PL$;");   // FM PL/CTCSS tone and encode state
+    m_tcpClient->sendCAT("DW;");    // DATA/AFSK TX bandwidth
+    m_tcpClient->sendCAT("RP;");    // FM repeater mode and offset
     m_tcpClient->sendCAT("SIRC1;"); // Enable 1-second client stats updates
     // Note: ML commands (monitor levels) come in RDY; dump - no need to query
 
@@ -5017,12 +5173,72 @@ void MainWindow::onModeChanged(RadioState::Mode mode) {
     // Use full mode string which includes data sub-mode (AFSK, FSK, PSK, DATA)
     // Also adds "+" suffix for USB/LSB when ESSB is enabled
     updateModeLabels();
+    refreshTxPopupForMode();
+}
+
+void MainWindow::refreshTxPopupForMode() {
+    if (!m_txPopup)
+        return;
+
+    const RadioState::Mode mode = txOperatingMode();
+    const int dataSubMode = m_radioState->splitEnabled()
+                                ? m_radioState->dataSubModeB()
+                                : m_radioState->dataSubMode();
+    const bool usesKeyer = mode == RadioState::CW || mode == RadioState::CW_R
+                           || ((mode == RadioState::DATA || mode == RadioState::DATA_R)
+                               && (dataSubMode == 2 || dataSubMode == 3));
+    if (usesKeyer) {
+        const QString paddle = m_radioState->paddleOrientation() == 'R' ? "PDL REV" : "PDL NOR";
+        m_txPopup->setButtonLabel(5, paddle, QString("IAMB %1").arg(m_radioState->iambicMode()), true);
+        m_txPopup->setButtonLabel(6, "WEIGHT",
+                                  QString::number(m_radioState->keyingWeight() / 100.0, 'f', 2), false);
+    } else if (mode == RadioState::LSB || mode == RadioState::USB) {
+        const int bw = m_radioState->ssbTxBw();
+        const QString bwText = (bw >= 24 && bw <= 45)
+                                   ? QString("%1k").arg(bw / 10.0, 0, 'f', 1)
+                                   : QStringLiteral("2.8k");
+        m_txPopup->setButtonLabel(5, m_radioState->essbEnabled() ? "ESSB BW" : "SSB BW", bwText, false);
+        m_txPopup->setButtonLabel(6, "ESSB", m_radioState->essbEnabled() ? "ON" : "OFF", false);
+    } else if ((mode == RadioState::DATA || mode == RadioState::DATA_R)
+               && (dataSubMode == 0 || dataSubMode == 1)) {
+        // DATA-A and AFSK-A use the K4's DATA TX bandwidth control. They do
+        // not use paddle/IAMB/weight, which belong to direct-keying FSK/PSK.
+        m_txPopup->setButtonLabel(5, "DATA BW",
+                                  QString("%1k").arg(m_radioState->dataTxBandwidth() / 10.0, 0, 'f', 1), false);
+        m_txPopup->setButtonLabel(6, "", "", false);
+    } else if (mode == RadioState::FM) {
+        const QString rpt = m_radioState->repeaterMode() == 'S' ? "S" : QString(m_radioState->repeaterMode());
+        m_txPopup->setButtonLabel(5, QString("RPT %1").arg(rpt),
+                                  QString("%1 kHz").arg(m_radioState->repeaterOffsetKhz()), true);
+        m_txPopup->setButtonLabel(6, "PL TONE", "DTMF", true);
+    } else {
+        // SSB bandwidth and ESSB are not valid TX controls for AM, FM, or
+        // data modes. Keep the slots visibly inactive instead of dispatching
+        // an unrelated SSB editor.
+        const QString modeText = m_radioState->splitEnabled()
+                                     ? m_radioState->modeStringFullB()
+                                     : m_radioState->modeStringFull();
+        if (mode == RadioState::AM) {
+            m_txPopup->setButtonLabel(5, "AM BW", "REMOTE N/A", false);
+            m_txPopup->setButtonLabel(6, "", "", false);
+        } else {
+            m_txPopup->setButtonLabel(5, "MODE TX", modeText, false);
+            m_txPopup->setButtonLabel(6, "", "", false);
+        }
+    }
+}
+
+RadioState::Mode MainWindow::txOperatingMode() const {
+    // With split enabled the K4 transmits on VFO B; otherwise it transmits on
+    // VFO A. TX controls must describe the actual transmit mode, not always A.
+    return m_radioState->splitEnabled() ? m_radioState->modeB() : m_radioState->mode();
 }
 
 void MainWindow::onModeBChanged(RadioState::Mode mode) {
     Q_UNUSED(mode)
     // Use full mode string which includes data sub-mode (AFSK, FSK, PSK, DATA)
     updateModeLabels();
+    refreshTxPopupForMode();
 }
 
 void MainWindow::updateModeLabels() {
@@ -5321,6 +5537,7 @@ void MainWindow::onSplitChanged(bool enabled) {
         m_txTriangleB->setText("");
     }
     completeControlFeedback("SPLIT", enabled ? "SPLIT ON" : "SPLIT OFF");
+    refreshTxPopupForMode();
 }
 
 void MainWindow::onAntennaChanged(int txAnt, int rxAntMain, int rxAntSub) {
@@ -5608,6 +5825,49 @@ void MainWindow::onProcessingChangedB() {
 
 void MainWindow::onSpectrumData(int receiver, const QByteArray &data, qint64 centerFreq, qint32 sampleRate,
                                 float noiseFloor) {
+    // AUTO is based on the actual decompressed bins used by this renderer.
+    // The PAN header's noise-floor field is on a different calibration curve
+    // and made the phone waterfall much too bright when used as REF directly.
+    // A low percentile ignores signals while following the visible noise floor.
+    const bool autoRef = m_displayPopup && m_displayPopup->autoRefLevelEnabled();
+    float &smoothedRef = receiver == 0 ? m_autoRefLevelA : m_autoRefLevelB;
+    bool &autoRefValid = receiver == 0 ? m_autoRefLevelAValid : m_autoRefLevelBValid;
+    PanadapterRhiWidget *panadapter = receiver == 0 ? m_panadapterA : m_panadapterB;
+    if (autoRef && !data.isEmpty()) {
+        int histogram[256] = {};
+        for (char bin : data)
+            ++histogram[static_cast<quint8>(bin)];
+        const int percentileCount = qMax(1, static_cast<int>(data.size() / 5)); // 20th percentile
+        int accumulated = 0;
+        int floorBin = 0;
+        for (; floorBin < 255; ++floorBin) {
+            accumulated += histogram[floorBin];
+            if (accumulated >= percentileCount)
+                break;
+        }
+        constexpr float K4BinOffsetDb = 146.0f;
+        const float measuredFloor = static_cast<float>(floorBin) - K4BinOffsetDb;
+        // Put ordinary noise just above black while retaining signal contrast.
+        const float target = qBound(-200.0f, measuredFloor - 4.0f, 60.0f);
+        smoothedRef = autoRefValid ? (0.12f * target + 0.88f * smoothedRef) : target;
+        autoRefValid = true;
+        const int displayedRef = qRound(smoothedRef);
+        panadapter->setRefLevel(displayedRef);
+        if (receiver == 0)
+            m_displayPopup->setRefLevelValueA(displayedRef);
+        else
+            m_displayPopup->setRefLevelValueB(displayedRef);
+    } else if (autoRefValid) {
+        // Leaving AUTO restores the K4's manual REF value immediately.
+        autoRefValid = false;
+        const int manualRef = receiver == 0 ? m_radioState->refLevel() : m_radioState->refLevelB();
+        panadapter->setRefLevel(manualRef);
+        if (receiver == 0)
+            m_displayPopup->setRefLevelValueA(manualRef);
+        else
+            m_displayPopup->setRefLevelValueB(manualRef);
+    }
+
     // Route spectrum data to appropriate panadapter
     // receiver: 0 = Main (VFO A), 1 = Sub (VFO B)
     if (receiver == 0) {
@@ -5942,7 +6202,11 @@ void MainWindow::showPhoneControls() {
             // whether the finger is tapping or beginning a vertical scroll.
             if (QScroller *scroller = QScroller::scroller(scroll->viewport())) {
                 QScrollerProperties properties = scroller->scrollerProperties();
-                properties.setScrollMetric(QScrollerProperties::MousePressEventDelay, 0.25);
+                // The left bank contains dual controls whose deliberate hold
+                // selects the alternate adjustment. Deliver their press
+                // immediately; an actual drag is still claimed below.
+                properties.setScrollMetric(QScrollerProperties::MousePressEventDelay,
+                                           scroll == m_leftPanelScroll ? 0.0 : 0.25);
                 properties.setScrollMetric(QScrollerProperties::DragStartDistance, 0.0015);
                 scroller->setScrollerProperties(properties);
                 connect(scroller, &QScroller::stateChanged, scroll,
@@ -6559,6 +6823,11 @@ void MainWindow::closeSecondaryPopups() {
     if (m_micConfigPopup && m_micConfigPopup->isVisible()) m_micConfigPopup->hidePopup();
     if (m_voxPopup && m_voxPopup->isVisible()) m_voxPopup->hidePopup();
     if (m_ssbBwPopup && m_ssbBwPopup->isVisible()) m_ssbBwPopup->hidePopup();
+    if (m_keyingWeightPopup && m_keyingWeightPopup->isVisible()) m_keyingWeightPopup->hidePopup();
+    if (m_fmPlPopup && m_fmPlPopup->isVisible()) m_fmPlPopup->hidePopup();
+    if (m_dtmfPopup && m_dtmfPopup->isVisible()) m_dtmfPopup->hidePopup();
+    if (m_txModePopup && m_txModePopup->isVisible()) m_txModePopup->hidePopup();
+    if (m_softwareListPopup && m_softwareListPopup->isVisible()) m_softwareListPopup->hidePopup();
 
     m_closingTransientMenus = wasClosing;
 }
@@ -6608,6 +6877,7 @@ void MainWindow::toggleTxPopup() {
     closeAllPopups();
 
     if (!wasVisible && m_txPopup && m_bottomMenuBar) {
+        refreshTxPopupForMode();
         m_txPopup->showAboveButton(m_bottomMenuBar->txButton());
         m_bottomMenuBar->setTxActive(true);
     }
@@ -6868,14 +7138,15 @@ void MainWindow::onFnFunctionTriggered(const QString &functionId) {
     } else if (functionId == MacroIds::Macros) {
         openMacroDialog();
     } else if (functionId == MacroIds::SwList) {
-        // TODO: Show software list
-        qDebug() << "Software list - not yet implemented";
+        closeAllPopups();
+        m_softwareListPopup->setVersions(m_radioState->firmwareVersions());
+        m_softwareListPopup->showAboveWidget(m_bottomMenuBar);
     } else if (functionId == MacroIds::Update) {
-        // TODO: Check for updates
-        qDebug() << "Update check - not yet implemented";
+        showInWindowMessage(centralWidget(), "UPDATE",
+                            "Radio firmware installation is intentionally not started remotely from QK4 Mobile.");
     } else if (functionId == MacroIds::DxList) {
-        // TODO: Show DX list
-        qDebug() << "DX list - not yet implemented";
+        showInWindowMessage(centralWidget(), "DX LIST",
+                            "DX List has no documented K4 remote command or data feed.");
     } else {
         // User-configurable macro - execute CAT command
         executeMacro(functionId);
@@ -6939,7 +7210,7 @@ void MainWindow::onMainRxButtonClicked(int index) {
         break;
     case 3: // AFX - cycle OFF → DELAY → PITCH → OFF
     {
-        int nextMode = (m_radioState->afxMode() + 1) % 3;
+        int nextMode = m_radioState->afxMode() == 0 ? 1 : 0;
         m_tcpClient->sendCAT(QString("FX%1;").arg(nextMode));
         break;
     }
@@ -6991,8 +7262,8 @@ void MainWindow::onMainRxButtonRightClicked(int index) {
         m_tcpClient->sendCAT(QString("LN%1;").arg(linked ? 0 : 1));
         break;
     }
-    case 3: // AFX - same as left-click (cycle)
-        onMainRxButtonClicked(3);
+    case 3: // AFX hold selects DELAY/PITCH
+        m_tcpClient->sendCAT(QString("FX%1;").arg(m_radioState->afxMode() == 2 ? 1 : 2));
         break;
     case 4: // AGC - toggle ON/OFF
     {
@@ -7039,7 +7310,7 @@ void MainWindow::onSubRxButtonClicked(int index) {
         break;
     case 3: // AFX - cycle (same command, affects audio)
     {
-        int nextMode = (m_radioState->afxMode() + 1) % 3;
+        int nextMode = m_radioState->afxMode() == 0 ? 1 : 0;
         m_tcpClient->sendCAT(QString("FX%1;").arg(nextMode));
         break;
     }
@@ -7090,8 +7361,8 @@ void MainWindow::onSubRxButtonRightClicked(int index) {
         m_tcpClient->sendCAT(QString("LN%1;").arg(linked ? 0 : 1));
         break;
     }
-    case 3: // AFX - same as left-click (cycle)
-        onSubRxButtonClicked(3);
+    case 3: // AFX hold selects DELAY/PITCH
+        m_tcpClient->sendCAT(QString("FX%1;").arg(m_radioState->afxMode() == 2 ? 1 : 2));
         break;
     case 4: // AGC Sub - toggle ON/OFF
     {

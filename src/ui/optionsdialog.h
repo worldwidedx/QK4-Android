@@ -13,6 +13,7 @@
 #include <QPushButton>
 #include <QShowEvent>
 #include <QHideEvent>
+#include <QPoint>
 
 class RadioState;
 class AudioEngine;
@@ -31,15 +32,28 @@ class OptionsDialog : public OptionsDialogBase {
     Q_OBJECT
 
 public:
-    enum Page { PageAbout = 0, PageAudioInput, PageAudioOutput, PageRigControl, PageCwKeyer, PageKpod, PageCount };
+    enum Page {
+        PageAbout = 0,
+        PageAudioInput,
+        PageAudioOutput,
+        PageRigControl,
+        PageCwKeyer,
+        PageKpod,
+        PageFnKeySetup,
+        PageCount
+    };
 
     explicit OptionsDialog(RadioState *radioState, AudioEngine *audioEngine, KpodDevice *kpodDevice,
                            CatServer *catServer, HalikeyDevice *halikeyDevice, QWidget *parent = nullptr);
     ~OptionsDialog();
 
+signals:
+    void keyerSpeedRequested(int wpm);
+
 protected:
     void showEvent(QShowEvent *event) override;
     void hideEvent(QHideEvent *event) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private slots:
     void onMicTestToggled(bool checked);
@@ -62,10 +76,12 @@ private:
     QWidget *createAudioOutputPage();
     QWidget *createRigControlPage();
     QWidget *createCwKeyerPage();
+    QWidget *createFnKeySetupPage();
     void updateCatServerStatus();
     void populateMicDevices();
     void populateSpeakerDevices();
     void populateCwKeyerPorts();
+    void setTouchSliderValue(QSlider *slider, int xPosition);
 
     RadioState *m_radioState;
     AudioEngine *m_audioEngine;
@@ -114,8 +130,12 @@ private:
     QPushButton *m_cwKeyerRefreshBtn;
     QPushButton *m_cwKeyerConnectBtn;
     QLabel *m_cwKeyerStatusLabel;
+    QSlider *m_cwSpeedSlider = nullptr;
+    QLabel *m_cwSpeedValueLabel = nullptr;
     QSlider *m_sidetoneVolumeSlider = nullptr;
     QLabel *m_sidetoneVolumeValueLabel = nullptr;
+    QLabel *m_paddleMappingLabel = nullptr;
+    QSlider *m_touchSlider = nullptr;
     void updateCwKeyerDescription();
 };
 

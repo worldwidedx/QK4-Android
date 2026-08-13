@@ -247,7 +247,7 @@ void ControlGroupWidget::paintEvent(QPaintEvent *event) {
         painter.drawLine(x, 4, x, height() - 4);
     }
 
-    QRect valueRect(x, 2, valueWidth, height() - 4);
+    m_valueRect = QRect(x, 2, valueWidth, height() - 4);
     x += valueWidth;
 
     // Vertical line after value
@@ -281,7 +281,7 @@ void ControlGroupWidget::paintEvent(QPaintEvent *event) {
         autoFont.setPixelSize(K4Styles::Dimensions::FontSizeMedium);
         autoFont.setBold(true);
         painter.setFont(autoFont);
-        painter.drawText(m_autoRect, Qt::AlignCenter, "AUTO");
+        painter.drawText(m_autoRect, Qt::AlignCenter, m_autoEnabled ? "AUTO" : "MAN");
         painter.setFont(labelFont);
         painter.setPen(Qt::white);
     }
@@ -292,7 +292,7 @@ void ControlGroupWidget::paintEvent(QPaintEvent *event) {
     } else {
         painter.setPen(Qt::white);
     }
-    painter.drawText(valueRect, Qt::AlignCenter, m_value);
+    painter.drawText(m_valueRect, Qt::AlignCenter, m_value);
     painter.setPen(Qt::white); // Reset for buttons
 
     // Draw minus button with larger font
@@ -311,6 +311,8 @@ void ControlGroupWidget::mousePressEvent(QMouseEvent *event) {
         QPoint pos = event->pos();
         if (m_showAutoButton && m_autoRect.contains(pos)) {
             emit autoClicked();
+        } else if (m_valueRect.contains(pos)) {
+            emit valueClicked();
         } else if (m_minusRect.contains(pos)) {
             emit decrementClicked();
         } else if (m_plusRect.contains(pos)) {
@@ -675,8 +677,8 @@ QWidget *DisplayPopupWidget::createRefLevelControlPage() {
             &DisplayPopupWidget::refLevelIncrementRequested);
     connect(m_refLevelControlGroup, &ControlGroupWidget::autoClicked, this, [this]() {
         // Auto-ref is GLOBAL - affects both VFOs, no suffix needed
-        // K4 doesn't echo #AR commands, so use optimistic update
-        emit catCommandRequested(QString("#AR/;")); // Toggle GLOBAL AUTO/MAN
+        // Toggle, then explicitly read back the server-authoritative state.
+        emit catCommandRequested(QString("#AR/;#AR;"));
 
         // Optimistic local update
         m_autoRef = !m_autoRef;
@@ -767,16 +769,11 @@ QWidget *DisplayPopupWidget::createNbControlPage() {
             &DisplayPopupWidget::nbLevelDecrementRequested);
     connect(m_nbControlGroup, &ControlGroupWidget::incrementClicked, this,
             &DisplayPopupWidget::nbLevelIncrementRequested);
+    connect(m_nbControlGroup, &ControlGroupWidget::valueClicked, this,
+            &DisplayPopupWidget::nbToggleRequested);
+    m_nbControlGroup->setToolTip("Tap the center value to cycle OFF, ON, and AUTO; use -/+ to adjust the level");
+    m_nbControlGroup->setAccessibleName("Waterfall noise blanker mode and level");
     layout->addWidget(m_nbControlGroup);
-
-    auto *nbToggle = new QPushButton("NB ON/OFF", page);
-    // Keep the action label explicit. Width is recovered from the short NB
-    // adjustment group to the left, not from this control's identity.
-    nbToggle->setFixedSize(60, ControlGroupHeight);
-    nbToggle->setToolTip("Toggle panadapter NB on/off");
-    nbToggle->setAccessibleName("Toggle panadapter noise blanker");
-    connect(nbToggle, &QPushButton::clicked, this, &DisplayPopupWidget::nbToggleRequested);
-    layout->addWidget(nbToggle);
 
     return page;
 }

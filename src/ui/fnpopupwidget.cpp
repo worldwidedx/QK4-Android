@@ -166,7 +166,7 @@ void FnPopupWidget::setupButtons() {
                                      {"F3", "F4", MacroIds::FnF3, MacroIds::FnF4},
                                      {"F5", "F6", MacroIds::FnF5, MacroIds::FnF6},
                                      {"F7", "F8", MacroIds::FnF7, MacroIds::FnF8},
-                                     {"SCRN CAP", "MACROS", MacroIds::ScrnCap, MacroIds::Macros},
+                                     {"SCRN CAP", "", MacroIds::ScrnCap, ""},
                                      {"SW LIST", "UPDATE", MacroIds::SwList, MacroIds::Update},
                                      {"DXLIST", "", MacroIds::DxList, ""}};
 

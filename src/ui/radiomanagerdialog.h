@@ -42,7 +42,6 @@ private slots:
     void onSelectionChanged();
     void onItemDoubleClicked(QListWidgetItem *item);
     void onTlsCheckboxToggled(bool checked);
-    void onMacrosClicked();
     void refreshList();
 
 private:
@@ -67,11 +66,9 @@ private:
     QPushButton *m_saveButton;
     QPushButton *m_deleteButton;
     QPushButton *m_backButton;
-    QPushButton *m_macrosButton;
 
     int m_currentIndex;
     QString m_connectedHost; // Host of currently connected radio (empty if disconnected)
-    QWidget *m_macroEditor = nullptr;
 };
 
 #endif // RADIOMANAGERDIALOG_H

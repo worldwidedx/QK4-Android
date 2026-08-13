@@ -1,10 +1,8 @@
 #include "radiomanagerdialog.h"
-#include "fnpopupwidget.h"
 #include "k4styles.h"
 #include "network/protocol.h"
 #include <QBoxLayout>
 #include <QApplication>
-#include <QDialogButtonBox>
 #include <QFrame>
 #include <QScrollArea>
 #include <QScroller>
@@ -15,7 +13,6 @@
 #include <QHBoxLayout>
 #include <QGridLayout>
 #include <QLabel>
-#include <utility>
 
 RadioManagerDialog::RadioManagerDialog(QWidget *parent) : QWidget(parent), m_currentIndex(-1) {
     setupUi();
@@ -135,12 +132,15 @@ void RadioManagerDialog::setupUi() {
     editTitleRow->setContentsMargins(0, 0, 0, 0);
     editTitleRow->addWidget(editTitle);
     editTitleRow->addStretch();
-    m_macrosButton = new QPushButton(compact ? "F1-F8" : "F1-F8 Macros", this);
-    m_macrosButton->setFixedHeight(26);
-    m_macrosButton->setFocusPolicy(Qt::NoFocus);
-    m_macrosButton->setToolTip("Configure the F1 through F8 buttons in the FN menu");
-    m_macrosButton->setStyleSheet(K4Styles::menuBarButton());
-    editTitleRow->addWidget(m_macrosButton);
+    // Keep the dismiss action in the always-visible title row. It only hides
+    // this panel; CONNECT/DISCONNECT remain separate deliberate actions.
+    m_backButton = new QPushButton("CLOSE", this);
+    m_backButton->setStyleSheet(K4Styles::dialogButton());
+    m_backButton->setMinimumWidth(compact ? 70 : 90);
+    m_backButton->setFixedHeight(30);
+    m_backButton->setToolTip("Close this screen without changing the radio connection");
+    m_backButton->setAccessibleName("Close connection screen without connecting or disconnecting");
+    editTitleRow->addWidget(m_backButton);
     rightSection->addLayout(editTitleRow);
 
     // Form fields - label on LEFT of text box
@@ -320,12 +320,6 @@ void RadioManagerDialog::setupUi() {
     m_deleteButton = new QPushButton(compact ? "Remove" : "Delete", this);
     m_deleteButton->setStyleSheet(K4Styles::dialogButton());
 
-    // Back button - smaller with curved arrow
-    m_backButton = new QPushButton(QString::fromUtf8("\xE2\x86\xA9"), this); // ↩ Curved arrow
-    m_backButton->setStyleSheet(K4Styles::dialogButton());
-    m_backButton->setFixedSize(K4Styles::Dimensions::ButtonHeightMedium, K4Styles::Dimensions::ButtonHeightMedium);
-    m_backButton->setToolTip("Back / Exit");
-
     // Android's IME may activate a dialog's default button when the user
     // finishes password entry. Saving and connecting must remain explicit.
     for (auto *button : {m_connectButton, m_newButton, m_saveButton, m_deleteButton, m_backButton}) {
@@ -347,7 +341,6 @@ void RadioManagerDialog::setupUi() {
         buttonLayout->addWidget(m_newButton);
         buttonLayout->addWidget(m_saveButton);
         buttonLayout->addWidget(m_deleteButton);
-        buttonLayout->addWidget(m_backButton);
         // Pin actions above the scrollable content. Even if an unusually small
         // display needs form scrolling, profile management never leaves the
         // viewport.
@@ -359,7 +352,6 @@ void RadioManagerDialog::setupUi() {
         buttonLayout->addWidget(m_newButton);
         buttonLayout->addWidget(m_saveButton);
         buttonLayout->addWidget(m_deleteButton);
-        buttonLayout->addWidget(m_backButton);
         mainLayout->addLayout(buttonLayout);
     }
 
@@ -380,7 +372,6 @@ void RadioManagerDialog::setupUi() {
     connect(m_saveButton, &QPushButton::clicked, this, &RadioManagerDialog::onSaveClicked);
     connect(m_deleteButton, &QPushButton::clicked, this, &RadioManagerDialog::onDeleteClicked);
     connect(m_backButton, &QPushButton::clicked, this, &RadioManagerDialog::onBackClicked);
-    connect(m_macrosButton, &QPushButton::clicked, this, &RadioManagerDialog::onMacrosClicked);
     connect(m_radioList, &QListWidget::itemSelectionChanged, this, &RadioManagerDialog::onSelectionChanged);
     connect(m_radioList, &QListWidget::itemDoubleClicked, this, &RadioManagerDialog::onItemDoubleClicked);
     connect(m_tlsCheckbox, &QCheckBox::toggled, this, &RadioManagerDialog::onTlsCheckboxToggled);
@@ -592,144 +583,8 @@ void RadioManagerDialog::onTlsCheckboxToggled(bool checked) {
     }
 }
 
-void RadioManagerDialog::onMacrosClicked() {
-    // Keep the phone setup workflow self-contained: F1-F8 are the only
-    // macros exposed here, and map directly to the paired FN-menu buttons.
-    if (m_macroEditor) {
-        m_macroEditor->raise();
-        return;
-    }
-
-    // This must remain a child widget. A top-level QDialog creates another
-    // Android EGL/RHI surface and can deadlock with Android accessibility.
-    auto *editor = new QWidget(this);
-    m_macroEditor = editor;
-    editor->setObjectName("macroEditorOverlay");
-    editor->setAttribute(Qt::WA_StyledBackground, true);
-    editor->setStyleSheet(QString("#macroEditorOverlay { background-color: %1; }")
-                              .arg(K4Styles::Colors::Background));
-    editor->setGeometry(rect());
-    connect(editor, &QObject::destroyed, this, [this]() { m_macroEditor = nullptr; });
-
-    const bool compact = K4Styles::isCompactLayout();
-
-    auto *layout = new QVBoxLayout(editor);
-    layout->setContentsMargins(K4Styles::Dimensions::PaddingLarge, K4Styles::Dimensions::PaddingLarge,
-                               K4Styles::Dimensions::PaddingLarge, K4Styles::Dimensions::PaddingLarge);
-    layout->setSpacing(K4Styles::Dimensions::PaddingMedium);
-
-    auto *help = new QLabel("Set the label shown in FN and the CAT command sent when that F key is tapped.", editor);
-    help->setWordWrap(true);
-    help->setStyleSheet(QString("QLabel { color: %1; font-size: %2px; }")
-                            .arg(K4Styles::Colors::TextGray)
-                            .arg(K4Styles::Dimensions::FontSizeButton));
-    layout->addWidget(help);
-
-    auto *scrollArea = new QScrollArea(editor);
-    scrollArea->setWidgetResizable(true);
-    scrollArea->setFrameShape(QFrame::NoFrame);
-    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    scrollArea->setStyleSheet(QString("QScrollArea { background-color: %1; border: none; }"
-                                      "QScrollBar:vertical { background-color: %2; width: 8px; }"
-                                      "QScrollBar::handle:vertical { background-color: %3; border-radius: 4px; }")
-                                  .arg(K4Styles::Colors::Background)
-                                  .arg(K4Styles::Colors::DarkBackground)
-                                  .arg(K4Styles::Colors::GradientTop));
-    scrollArea->viewport()->setStyleSheet(
-        QString("background-color: %1;").arg(K4Styles::Colors::Background));
-    auto *content = new QWidget(scrollArea);
-    content->setStyleSheet(QString("background-color: %1;").arg(K4Styles::Colors::Background));
-    auto *grid = new QGridLayout(content);
-    grid->setContentsMargins(0, 0, 0, 0);
-    grid->setHorizontalSpacing(K4Styles::Dimensions::PaddingMedium);
-    grid->setVerticalSpacing(K4Styles::Dimensions::PaddingSmall);
-
-    const QString headerStyle = QString("QLabel { color: %1; font-weight: bold; font-size: %2px; }")
-                                    .arg(K4Styles::Colors::AccentAmber)
-                                    .arg(K4Styles::Dimensions::FontSizeButton);
-    for (const auto &[column, text] : {std::pair<int, QString>{0, "Key"}, {1, "Button label"}, {2, "CAT command"}}) {
-        auto *header = new QLabel(text, content);
-        header->setStyleSheet(headerStyle);
-        grid->addWidget(header, 0, column);
-    }
-
-    const QString editStyle = QString("QLineEdit { background: %1; color: %2; border: 1px solid %3; "
-                                      "border-radius: 4px; padding: %4px; } "
-                                      "QLineEdit:focus { border-color: %5; } "
-                                      "QLineEdit::placeholder { color: %6; } "
-                                      "QLineEdit::selection { background: %5; color: %7; }")
-                                  .arg(K4Styles::Colors::GradientMid1)
-                                  .arg(K4Styles::Colors::TextWhite)
-                                  .arg(K4Styles::Colors::DialogBorder)
-                                  .arg(K4Styles::Dimensions::PaddingSmall)
-                                  .arg(K4Styles::Colors::AccentAmber)
-                                  .arg(K4Styles::Colors::TextFaded)
-                                  .arg(K4Styles::Colors::TextDark);
-    const QVector<QString> ids = {MacroIds::FnF1, MacroIds::FnF2, MacroIds::FnF3, MacroIds::FnF4,
-                                  MacroIds::FnF5, MacroIds::FnF6, MacroIds::FnF7, MacroIds::FnF8};
-    // Eight macro rows must fit above the fixed Save/Cancel bar in the
-    // landscape phone editor. Desktop sizing remains unchanged.
-    const int compactFieldHeight = compact ? 42 : 0;
-    QVector<QPair<QLineEdit *, QLineEdit *>> fields;
-    fields.reserve(ids.size());
-    for (int i = 0; i < ids.size(); ++i) {
-        auto *key = new QLabel(QString("F%1").arg(i + 1), content);
-        key->setStyleSheet(QString("QLabel { color: %1; font-weight: bold; }").arg(K4Styles::Colors::TextWhite));
-        auto *label = new QLineEdit(content);
-        auto *command = new QLineEdit(content);
-        const MacroEntry macro = RadioSettings::instance()->macro(ids.at(i));
-        label->setText(macro.label);
-        command->setText(macro.command);
-        label->setMaxLength(12);
-        command->setMaxLength(64);
-        label->setPlaceholderText(QString("F%1").arg(i + 1));
-        command->setPlaceholderText("Example: KY CQ CQ DE ...;");
-        label->setStyleSheet(editStyle);
-        command->setStyleSheet(editStyle);
-        if (compactFieldHeight > 0) {
-            label->setFixedHeight(compactFieldHeight);
-            command->setFixedHeight(compactFieldHeight);
-            grid->setRowMinimumHeight(i + 1, compactFieldHeight);
-        }
-        label->setInputMethodHints(Qt::ImhNoPredictiveText);
-        command->setInputMethodHints(Qt::ImhNoPredictiveText);
-        grid->addWidget(key, i + 1, 0);
-        grid->addWidget(label, i + 1, 1);
-        grid->addWidget(command, i + 1, 2);
-        fields.append(qMakePair(label, command));
-    }
-    grid->setColumnStretch(1, 1);
-    grid->setColumnStretch(2, 3);
-    scrollArea->setWidget(content);
-    if (compact) {
-        // F1-F8 must remain reachable on a landscape phone.  Keep normal
-        // finger scrolling available for unusually small displays, too.
-        scrollArea->viewport()->setAttribute(Qt::WA_AcceptTouchEvents);
-        QScroller::grabGesture(scrollArea->viewport(), QScroller::TouchGesture);
-    }
-    layout->addWidget(scrollArea, 1);
-
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, editor);
-    buttons->setStyleSheet(K4Styles::dialogButton());
-    connect(buttons, &QDialogButtonBox::accepted, editor, [editor, ids, fields]() {
-        for (int i = 0; i < ids.size(); ++i) {
-            RadioSettings::instance()->setMacro(ids.at(i), fields.at(i).first->text().trimmed(),
-                                                fields.at(i).second->text().trimmed());
-        }
-        editor->deleteLater();
-    });
-    connect(buttons, &QDialogButtonBox::rejected, editor, &QObject::deleteLater);
-    layout->addWidget(buttons);
-
-    editor->show();
-    editor->raise();
-}
-
 void RadioManagerDialog::resizeEvent(QResizeEvent *event) {
     QWidget::resizeEvent(event);
-    if (m_macroEditor) {
-        m_macroEditor->setGeometry(rect());
-    }
 }
 
 RadioEntry RadioManagerDialog::selectedRadio() const {

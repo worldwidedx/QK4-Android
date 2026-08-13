@@ -327,6 +327,30 @@ int RadioSettings::sidetoneVolume() const {
     return m_sidetoneVolume;
 }
 
+int RadioSettings::cwKeyerSpeed() const {
+    return m_cwKeyerSpeed;
+}
+
+void RadioSettings::setCwKeyerSpeed(int wpm) {
+    wpm = qBound(8, wpm, 40);
+    if (m_cwKeyerSpeed != wpm) {
+        m_cwKeyerSpeed = wpm;
+        save();
+    }
+}
+
+bool RadioSettings::cwPaddlesReversed() const {
+    return m_cwPaddlesReversed;
+}
+
+void RadioSettings::setCwPaddlesReversed(bool reversed) {
+    if (m_cwPaddlesReversed != reversed) {
+        m_cwPaddlesReversed = reversed;
+        save();
+        emit cwPaddlesReversedChanged(reversed);
+    }
+}
+
 void RadioSettings::setSidetoneVolume(int value) {
     value = qBound(0, value, 100);
     if (m_sidetoneVolume != value) {
@@ -419,6 +443,8 @@ void RadioSettings::load() {
     m_halikeyEnabled = m_settings.value("halikey/enabled", false).toBool();
     m_halikeyDeviceType = m_settings.value("halikey/deviceType", 0).toInt();
     m_sidetoneVolume = m_settings.value("halikey/sidetoneVolume", 30).toInt();
+    m_cwKeyerSpeed = qBound(8, m_settings.value("halikey/cwSpeed", 20).toInt(), 40);
+    m_cwPaddlesReversed = m_settings.value("halikey/paddlesReversed", false).toBool();
 
     // Macro settings
     int macroCount = m_settings.beginReadArray("macros");
@@ -506,6 +532,8 @@ void RadioSettings::save() {
     m_settings.setValue("halikey/enabled", m_halikeyEnabled);
     m_settings.setValue("halikey/deviceType", m_halikeyDeviceType);
     m_settings.setValue("halikey/sidetoneVolume", m_sidetoneVolume);
+    m_settings.setValue("halikey/cwSpeed", m_cwKeyerSpeed);
+    m_settings.setValue("halikey/paddlesReversed", m_cwPaddlesReversed);
 
     // Macro settings
     m_settings.beginWriteArray("macros");

@@ -36,6 +36,7 @@ void RadioState::reset() {
     m_rfGainB = -999;
     m_squelchLevelB = -1;
     m_keyerSpeed = -1;
+    m_paddleOrientation = QChar();
 
     // Meters
     m_sMeter = 0.0;
@@ -963,6 +964,7 @@ void RadioState::registerCommandHandlers() {
     m_commandHandlers.append({"AP$", [this](const QString &c) { handleAPSub(c); }});
     m_commandHandlers.append({"LK$", [this](const QString &c) { handleLKSub(c); }});
     m_commandHandlers.append({"VT$", [this](const QString &c) { handleVTSub(c); }});
+    m_commandHandlers.append({"PL$", [this](const QString &c) { handlePL(c); }});
     m_commandHandlers.append({"AR$", [this](const QString &c) { handleARSub(c); }});
     // Mainline QK4 keeps the two offset registers distinct. RO$ is used by
     // B SET RIT and by XIT when split routes TX to VFO B.
@@ -982,6 +984,8 @@ void RadioState::registerCommandHandlers() {
     m_commandHandlers.append({"FT", [this](const QString &c) { handleFT(c); }});
     m_commandHandlers.append({"FP", [this](const QString &c) { handleFP(c); }});
     m_commandHandlers.append({"FX", [this](const QString &c) { handleFX(c); }});
+    m_commandHandlers.append({"DW", [this](const QString &c) { handleDW(c); }});
+    m_commandHandlers.append({"RP", [this](const QString &c) { handleRP(c); }});
     m_commandHandlers.append({"MD", [this](const QString &c) { handleMD(c); }});
     m_commandHandlers.append({"BL", [this](const QString &c) { handleBL(c); }});
     m_commandHandlers.append({"BW", [this](const QString &c) { handleBW(c); }});
@@ -994,6 +998,7 @@ void RadioState::registerCommandHandlers() {
     m_commandHandlers.append({"CP", [this](const QString &c) { handleCP(c); }});
     m_commandHandlers.append({"PC", [this](const QString &c) { handlePC(c); }});
     m_commandHandlers.append({"KS", [this](const QString &c) { handleKS(c); }});
+    m_commandHandlers.append({"KP", [this](const QString &c) { handleKP(c); }});
     m_commandHandlers.append({"SM", [this](const QString &c) { handleSM(c); }});
     m_commandHandlers.append({"PO", [this](const QString &c) { handlePO(c); }});
     m_commandHandlers.append({"TM", [this](const QString &c) { handleTM(c); }});
@@ -1426,6 +1431,28 @@ void RadioState::handleKS(const QString &cmd) {
     if (ok && m_keyerSpeed != wpm) {
         m_keyerSpeed = wpm;
         emit keyerSpeedChanged(m_keyerSpeed);
+    }
+}
+
+void RadioState::handleKP(const QString &cmd) {
+    // KPionnn; i=iambic A/B, o=paddle orientation N/R, nnn=weight.
+    if (cmd.length() < 4)
+        return;
+    const QChar iambic = cmd.at(2).toUpper();
+    if ((iambic == 'A' || iambic == 'B') && m_iambicMode != iambic) {
+        m_iambicMode = iambic;
+        emit iambicModeChanged(iambic);
+    }
+    bool weightOk = false;
+    const int weight = cmd.mid(4, 3).toInt(&weightOk);
+    if (weightOk && weight >= 90 && weight <= 125)
+        m_keyingWeight = weight;
+    const QChar orientation = cmd.at(3).toUpper();
+    if (orientation != 'N' && orientation != 'R')
+        return;
+    if (m_paddleOrientation != orientation) {
+        m_paddleOrientation = orientation;
+        emit keyerPaddleChanged(orientation);
     }
 }
 
@@ -2038,6 +2065,43 @@ void RadioState::handleVI(const QString &cmd) {
         m_antiVox = level;
         emit antiVoxChanged(level);
     }
+}
+
+void RadioState::handlePL(const QString &cmd) {
+    // PL$nnm: nn=Elecraft CTCSS table index 01-50, m=encode off/on.
+    if (cmd.length() < 6)
+        return;
+    bool ok = false;
+    const int index = cmd.mid(3, 2).toInt(&ok);
+    const bool enabled = cmd.at(5) == '1';
+    if (!ok || index < 1 || index > 50)
+        return;
+    if (index != m_plToneIndex || enabled != m_plToneEnabled) {
+        m_plToneIndex = index;
+        m_plToneEnabled = enabled;
+        emit plToneChanged(index, enabled);
+    }
+}
+
+void RadioState::handleDW(const QString &cmd) {
+    if (cmd.length() < 4) return;
+    bool ok = false;
+    const int value = cmd.mid(2, 2).toInt(&ok);
+    if (!ok || value < 20 || value > 40 || value == m_dataTxBandwidth) return;
+    m_dataTxBandwidth = value;
+    emit dataTxBandwidthChanged(value);
+}
+
+void RadioState::handleRP(const QString &cmd) {
+    if (cmd.length() < 8) return;
+    const QChar mode = cmd.at(2);
+    bool ok = false;
+    const int offset = cmd.mid(3, 5).toInt(&ok);
+    if (!ok || !QString("S+-").contains(mode) || offset < 0 || offset > 99999) return;
+    if (mode == m_repeaterMode && offset == m_repeaterOffsetKhz) return;
+    m_repeaterMode = mode;
+    m_repeaterOffsetKhz = offset;
+    emit repeaterChanged(mode, offset);
 }
 
 // =============================================================================
@@ -2964,10 +3028,15 @@ void RadioState::handleDisplayVFB(const QString &cmd) {
 }
 
 void RadioState::handleDisplayAR(const QString &cmd) {
-    if (cmd.length() < 12)
+    // #ARaadd+oom: the final mode field is numeric (0=manual, 1=auto).
+    // Accept the older A/M interpretation too for compatibility with any
+    // firmware that reports the symbolic form.
+    if (cmd.length() < 4)
         return;
     QChar mode = cmd.at(cmd.length() - 1);
-    int newValue = (mode == 'A') ? 1 : 0;
+    if (mode != '0' && mode != '1' && mode != 'A' && mode != 'M')
+        return;
+    int newValue = (mode == '1' || mode == 'A') ? 1 : 0;
     if (newValue != m_autoRefLevel) {
         m_autoRefLevel = newValue;
         emit autoRefLevelChanged(m_autoRefLevel > 0);

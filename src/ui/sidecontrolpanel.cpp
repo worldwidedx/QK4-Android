@@ -664,7 +664,9 @@ void SideControlPanel::setWpm(int wpm) {
 void SideControlPanel::setPitch(double pitch) {
     if (!m_isCWMode)
         return; // Only set in CW mode
-    m_pitchValue = qRound(pitch);
+    // The UI receives pitch in kHz for display, while the adjustment slider
+    // uses 10 Hz units over the K4's 300-990 Hz range.
+    m_pitchValue = qRound(pitch * 1000.0);
     QString pitchStr = QString::number(pitch, 'f', 2);
     if (!m_wpmIsPrimary) {
         m_wpmBtn->setPrimaryValue(pitchStr);
@@ -919,6 +921,10 @@ void SideControlPanel::cancelPendingLongPress() {
         button->setDown(false);
     m_longPressTarget = nullptr;
     m_longPressHandled = false;
+    // DualControlButton owns its alternate-function hold timer. Cancel it
+    // explicitly when QScroller decides that this touch is a panel scroll.
+    for (DualControlButton *button : {m_wpmBtn, m_pwrBtn, m_bwBtn, m_shiftBtn, m_mainRfBtn, m_subSqlBtn})
+        button->cancelPendingTouch();
 }
 
 bool SideControlPanel::eventFilter(QObject *watched, QEvent *event) {

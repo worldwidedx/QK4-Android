@@ -161,6 +161,7 @@ set(SOURCES
     src/audio/opusdecoder.cpp
     src/audio/opusencoder.cpp
     src/audio/sidetonegenerator.cpp
+    src/hardware/iambickeyer.cpp
     src/dsp/panadapter_rhi.cpp
     src/dsp/minipan_rhi.cpp
     src/settings/radiosettings.cpp
@@ -194,6 +195,11 @@ set(SOURCES
     src/ui/micconfigpopup.cpp
     src/ui/voxpopup.cpp
     src/ui/ssbbwpopup.cpp
+    src/ui/keyingweightpopup.cpp
+    src/ui/fmplpopup.cpp
+    src/ui/dtmfpopup.cpp
+    src/ui/txmodepopup.cpp
+    src/ui/softwarelistpopup.cpp
     src/ui/textdecodewindow.cpp
     src/ui/macrodialog.cpp
     src/ui/notificationwidget.cpp
@@ -234,6 +240,7 @@ set(HEADERS
     src/audio/opusdecoder.h
     src/audio/opusencoder.h
     src/audio/sidetonegenerator.h
+    src/hardware/iambickeyer.h
     src/dsp/panadapter_rhi.h
     src/dsp/minipan_rhi.h
     src/settings/radiosettings.h
@@ -266,6 +273,11 @@ set(HEADERS
     src/ui/micconfigpopup.h
     src/ui/voxpopup.h
     src/ui/ssbbwpopup.h
+    src/ui/keyingweightpopup.h
+    src/ui/fmplpopup.h
+    src/ui/dtmfpopup.h
+    src/ui/txmodepopup.h
+    src/ui/softwarelistpopup.h
     src/ui/textdecodewindow.h
     src/ui/macrodialog.h
     src/ui/notificationwidget.h

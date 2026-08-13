@@ -46,6 +46,9 @@ public:
     int shiftBHz() const { return m_ifShiftB * 10; } // Sub RX IF shift in Hz
     int cwPitch() const { return m_cwPitch; }
     int keyerSpeed() const { return m_keyerSpeed; }
+    QChar paddleOrientation() const { return m_paddleOrientation; }
+    QChar iambicMode() const { return m_iambicMode; }
+    int keyingWeight() const { return m_keyingWeight; }
 
     // Power and levels
     double rfPower() const { return m_rfPower; }
@@ -501,6 +504,11 @@ public:
     // ESSB and SSB TX Bandwidth (ES command)
     bool essbEnabled() const { return m_essbEnabled; } // 0=SSB, 1=ESSB
     int ssbTxBw() const { return m_ssbTxBw; }          // 30-45 (3.0-4.5 kHz in 100Hz units)
+    int plToneIndex() const { return m_plToneIndex; }
+    bool plToneEnabled() const { return m_plToneEnabled; }
+    int dataTxBandwidth() const { return m_dataTxBandwidth; }
+    QChar repeaterMode() const { return m_repeaterMode; }
+    int repeaterOffsetKhz() const { return m_repeaterOffsetKhz; }
 
     // Optimistic setters for VOX Gain/Anti-VOX/ESSB
     void setVoxGainVoice(int gain);
@@ -589,6 +597,8 @@ signals:
     void refLevelBChanged(int level);          // Sub RX panadapter reference level (#REF$ command)
     void spanBChanged(int spanHz);             // Sub RX panadapter span (#SPN$ command)
     void keyerSpeedChanged(int wpm);           // CW keyer speed
+    void keyerPaddleChanged(QChar orientation); // KP paddle orientation: N=normal, R=reversed
+    void iambicModeChanged(QChar mode);          // KP iambic mode: A or B
     void qskDelayChanged(int delay);           // QSK/VOX delay in 10ms increments
     void rfGainChanged(int gain);              // RF gain
     void squelchChanged(int level);            // Squelch level
@@ -669,6 +679,9 @@ signals:
     void voxGainChanged(int mode, int gain); // VG: mode 0=voice, 1=data
     void antiVoxChanged(int level);          // VI: anti-vox level
     void essbChanged(bool enabled, int bw);  // ES: ESSB state and bandwidth
+    void plToneChanged(int index, bool enabled); // PL$: FM CTCSS tone/state
+    void dataTxBandwidthChanged(int tenthsKhz); // DW: 20-40 = 2.0-4.0 kHz
+    void repeaterChanged(QChar mode, int offsetKhz); // RP: S/+/- and kHz
 
     // Text Decode
     void textDecodeChanged();                                   // TD$ command - Main RX settings changed
@@ -706,6 +719,9 @@ private:
     int m_rfGainB = -999;     // Sub RX RF gain
     int m_squelchLevelB = -1; // Sub RX squelch
     int m_keyerSpeed = -1;    // WPM - init to -1 to ensure first emit
+    QChar m_paddleOrientation;
+    QChar m_iambicMode = 'A';
+    int m_keyingWeight = 100;
 
     // Meters
     double m_sMeter = 0.0;
@@ -940,6 +956,11 @@ private:
     // ESSB (ES command)
     bool m_essbEnabled = false; // 0=SSB, 1=ESSB
     int m_ssbTxBw = -1;         // 30-45 (3.0-4.5 kHz in 100Hz units)
+    int m_plToneIndex = 1;
+    bool m_plToneEnabled = false;
+    int m_dataTxBandwidth = 28;
+    QChar m_repeaterMode = 'S';
+    int m_repeaterOffsetKhz = 0;
 
     // Text Decode (TD$ command) - Main RX
     int m_textDecodeMode = -1;      // 0=off, 2=8-45WPM, 3=8-60WPM, 4=8-90WPM, 1=DATA/SSB on
@@ -1001,6 +1022,7 @@ private:
     void handleML(const QString &cmd);    // Monitor Level
     void handlePC(const QString &cmd);    // Power Control
     void handleKS(const QString &cmd);    // Keyer Speed
+    void handleKP(const QString &cmd);    // Keyer Paddle orientation
 
     // Meter commands
     void handleSM(const QString &cmd);    // S-Meter Main
@@ -1057,6 +1079,9 @@ private:
     void handleMI(const QString &cmd); // Mic Input
     void handleMS(const QString &cmd); // Mic Setup
     void handleES(const QString &cmd); // ESSB
+    void handlePL(const QString &cmd); // FM PL/CTCSS tone
+    void handleDW(const QString &cmd); // DATA/AFSK TX bandwidth
+    void handleRP(const QString &cmd); // FM repeater mode/offset
 
     // QSK/Delay commands
     void handleSD(const QString &cmd); // QSK/VOX Delay

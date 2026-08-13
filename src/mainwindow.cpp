@@ -597,15 +597,15 @@ MainWindow::MainWindow(QWidget *parent)
                 m_ssbBwPopup->showAboveWidget(m_txPopup);
             } else if ((mode == RadioState::DATA || mode == RadioState::DATA_R)
                        && (dataSubMode == 0 || dataSubMode == 1)) {
-                closeSecondaryPopups();
-                m_txModePopup->showDataBandwidth(m_radioState->dataTxBandwidth());
-                m_txModePopup->showAboveWidget(m_txPopup);
+                closeAllPopups();
+                showInWindowMessage(centralWidget(), "DATA BW", "Implementation in progress on the K4.");
             } else if (mode == RadioState::FM) {
                 closeSecondaryPopups();
                 m_txModePopup->showFmRepeater(m_radioState->repeaterMode(),
                                               m_radioState->repeaterOffsetKhz(), false);
                 m_txModePopup->showAboveWidget(m_txPopup);
             } else if (mode == RadioState::AM) {
+                closeAllPopups();
                 showInWindowMessage(centralWidget(), "AM BW",
                                     "AM TX bandwidth is not exposed by the documented K4 remote protocol.");
             }
@@ -629,7 +629,9 @@ MainWindow::MainWindow(QWidget *parent)
             }
             if (mode == RadioState::FM) {
                 closeSecondaryPopups();
-                m_fmPlPopup->setTone(m_radioState->plToneIndex(), m_radioState->plToneEnabled());
+                const bool txB = m_radioState->splitEnabled();
+                m_fmPlPopup->setTone(txB ? m_radioState->plToneIndexB() : m_radioState->plToneIndex(),
+                                     txB ? m_radioState->plToneEnabledB() : m_radioState->plToneEnabled());
                 m_fmPlPopup->showAboveWidget(m_txPopup);
                 break;
             }
@@ -1222,18 +1224,45 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_fmPlPopup, &FmPlPopupWidget::toneChanged, this, [this](int index, bool enabled) {
         if (!m_tcpClient || !m_tcpClient->isConnected())
             return;
-        const QString command = QString("PL$%1%2;").arg(index, 2, 10, QChar('0')).arg(enabled ? 1 : 0);
+        const QString target = m_radioState->splitEnabled() ? "PL$" : "PL";
+        const QString command = QString("%1%2%3;").arg(target).arg(index, 2, 10, QChar('0')).arg(enabled ? 1 : 0);
         m_tcpClient->sendCAT(command);
-        m_radioState->parseCATCommand(command);
-        refreshTxPopupForMode();
+        // PL state must be confirmed by the K4. Do not optimistically paint
+        // FM/T or ON/OFF when the radio has rejected or deferred the setting.
+        QTimer::singleShot(250, this, [this]() {
+            if (m_tcpClient && m_tcpClient->isConnected())
+                m_tcpClient->sendCAT(m_radioState->splitEnabled() ? "PL$;" : "PL;");
+        });
     });
     connect(m_dtmfPopup, &DtmfPopupWidget::digitRequested, this, [this](QChar digit) {
-        if (m_tcpClient && m_tcpClient->isConnected())
-            m_tcpClient->sendCAT(QString("DM%1;").arg(digit));
+        if (!m_radioState->isTransmitting()) {
+            closeAllPopups();
+            showInWindowMessage(centralWidget(), "DTMF", "Enter transmit mode before sending DTMF tones.");
+            return;
+        }
+        if (m_tcpClient && m_tcpClient->isConnected()) m_tcpClient->sendCAT(QString("DM%1;").arg(digit));
     });
-    connect(m_radioState, &RadioState::plToneChanged, this, [this](int index, bool enabled) {
-        m_fmPlPopup->setTone(index, enabled);
+    connect(m_dtmfPopup, &DtmfPopupWidget::sequenceRequested, this, [this](const QString &sequence) {
+        if (!m_radioState->isTransmitting()) {
+            closeAllPopups();
+            showInWindowMessage(centralWidget(), "DTMF", "Enter transmit mode before playing a DTMF command.");
+            return;
+        }
+        QString commands;
+        for (const QChar digit : sequence) commands += QString("DM%1;").arg(digit);
+        if (m_tcpClient && m_tcpClient->isConnected()) m_tcpClient->sendCAT(commands);
+    });
+    connect(m_radioState, &RadioState::plToneChanged, this, [this](bool subRx, int index, bool enabled) {
+        if (subRx == m_radioState->splitEnabled())
+            m_fmPlPopup->setTone(index, enabled);
         refreshTxPopupForMode();
+        updateModeLabels();
+    });
+    connect(m_radioState, &RadioState::repeaterChanged, this, [this](QChar mode, int offsetKhz) {
+        Q_UNUSED(mode)
+        Q_UNUSED(offsetKhz)
+        refreshTxPopupForMode();
+        updateModeLabels();
     });
     connect(m_keyingWeightPopup, &KeyingWeightPopupWidget::weightChanged, this, [this](int weight) {
         if (!m_tcpClient || !m_tcpClient->isConnected())
@@ -1412,6 +1441,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_radioState, &RadioState::dataSubModeChanged, this, [this](int) {
         updateModeLabels();
         refreshTxPopupForMode();
+        refreshRxPopupsForModes();
     });
     connect(m_radioState, &RadioState::sMeterChanged, this, &MainWindow::onSMeterChanged);
     connect(m_radioState, &RadioState::filterBandwidthChanged, this, &MainWindow::onBandwidthChanged);
@@ -1455,6 +1485,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_radioState, &RadioState::dataSubModeBChanged, this, [this](int) {
         updateModeLabels();
         refreshTxPopupForMode();
+        refreshRxPopupsForModes();
     });
     connect(m_radioState, &RadioState::sMeterBChanged, this, &MainWindow::onSMeterBChanged);
     connect(m_radioState, &RadioState::filterBandwidthBChanged, this, &MainWindow::onBandwidthBChanged);
@@ -1821,8 +1852,8 @@ MainWindow::MainWindow(QWidget *parent)
             static const char *bwNames[] = {"30Hz", "50Hz", "150Hz"};
             alternate = bwNames[qBound(0, width, 2)];
         }
-        if (m_mainRxPopup)
-            m_mainRxPopup->setButtonLabel(5, "APF", alternate);
+        Q_UNUSED(alternate);
+        refreshRxPopupsForModes();
         m_vfoA->setApf(enabled, width);
     });
 
@@ -1835,8 +1866,8 @@ MainWindow::MainWindow(QWidget *parent)
             static const char *bwNames[] = {"30Hz", "50Hz", "150Hz"};
             alternate = bwNames[qBound(0, width, 2)];
         }
-        if (m_subRxPopup)
-            m_subRxPopup->setButtonLabel(5, "APF", alternate);
+        Q_UNUSED(alternate);
+        refreshRxPopupsForModes();
         m_vfoB->setApf(enabled, width);
     });
 
@@ -5098,8 +5129,7 @@ void MainWindow::onAuthenticated() {
     m_tcpClient->sendCAT("RT$;");   // VFO B RIT state - needed for B SET and touch offset control
     m_tcpClient->sendCAT("RO$;");   // VFO B offset - used by split XIT and B SET RIT
     m_tcpClient->sendCAT("KP;");    // Paddle N/R orientation - mirror into local CW mapping
-    m_tcpClient->sendCAT("PL$;");   // FM PL/CTCSS tone and encode state
-    m_tcpClient->sendCAT("DW;");    // DATA/AFSK TX bandwidth
+    m_tcpClient->sendCAT("PL;PL$;"); // FM PL/CTCSS state for both VFOs
     m_tcpClient->sendCAT("RP;");    // FM repeater mode and offset
     m_tcpClient->sendCAT("SIRC1;"); // Enable 1-second client stats updates
     // Note: ML commands (monitor levels) come in RDY; dump - no need to query
@@ -5174,6 +5204,7 @@ void MainWindow::onModeChanged(RadioState::Mode mode) {
     // Also adds "+" suffix for USB/LSB when ESSB is enabled
     updateModeLabels();
     refreshTxPopupForMode();
+    refreshRxPopupsForModes();
 }
 
 void MainWindow::refreshTxPopupForMode() {
@@ -5201,10 +5232,9 @@ void MainWindow::refreshTxPopupForMode() {
         m_txPopup->setButtonLabel(6, "ESSB", m_radioState->essbEnabled() ? "ON" : "OFF", false);
     } else if ((mode == RadioState::DATA || mode == RadioState::DATA_R)
                && (dataSubMode == 0 || dataSubMode == 1)) {
-        // DATA-A and AFSK-A use the K4's DATA TX bandwidth control. They do
-        // not use paddle/IAMB/weight, which belong to direct-keying FSK/PSK.
-        m_txPopup->setButtonLabel(5, "DATA BW",
-                                  QString("%1k").arg(m_radioState->dataTxBandwidth() / 10.0, 0, 'f', 1), false);
+        // Although DW appears in the reference, the physical K4 reports this
+        // front-panel function as implementation in progress.
+        m_txPopup->setButtonLabel(5, "DATA BW", "IIP", false);
         m_txPopup->setButtonLabel(6, "", "", false);
     } else if (mode == RadioState::FM) {
         const QString rpt = m_radioState->repeaterMode() == 'S' ? "S" : QString(m_radioState->repeaterMode());
@@ -5228,6 +5258,33 @@ void MainWindow::refreshTxPopupForMode() {
     }
 }
 
+void MainWindow::refreshRxPopupsForModes() {
+    if (!m_mainRxPopup || !m_subRxPopup)
+        return;
+
+    const auto configure = [this](ButtonRowPopup *popup, RadioState::Mode mode,
+                                  int dataSubMode, bool sub) {
+        const bool cw = mode == RadioState::CW || mode == RadioState::CW_R;
+        const bool dataDecode = (mode == RadioState::DATA || mode == RadioState::DATA_R)
+                                && dataSubMode >= 1 && dataSubMode <= 3;
+        if (cw) {
+            const bool enabled = sub ? m_radioState->apfEnabledB() : m_radioState->apfEnabled();
+            const int width = sub ? m_radioState->apfBandwidthB() : m_radioState->apfBandwidth();
+            static const int widths[] = {30, 50, 150};
+            popup->setButtonLabel(5, "APF BW",
+                                  enabled ? QString("%1 Hz").arg(widths[qBound(0, width, 2)]) : "OFF",
+                                  true);
+            popup->setButtonLabel(6, "TEXT", "DECODE", false);
+        } else {
+            popup->setButtonLabel(5, "N/A", "", false);
+            popup->setButtonLabel(6, dataDecode ? "TEXT" : "N/A",
+                                  dataDecode ? "DECODE" : "", false);
+        }
+    };
+    configure(m_mainRxPopup, m_radioState->mode(), m_radioState->dataSubMode(), false);
+    configure(m_subRxPopup, m_radioState->modeB(), m_radioState->dataSubModeB(), true);
+}
+
 RadioState::Mode MainWindow::txOperatingMode() const {
     // With split enabled the K4 transmits on VFO B; otherwise it transmits on
     // VFO A. TX controls must describe the actual transmit mode, not always A.
@@ -5239,14 +5296,27 @@ void MainWindow::onModeBChanged(RadioState::Mode mode) {
     // Use full mode string which includes data sub-mode (AFSK, FSK, PSK, DATA)
     updateModeLabels();
     refreshTxPopupForMode();
+    refreshRxPopupsForModes();
 }
 
 void MainWindow::updateModeLabels() {
+    const auto fmModeLabel = [this](bool toneEnabled) {
+        QString label = "FM";
+        const QChar repeaterMode = m_radioState->repeaterMode();
+        if (repeaterMode == '+' || repeaterMode == '-')
+            label += repeaterMode;
+        if (toneEnabled)
+            label += "/T";
+        return label;
+    };
+
     // VFO A mode label
     QString modeA = m_radioState->modeStringFull();
     RadioState::Mode mode = m_radioState->mode();
     if (m_radioState->essbEnabled() && (mode == RadioState::USB || mode == RadioState::LSB)) {
         modeA += "+";
+    } else if (mode == RadioState::FM) {
+        modeA = fmModeLabel(m_radioState->plToneEnabled());
     }
     m_modeALabel->setText(modeA);
 
@@ -5255,6 +5325,8 @@ void MainWindow::updateModeLabels() {
     RadioState::Mode modeVfoB = m_radioState->modeB();
     if (m_radioState->essbEnabled() && (modeVfoB == RadioState::USB || modeVfoB == RadioState::LSB)) {
         modeB += "+";
+    } else if (modeVfoB == RadioState::FM) {
+        modeB = fmModeLabel(m_radioState->plToneEnabledB());
     }
     m_modeBLabel->setText(modeB);
 }
@@ -6857,6 +6929,9 @@ void MainWindow::toggleMainRxPopup() {
     closeAllPopups();
 
     if (!wasVisible && m_mainRxPopup && m_bottomMenuBar) {
+        if (m_tcpClient && m_tcpClient->isConnected())
+            m_tcpClient->sendCAT("MD;DT;AP;");
+        refreshRxPopupsForModes();
         m_mainRxPopup->showAboveButton(m_bottomMenuBar->mainRxButton());
         m_bottomMenuBar->setMainRxActive(true);
     }
@@ -6867,6 +6942,11 @@ void MainWindow::toggleSubRxPopup() {
     closeAllPopups();
 
     if (!wasVisible && m_subRxPopup && m_bottomMenuBar) {
+        // Query VFO B directly. This provides B SET-equivalent targeting for
+        // the menu without changing the operator's actual B SET state.
+        if (m_tcpClient && m_tcpClient->isConnected())
+            m_tcpClient->sendCAT("MD$;DT$;AP$;");
+        refreshRxPopupsForModes();
         m_subRxPopup->showAboveButton(m_bottomMenuBar->subRxButton());
         m_bottomMenuBar->setSubRxActive(true);
     }
@@ -7223,9 +7303,14 @@ void MainWindow::onMainRxButtonClicked(int index) {
         break;
     }
     case 5: // APF - toggle on/off (Main RX)
-        m_tcpClient->sendCAT("AP/;");
+        if (m_radioState->mode() == RadioState::CW || m_radioState->mode() == RadioState::CW_R)
+            m_tcpClient->sendCAT("AP/;");
         break;
     case 6: // TEXT DECODE - open window directly for Main RX
+        if (m_radioState->mode() != RadioState::CW && m_radioState->mode() != RadioState::CW_R
+            && !((m_radioState->mode() == RadioState::DATA || m_radioState->mode() == RadioState::DATA_R)
+                 && m_radioState->dataSubMode() >= 1 && m_radioState->dataSubMode() <= 3))
+            break;
         if (m_textDecodeWindowMain) {
             // Set operating mode based on current radio mode
             RadioState::Mode radioMode = m_radioState->mode();
@@ -7278,7 +7363,8 @@ void MainWindow::onMainRxButtonRightClicked(int index) {
         break;
     }
     case 5: // APF - cycle bandwidth (Main RX)
-        m_tcpClient->sendCAT("AP+;");
+        if (m_radioState->mode() == RadioState::CW || m_radioState->mode() == RadioState::CW_R)
+            m_tcpClient->sendCAT("AP+;");
         break;
     default:
         break;
@@ -7322,9 +7408,14 @@ void MainWindow::onSubRxButtonClicked(int index) {
         break;
     }
     case 5: // APF - toggle on/off (Sub RX)
-        m_tcpClient->sendCAT("AP$/;");
+        if (m_radioState->modeB() == RadioState::CW || m_radioState->modeB() == RadioState::CW_R)
+            m_tcpClient->sendCAT("AP$/;");
         break;
     case 6: // TEXT DECODE - open window directly for Sub RX
+        if (m_radioState->modeB() != RadioState::CW && m_radioState->modeB() != RadioState::CW_R
+            && !((m_radioState->modeB() == RadioState::DATA || m_radioState->modeB() == RadioState::DATA_R)
+                 && m_radioState->dataSubModeB() >= 1 && m_radioState->dataSubModeB() <= 3))
+            break;
         if (m_textDecodeWindowSub) {
             // Set operating mode based on Sub RX mode
             RadioState::Mode radioMode = m_radioState->modeB();
@@ -7375,7 +7466,8 @@ void MainWindow::onSubRxButtonRightClicked(int index) {
         break;
     }
     case 5: // APF - cycle bandwidth (Sub RX)
-        m_tcpClient->sendCAT("AP$+;");
+        if (m_radioState->modeB() == RadioState::CW || m_radioState->modeB() == RadioState::CW_R)
+            m_tcpClient->sendCAT("AP$+;");
         break;
     default:
         break;

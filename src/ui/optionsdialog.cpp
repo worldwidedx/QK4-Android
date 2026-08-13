@@ -14,6 +14,7 @@
 #include <QLabel>
 #include <QFrame>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QStringList>
 #include <QCheckBox>
 #include <QGridLayout>
@@ -322,6 +323,29 @@ void OptionsDialog::hideEvent(QHideEvent *event) {
 
 bool OptionsDialog::eventFilter(QObject *watched, QEvent *event) {
 #ifdef Q_OS_ANDROID
+    if (m_cwControlsScroll && watched->property("cwScrollSurface").toBool()) {
+        if (event->type() == QEvent::MouseButtonPress) {
+            auto *mouseEvent = static_cast<QMouseEvent *>(event);
+            if (mouseEvent->button() == Qt::LeftButton) {
+                m_cwScrollTouchTarget = watched;
+                m_cwScrollPressY = qRound(mouseEvent->globalPosition().y());
+                m_cwScrollStartValue = m_cwControlsScroll->verticalScrollBar()->value();
+                return true;
+            }
+        } else if (event->type() == QEvent::MouseMove && watched == m_cwScrollTouchTarget) {
+            auto *mouseEvent = static_cast<QMouseEvent *>(event);
+            const int deltaY = qRound(mouseEvent->globalPosition().y()) - m_cwScrollPressY;
+            m_cwControlsScroll->verticalScrollBar()->setValue(m_cwScrollStartValue - deltaY);
+            return true;
+        } else if (event->type() == QEvent::MouseButtonRelease && watched == m_cwScrollTouchTarget) {
+            m_cwScrollTouchTarget = nullptr;
+            return true;
+        } else if ((event->type() == QEvent::Leave || event->type() == QEvent::UngrabMouse) &&
+                   watched == m_cwScrollTouchTarget) {
+            m_cwScrollTouchTarget = nullptr;
+        }
+    }
+
     auto *slider = qobject_cast<QSlider *>(watched);
     if (slider && (slider == m_cwSpeedSlider || slider == m_sidetoneVolumeSlider)) {
         if (event->type() == QEvent::MouseButtonPress) {
@@ -1415,17 +1439,122 @@ QWidget *OptionsDialog::createCwKeyerPage() {
     deviceLayout->addWidget(m_cwKeyerConnectBtn);
     layout->addLayout(deviceLayout);
 
+    auto *controlsScroll = new QScrollArea(page);
+    m_cwControlsScroll = controlsScroll;
+    controlsScroll->setWidgetResizable(true);
+    controlsScroll->setFrameShape(QFrame::NoFrame);
+    controlsScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    // Scrolling is touch-driven. Hiding the bar prevents Android's overlay
+    // scrollbar from covering the rightmost controls.
+    controlsScroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    controlsScroll->setStyleSheet("QScrollArea { background: transparent; border: none; }");
+    auto *controlsWidget = new QWidget(controlsScroll);
+    controlsWidget->setStyleSheet("background: transparent;");
+    auto *controlsLayout = new QVBoxLayout(controlsWidget);
+    controlsWidget->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    controlsLayout->setContentsMargins(0, 6, 18, 6);
+    controlsLayout->setSpacing(8);
+    controlsScroll->setWidget(controlsWidget);
+    layout->addWidget(controlsScroll, 1);
+
+    auto *mappingLayout = new QHBoxLayout();
+    mappingLayout->setSpacing(6);
+    auto *mappingTitle = new QLabel("MIDI profile:", page);
+    mappingTitle->setFixedWidth(135);
+    mappingTitle->setStyleSheet(QString("color:%1;font-size:%2px;")
+                                    .arg(K4Styles::Colors::TextGray)
+                                    .arg(K4Styles::Dimensions::FontSizePopup));
+    m_midiMappingProfileCombo = new QComboBox(page);
+    m_midiMappingProfileCombo->setMinimumHeight(42);
+    m_midiMappingProfileCombo->addItem("TinyMIDI", 0);
+    m_midiMappingProfileCombo->addItem("HaliKey MIDI", 1);
+    m_midiMappingProfileCombo->addItem("Custom / Learn", 2);
+    m_midiMappingProfileCombo->setCurrentIndex(RadioSettings::instance()->midiMappingProfile());
+    m_midiMappingProfileCombo->hide();
+    auto *tinyMidiProfileButton = new QPushButton("TinyMIDI", page);
+    auto *haliKeyProfileButton = new QPushButton("HaliKey", page);
+    auto *customProfileButton = new QPushButton("CUSTOM", page);
+    for (auto *button : {tinyMidiProfileButton, haliKeyProfileButton, customProfileButton}) {
+        button->setMinimumSize(105, 38);
+        button->setStyleSheet(K4Styles::menuBarButton());
+    }
+    m_midiLearnDitButton = new QPushButton("LEARN DIT", page);
+    m_midiLearnDahButton = new QPushButton("LEARN DAH", page);
+    for (auto *button : {m_midiLearnDitButton, m_midiLearnDahButton}) {
+        button->setFixedSize(125, 38);
+        button->setStyleSheet(K4Styles::menuBarButton());
+    }
+    mappingLayout->addWidget(mappingTitle);
+    mappingLayout->addWidget(tinyMidiProfileButton);
+    mappingLayout->addWidget(haliKeyProfileButton);
+    mappingLayout->addWidget(customProfileButton);
+    mappingLayout->addStretch(1);
+    controlsLayout->addLayout(mappingLayout);
+
+    auto *learnLayout = new QHBoxLayout();
+    learnLayout->setSpacing(6);
+    learnLayout->addSpacing(141);
+    learnLayout->addWidget(m_midiLearnDitButton);
+    learnLayout->addWidget(m_midiLearnDahButton);
+    learnLayout->addStretch(1);
+    controlsLayout->addLayout(learnLayout);
+
+    const auto updateMidiProfileControls = [this, tinyMidiProfileButton, haliKeyProfileButton,
+                                            customProfileButton]() {
+        const int profile = m_midiMappingProfileCombo->currentData().toInt();
+        const bool custom = profile == 2;
+        m_midiLearnDitButton->setVisible(custom);
+        m_midiLearnDahButton->setVisible(custom);
+        const auto setSelected = [](QPushButton *button, bool selected) {
+            button->setStyleSheet(selected ? K4Styles::menuBarButtonActive()
+                                           : K4Styles::menuBarButton());
+        };
+        setSelected(tinyMidiProfileButton, profile == 0);
+        setSelected(haliKeyProfileButton, profile == 1);
+        setSelected(customProfileButton, custom);
+        if (m_midiMappingLabel) {
+            if (custom) {
+                auto *s = RadioSettings::instance();
+                m_midiMappingLabel->setText(QString("MIDI mapping: DIT %1/%2, DAH %3/%4")
+                    .arg(s->midiDitStatus(), 2, 16, QChar('0')).arg(s->midiDitData1())
+                    .arg(s->midiDahStatus(), 2, 16, QChar('0')).arg(s->midiDahData1()).toUpper());
+            } else {
+                m_midiMappingLabel->setText("MIDI mapping: note 20 = DIT, note 21 = DAH");
+            }
+        }
+    };
+    connect(tinyMidiProfileButton, &QPushButton::clicked, m_midiMappingProfileCombo,
+            [this]() { m_midiMappingProfileCombo->setCurrentIndex(0); });
+    connect(haliKeyProfileButton, &QPushButton::clicked, m_midiMappingProfileCombo,
+            [this]() { m_midiMappingProfileCombo->setCurrentIndex(1); });
+    connect(customProfileButton, &QPushButton::clicked, m_midiMappingProfileCombo,
+            [this]() { m_midiMappingProfileCombo->setCurrentIndex(2); });
+    connect(m_midiMappingProfileCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+            [this, updateMidiProfileControls](int) {
+                RadioSettings::instance()->setMidiMappingProfile(m_midiMappingProfileCombo->currentData().toInt());
+                m_midiLearningTarget = 0;
+                updateMidiProfileControls();
+            });
+    connect(m_midiLearnDitButton, &QPushButton::clicked, this, [this]() {
+        m_midiLearningTarget = 1;
+        m_cwKeyerStatusLabel->setText("Press and release the DIT paddle now");
+    });
+    connect(m_midiLearnDahButton, &QPushButton::clicked, this, [this]() {
+        m_midiLearningTarget = 2;
+        m_cwKeyerStatusLabel->setText("Press and release the DAH paddle now");
+    });
+
     auto *speedLayout = new QHBoxLayout();
     speedLayout->setSpacing(8);
     auto *speedTitle = new QLabel("CW speed:", page);
-    speedTitle->setMinimumWidth(150);
+    speedTitle->setFixedWidth(135);
     speedTitle->setStyleSheet(QString("color: %1; font-size: %2px;")
                                   .arg(K4Styles::Colors::TextGray)
                                   .arg(K4Styles::Dimensions::FontSizePopup));
     auto *speedDown = new QPushButton(QString(QChar(0x2212)), page);
     auto *speedUp = new QPushButton("+", page);
     for (auto *button : {speedDown, speedUp}) {
-        button->setFixedSize(58, 42);
+        button->setFixedSize(42, 38);
         button->setStyleSheet(K4Styles::menuBarButton());
     }
     m_cwSpeedSlider = new QSlider(Qt::Horizontal, page);
@@ -1433,10 +1562,15 @@ QWidget *OptionsDialog::createCwKeyerPage() {
     m_cwSpeedSlider->setSingleStep(1);
     m_cwSpeedSlider->setPageStep(5);
     m_cwSpeedSlider->setTracking(true);
+    m_cwSpeedSlider->setFixedWidth(210);
     const int currentWpm = RadioSettings::instance()->cwKeyerSpeed();
     m_cwSpeedSlider->setValue(currentWpm);
     m_cwSpeedSlider->setStyleSheet(
         K4Styles::sliderHorizontal(K4Styles::Colors::DarkBackground, K4Styles::Colors::AccentAmber));
+    // A drag that begins on a slider belongs exclusively to that slider. Do
+    // not allow an unhandled/cancelled mouse event to bubble to the kinetic
+    // scroll viewport and turn a horizontal adjustment into vertical scroll.
+    m_cwSpeedSlider->setAttribute(Qt::WA_NoMousePropagation);
     m_cwSpeedSlider->installEventFilter(this);
     m_cwSpeedValueLabel = new QLabel(QString("%1 WPM").arg(currentWpm), page);
     m_cwSpeedValueLabel->setAlignment(Qt::AlignCenter);
@@ -1449,14 +1583,15 @@ QWidget *OptionsDialog::createCwKeyerPage() {
     speedLayout->addWidget(m_cwSpeedSlider, 1);
     speedLayout->addWidget(m_cwSpeedValueLabel);
     speedLayout->addWidget(speedUp);
-    layout->addLayout(speedLayout);
+    speedLayout->addStretch(1);
+    controlsLayout->addLayout(speedLayout);
 
     auto *speedHelp = new QLabel("Built-in touch paddles: up to 30 WPM. External paddle/key: up to 40 WPM.", page);
     speedHelp->setWordWrap(true);
     speedHelp->setStyleSheet(QString("color: %1; font-size: %2px; font-style: italic;")
                                  .arg(K4Styles::Colors::TextGray)
                                  .arg(K4Styles::Dimensions::FontSizeLarge));
-    layout->addWidget(speedHelp);
+    controlsLayout->addWidget(speedHelp);
 
     connect(speedDown, &QPushButton::clicked, this, [this]() {
         m_cwSpeedSlider->setValue(m_cwSpeedSlider->value() - 1);
@@ -1501,7 +1636,7 @@ QWidget *OptionsDialog::createCwKeyerPage() {
     };
     setInputIndicator(ditIndicator, false);
     setInputIndicator(dahIndicator, false);
-    inputTestTitle->setMinimumWidth(150);
+    inputTestTitle->setFixedWidth(135);
     inputTestLayout->addWidget(inputTestTitle);
     inputTestLayout->addWidget(ditIndicator);
     inputTestLayout->addWidget(dahIndicator);
@@ -1517,12 +1652,19 @@ QWidget *OptionsDialog::createCwKeyerPage() {
     m_paddleMappingLabel->setStyleSheet(QString("color: %1; font-size: %2px; font-style: italic;")
                                             .arg(K4Styles::Colors::TextGray)
                                             .arg(K4Styles::Dimensions::FontSizeLarge));
+    m_paddleMappingLabel->setWordWrap(true);
+    m_paddleMappingLabel->setMinimumWidth(0);
+    m_paddleMappingLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     updatePaddleMappingLabel();
     connect(RadioSettings::instance(), &RadioSettings::cwPaddlesReversedChanged,
             m_paddleMappingLabel, [updatePaddleMappingLabel](bool) { updatePaddleMappingLabel(); });
-    inputTestLayout->addWidget(m_paddleMappingLabel, 1);
     inputTestLayout->addStretch();
-    layout->addLayout(inputTestLayout);
+    controlsLayout->addLayout(inputTestLayout);
+    auto *paddleMappingLayout = new QHBoxLayout();
+    paddleMappingLayout->setContentsMargins(0, 0, 0, 0);
+    paddleMappingLayout->addSpacing(141);
+    paddleMappingLayout->addWidget(m_paddleMappingLabel, 1);
+    controlsLayout->addLayout(paddleMappingLayout);
     if (m_halikeyDevice) {
         connect(m_halikeyDevice, &HalikeyDevice::ditStateChanged, ditIndicator,
                 [ditIndicator, dahIndicator, setInputIndicator](bool pressed) {
@@ -1542,16 +1684,18 @@ QWidget *OptionsDialog::createCwKeyerPage() {
 
     auto *sidetoneLayout = new QHBoxLayout();
     auto *sidetoneTitle = new QLabel("Local sidetone:", page);
-    sidetoneTitle->setMinimumWidth(150);
+    sidetoneTitle->setFixedWidth(135);
     sidetoneTitle->setStyleSheet(QString("color: %1; font-size: %2px;")
                                      .arg(K4Styles::Colors::TextGray)
                                      .arg(K4Styles::Dimensions::FontSizePopup));
     m_sidetoneVolumeSlider = new QSlider(Qt::Horizontal, page);
     m_sidetoneVolumeSlider->setRange(0, 100);
     m_sidetoneVolumeSlider->setTracking(true);
+    m_sidetoneVolumeSlider->setFixedWidth(300);
     m_sidetoneVolumeSlider->setValue(RadioSettings::instance()->sidetoneVolume());
     m_sidetoneVolumeSlider->setStyleSheet(
         K4Styles::sliderHorizontal(K4Styles::Colors::DarkBackground, K4Styles::Colors::AccentAmber));
+    m_sidetoneVolumeSlider->setAttribute(Qt::WA_NoMousePropagation);
     m_sidetoneVolumeSlider->installEventFilter(this);
     m_sidetoneVolumeValueLabel =
         new QLabel(QString("%1%").arg(RadioSettings::instance()->sidetoneVolume()), page);
@@ -1567,20 +1711,53 @@ QWidget *OptionsDialog::createCwKeyerPage() {
     sidetoneLayout->addWidget(sidetoneTitle);
     sidetoneLayout->addWidget(m_sidetoneVolumeSlider, 1);
     sidetoneLayout->addWidget(m_sidetoneVolumeValueLabel);
-    layout->addLayout(sidetoneLayout);
+    sidetoneLayout->addStretch(1);
+    controlsLayout->addLayout(sidetoneLayout);
 
-    auto *mapping = new QLabel("MIDI mapping: note 21 = left, note 20 = right.", page);
-    mapping->setStyleSheet(QString("color: %1; font-size: %2px; font-style: italic;")
+    m_midiMappingLabel = new QLabel(page);
+    m_midiMappingLabel->setStyleSheet(QString("color: %1; font-size: %2px; font-style: italic;")
                                .arg(K4Styles::Colors::TextGray)
                                .arg(K4Styles::Dimensions::FontSizeLarge));
-    mapping->setWordWrap(true);
-    layout->addWidget(mapping);
+    m_midiMappingLabel->setWordWrap(true);
+    controlsLayout->addWidget(m_midiMappingLabel);
+    updateMidiProfileControls();
+    if (m_halikeyDevice) {
+        connect(m_halikeyDevice, &HalikeyDevice::rawMidiEvent, page,
+                [this, updateMidiProfileControls](int status, int data1, int, bool pressed) {
+            if (!pressed || m_midiLearningTarget == 0) return;
+            auto *s = RadioSettings::instance();
+            int ditStatus = s->midiDitStatus(), ditData1 = s->midiDitData1();
+            int dahStatus = s->midiDahStatus(), dahData1 = s->midiDahData1();
+            if (m_midiLearningTarget == 1) { ditStatus = status; ditData1 = data1; }
+            else { dahStatus = status; dahData1 = data1; }
+            s->setMidiCustomMapping(ditStatus, ditData1, dahStatus, dahData1);
+            m_midiMappingProfileCombo->setCurrentIndex(2);
+            m_cwKeyerStatusLabel->setText(m_midiLearningTarget == 1 ? "DIT learned" : "DAH learned");
+            m_midiLearningTarget = 0;
+            updateMidiProfileControls();
+        });
+    }
+    // Scroll only from inert background/text surfaces. Interactive controls,
+    // especially sliders, are never observed by the scroll handler and retain
+    // exclusive ownership of every touch sequence.
+    controlsWidget->setProperty("cwScrollSurface", true);
+    controlsWidget->installEventFilter(this);
+    for (QLabel *label : controlsWidget->findChildren<QLabel *>()) {
+        label->setProperty("cwScrollSurface", true);
+        label->installEventFilter(this);
+    }
     populateCwKeyerPorts();
-    HalikeyDevice::startMidiScan();
-    for (int delay : {1000, 3000, 6000})
-        QTimer::singleShot(delay, this, &OptionsDialog::populateCwKeyerPorts);
+    // Do not run Android's eight-second low-latency BLE scan over an active
+    // MIDI connection. Besides being unnecessary for a remembered/connected
+    // device, it monopolizes Bluetooth/UI work and makes touch controls appear
+    // unresponsive for the duration of the scan.
+    if (!m_halikeyDevice || !m_halikeyDevice->isConnected()) {
+        HalikeyDevice::startMidiScan();
+        for (int delay : {1000, 3000, 6000})
+            QTimer::singleShot(delay, this, &OptionsDialog::populateCwKeyerPorts);
+    }
     updateCwKeyerStatus();
-    layout->addStretch(1);
+    controlsLayout->addStretch(1);
     return page;
 #endif
 

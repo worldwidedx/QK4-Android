@@ -11,19 +11,23 @@ KeyingWeightPopupWidget::KeyingWeightPopupWidget(QWidget *parent) : K4PopupBase(
     layout->setSpacing(8);
 
     auto *title = new QLabel("KEYING WEIGHT", this);
+    title->setFixedSize(140, 36);
     title->setAlignment(Qt::AlignCenter);
-    title->setStyleSheet(QString("color: %1; font-size: 17px; font-weight: bold;")
+    title->setStyleSheet(QString("color: %1; font-size: 14px; font-weight: 600;")
                              .arg(K4Styles::Colors::TextWhite));
 
     m_valueLabel = new QLabel(this);
     m_valueLabel->setAlignment(Qt::AlignCenter);
-    m_valueLabel->setMinimumWidth(82);
-    m_valueLabel->setStyleSheet(QString("color: %1; font-size: 19px; font-weight: bold;")
+    m_valueLabel->setFixedSize(80, 36);
+    m_valueLabel->setStyleSheet(QString("color: %1; font-size: 16px; font-weight: 600;")
                                     .arg(K4Styles::Colors::AccentAmber));
 
     auto makeButton = [this](const QString &text) {
         auto *button = new QPushButton(text, this);
-        button->setMinimumSize(72, 52);
+        button->setFixedSize(text == QString::fromUtf8("\xE2\x86\xA9")
+                                 ? K4Styles::Dimensions::NavButtonWidth
+                                 : K4Styles::Dimensions::ButtonHeightLarge,
+                             K4Styles::Dimensions::ButtonHeightMedium);
         button->setStyleSheet(K4Styles::menuBarButtonSmall());
         return button;
     };
@@ -46,7 +50,7 @@ KeyingWeightPopupWidget::KeyingWeightPopupWidget(QWidget *parent) : K4PopupBase(
 }
 
 QSize KeyingWeightPopupWidget::contentSize() const {
-    return QSize(510, 76);
+    return QSize(440, 52);
 }
 
 void KeyingWeightPopupWidget::setWeight(int weight) {

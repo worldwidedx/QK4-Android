@@ -177,11 +177,11 @@ public final class AndroidBleMidi {
         for (int i = offset; i + 2 < offset + count; ) {
             final int status = data[i] & 0xff;
             final int kind = status & 0xf0;
-            if (kind == 0x80 || kind == 0x90) {
-                final int note = data[i + 1] & 0x7f;
-                final int velocity = data[i + 2] & 0x7f;
-                EVENTS.offer((status << 16) | (note << 8) | velocity);
-                Log.d(TAG, "MIDI status=" + status + " note=" + note + " velocity=" + velocity);
+            if (kind == 0x80 || kind == 0x90 || kind == 0xb0) {
+                final int data1 = data[i + 1] & 0x7f;
+                final int data2 = data[i + 2] & 0x7f;
+                EVENTS.offer((status << 16) | (data1 << 8) | data2);
+                Log.d(TAG, "MIDI status=" + status + " data1=" + data1 + " data2=" + data2);
                 i += 3;
             } else {
                 i++;

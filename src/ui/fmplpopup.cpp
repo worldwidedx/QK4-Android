@@ -20,14 +20,19 @@ FmPlPopupWidget::FmPlPopupWidget(QWidget *parent) : K4PopupBase(parent) {
     layout->setContentsMargins(contentMargins());
     layout->setSpacing(8);
     auto *title = new QLabel("FM PL TONE", this);
-    title->setStyleSheet(QString("color:%1;font-size:17px;font-weight:bold;").arg(K4Styles::Colors::TextWhite));
+    title->setFixedSize(120, 36);
+    title->setAlignment(Qt::AlignCenter);
+    title->setStyleSheet(QString("color:%1;font-size:14px;font-weight:600;").arg(K4Styles::Colors::TextWhite));
     m_toneLabel = new QLabel(this);
     m_toneLabel->setAlignment(Qt::AlignCenter);
-    m_toneLabel->setMinimumWidth(100);
-    m_toneLabel->setStyleSheet(QString("color:%1;font-size:19px;font-weight:bold;").arg(K4Styles::Colors::AccentAmber));
+    m_toneLabel->setFixedSize(100, 36);
+    m_toneLabel->setStyleSheet(QString("color:%1;font-size:16px;font-weight:600;").arg(K4Styles::Colors::AccentAmber));
     auto makeButton = [this](const QString &text) {
         auto *button = new QPushButton(text, this);
-        button->setMinimumSize(72, 52);
+        button->setFixedSize(text == QString::fromUtf8("\xE2\x86\xA9")
+                                 ? K4Styles::Dimensions::NavButtonWidth
+                                 : K4Styles::Dimensions::ButtonHeightLarge,
+                             K4Styles::Dimensions::ButtonHeightMedium);
         button->setStyleSheet(K4Styles::menuBarButtonSmall());
         return button;
     };
@@ -53,7 +58,7 @@ FmPlPopupWidget::FmPlPopupWidget(QWidget *parent) : K4PopupBase(parent) {
     initPopup();
 }
 
-QSize FmPlPopupWidget::contentSize() const { return QSize(610, 76); }
+QSize FmPlPopupWidget::contentSize() const { return QSize(500, 52); }
 
 void FmPlPopupWidget::setTone(int index, bool enabled) {
     m_index = qBound(1, index, 50);

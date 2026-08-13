@@ -122,6 +122,13 @@ public:
     void setCwKeyerSpeed(int wpm); // 8-40 WPM, default 20
     bool cwPaddlesReversed() const;
     void setCwPaddlesReversed(bool reversed);
+    int midiMappingProfile() const;
+    void setMidiMappingProfile(int profile); // 0=TinyMIDI, 1=HaliKey MIDI, 2=Custom
+    int midiDitStatus() const;
+    int midiDitData1() const;
+    int midiDahStatus() const;
+    int midiDahData1() const;
+    void setMidiCustomMapping(int ditStatus, int ditData1, int dahStatus, int dahData1);
 
     // RX EQ Presets (4 slots)
     EqPreset rxEqPreset(int index) const;                  // Get preset 0-3
@@ -132,6 +139,11 @@ public:
     EqPreset txEqPreset(int index) const;                  // Get preset 0-3
     void setTxEqPreset(int index, const EqPreset &preset); // Set preset 0-3
     void clearTxEqPreset(int index);                       // Clear preset 0-3
+
+    // Local copies of the six K4-style DTMF command memories. The documented
+    // CAT protocol transmits digits but does not expose the radio's CMD store.
+    QString dtmfCommand(int index) const;
+    void setDtmfCommand(int index, const QString &sequence);
 
 signals:
     void radiosChanged();
@@ -179,6 +191,11 @@ private:
     int m_sidetoneVolume = 30;   // Default 30%
     int m_cwKeyerSpeed = 20;     // Default 20 WPM
     bool m_cwPaddlesReversed = false; // Normal: left=dit, right=dah
+    int m_midiMappingProfile = 0;
+    int m_midiDitStatus = 0x90;
+    int m_midiDitData1 = 20;
+    int m_midiDahStatus = 0x90;
+    int m_midiDahData1 = 21;
 
     // Macro settings
     QMap<QString, MacroEntry> m_macros;
@@ -188,6 +205,7 @@ private:
 
     // TX EQ Presets (4 slots)
     EqPreset m_txEqPresets[4];
+    QString m_dtmfCommands[6];
 
     QSettings m_settings;
 };

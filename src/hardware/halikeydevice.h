@@ -48,6 +48,7 @@ signals:
     void ditStateChanged(bool pressed);
     void dahStateChanged(bool pressed);
     void pttStateChanged(bool pressed);
+    void rawMidiEvent(int status, int data1, int data2, bool pressed);
 
 private:
     void onRawDit(bool pressed);

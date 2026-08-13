@@ -5,14 +5,12 @@
 #include <QDebug>
 #include <QJniObject>
 #include <qcoreapplication_platform.h>
+#include "settings/radiosettings.h"
 
 namespace {
 // TinyMIDI's BLE firmware reports the physical left paddle as note 20 and the
 // physical right paddle as note 21. Keep this physical mapping separate from
 // the K4 KP orientation setting, which is applied later by MainWindow.
-constexpr int NoteLeftPaddle = 20;
-constexpr int NoteRightPaddle = 21;
-
 QJniObject androidContext() {
     return QNativeInterface::QAndroidApplication::context();
 }
@@ -87,12 +85,22 @@ HalikeyDevice::HalikeyDevice(QObject *parent) : QObject(parent) {
             const int note = (event >> 8) & 0xff;
             const int velocity = event & 0xff;
             const int kind = status & 0xf0;
-            const bool pressed = kind == 0x90 && velocity > 0;
-            if (kind != 0x80 && kind != 0x90)
+            const bool pressed = (kind == 0x90 || kind == 0xb0) && velocity > 0;
+            if (kind != 0x80 && kind != 0x90 && kind != 0xb0)
                 continue;
-            if (note == NoteLeftPaddle)
+            emit rawMidiEvent(status, note, velocity, pressed);
+
+            const auto *settings = RadioSettings::instance();
+            const int profile = settings->midiMappingProfile();
+            const int ditStatus = profile < 2 ? 0x90 : settings->midiDitStatus();
+            const int ditData1 = profile < 2 ? 20 : settings->midiDitData1();
+            const int dahStatus = profile < 2 ? 0x90 : settings->midiDahStatus();
+            const int dahData1 = profile < 2 ? 21 : settings->midiDahData1();
+            // Note-off (0x80) releases the corresponding note-on mapping.
+            const int matchKind = kind == 0x80 ? 0x90 : kind;
+            if (matchKind == ditStatus && note == ditData1)
                 onRawDit(pressed);
-            else if (note == NoteRightPaddle)
+            else if (matchKind == dahStatus && note == dahData1)
                 onRawDah(pressed);
             else
                 qDebug() << "Android BLE MIDI note" << note << "pressed" << pressed;

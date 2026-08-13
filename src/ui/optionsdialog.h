@@ -21,6 +21,7 @@ class MicMeterWidget;
 class KpodDevice;
 class CatServer;
 class HalikeyDevice;
+class QScrollArea;
 
 #ifdef Q_OS_ANDROID
 using OptionsDialogBase = QWidget;
@@ -135,7 +136,16 @@ private:
     QSlider *m_sidetoneVolumeSlider = nullptr;
     QLabel *m_sidetoneVolumeValueLabel = nullptr;
     QLabel *m_paddleMappingLabel = nullptr;
+    QLabel *m_midiMappingLabel = nullptr;
+    QComboBox *m_midiMappingProfileCombo = nullptr;
+    QPushButton *m_midiLearnDitButton = nullptr;
+    QPushButton *m_midiLearnDahButton = nullptr;
+    int m_midiLearningTarget = 0; // 0=none, 1=dit, 2=dah
     QSlider *m_touchSlider = nullptr;
+    QScrollArea *m_cwControlsScroll = nullptr;
+    QObject *m_cwScrollTouchTarget = nullptr;
+    int m_cwScrollPressY = 0;
+    int m_cwScrollStartValue = 0;
     void updateCwKeyerDescription();
 };
 

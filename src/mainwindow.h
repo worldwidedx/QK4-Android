@@ -183,6 +183,7 @@ private:
     QString formatFrequency(quint64 freq);
     void updateModeLabels();
     void refreshTxPopupForMode();
+    void refreshRxPopupsForModes();
     RadioState::Mode txOperatingMode() const;
     void queueControlFeedback(const QString &key, const QString &fallback);
     void completeControlFeedback(const QString &key, const QString &message);

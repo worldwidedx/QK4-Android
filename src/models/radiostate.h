@@ -506,6 +506,8 @@ public:
     int ssbTxBw() const { return m_ssbTxBw; }          // 30-45 (3.0-4.5 kHz in 100Hz units)
     int plToneIndex() const { return m_plToneIndex; }
     bool plToneEnabled() const { return m_plToneEnabled; }
+    int plToneIndexB() const { return m_plToneIndexB; }
+    bool plToneEnabledB() const { return m_plToneEnabledB; }
     int dataTxBandwidth() const { return m_dataTxBandwidth; }
     QChar repeaterMode() const { return m_repeaterMode; }
     int repeaterOffsetKhz() const { return m_repeaterOffsetKhz; }
@@ -679,7 +681,7 @@ signals:
     void voxGainChanged(int mode, int gain); // VG: mode 0=voice, 1=data
     void antiVoxChanged(int level);          // VI: anti-vox level
     void essbChanged(bool enabled, int bw);  // ES: ESSB state and bandwidth
-    void plToneChanged(int index, bool enabled); // PL$: FM CTCSS tone/state
+    void plToneChanged(bool subRx, int index, bool enabled); // PL/PL$: FM CTCSS state
     void dataTxBandwidthChanged(int tenthsKhz); // DW: 20-40 = 2.0-4.0 kHz
     void repeaterChanged(QChar mode, int offsetKhz); // RP: S/+/- and kHz
 
@@ -958,6 +960,8 @@ private:
     int m_ssbTxBw = -1;         // 30-45 (3.0-4.5 kHz in 100Hz units)
     int m_plToneIndex = 1;
     bool m_plToneEnabled = false;
+    int m_plToneIndexB = 1;
+    bool m_plToneEnabledB = false;
     int m_dataTxBandwidth = 28;
     QChar m_repeaterMode = 'S';
     int m_repeaterOffsetKhz = 0;
@@ -1079,7 +1083,7 @@ private:
     void handleMI(const QString &cmd); // Mic Input
     void handleMS(const QString &cmd); // Mic Setup
     void handleES(const QString &cmd); // ESSB
-    void handlePL(const QString &cmd); // FM PL/CTCSS tone
+    void handlePL(const QString &cmd, bool subRx); // FM PL/CTCSS tone
     void handleDW(const QString &cmd); // DATA/AFSK TX bandwidth
     void handleRP(const QString &cmd); // FM repeater mode/offset
 

@@ -4,7 +4,7 @@ Last updated: 2026-08-12
 
 ## Released build
 
-**QK4 Mobile v0.7.6.6** is the current feature-release source state. It fixes
+**QK4 Mobile v0.8.0** is the current major-release source state. It fixes
 the EQ preset-name editor so it appears above the graphic-EQ popup, enlarges
 the preset recall/save controls for touch use, aligns the dB and Hz labels,
 and adds deliberate long-press clearing for populated presets. The shared EQ
@@ -95,6 +95,23 @@ the compact layout; broader device validation is still required.
   CAT command because it maps the application's local waterfall LUT.
 
 ## Known boundaries / next validation
+
+### Device findings queued after the 2026-08-12 test build
+
+- FM PL tone enable/disable did not change the K4 and the expected FM/T
+  indicator did not follow it. Revalidate the `PL$` transaction and echoed
+  state on hardware before calling this functional.
+- The FM DTMF screen still needs the K4's six hold-to-program CMD memories and
+  matching keypad layout. A current K4 screen photograph may be used for final
+  visual matching, but the operating manual defines the required behavior.
+- The K4 reports **Implementation in Progress** for DATA/AFSK TX bandwidth on
+  the test radio. Do not expose an apparently working adjustment merely because
+  `DW` appears in the Programmer's Reference.
+- MAIN RX and SUB RX secondary controls must be mode-aware independently.
+  APF BW applies only in CW; SUB RX must use VFO B (`MD$`/`DT$`) state and must
+  not inherit VFO A's menu labels.
+- Informational in-window messages opened above an operating popup must retain
+  an unobstructed CLOSE control.
 
 - Validate landscape usability, system insets, font scaling, touch scrolling,
   and audio behavior on smaller Android phones, a Pixel/non-Samsung phone, and

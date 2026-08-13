@@ -964,7 +964,7 @@ void RadioState::registerCommandHandlers() {
     m_commandHandlers.append({"AP$", [this](const QString &c) { handleAPSub(c); }});
     m_commandHandlers.append({"LK$", [this](const QString &c) { handleLKSub(c); }});
     m_commandHandlers.append({"VT$", [this](const QString &c) { handleVTSub(c); }});
-    m_commandHandlers.append({"PL$", [this](const QString &c) { handlePL(c); }});
+    m_commandHandlers.append({"PL$", [this](const QString &c) { handlePL(c, true); }});
     m_commandHandlers.append({"AR$", [this](const QString &c) { handleARSub(c); }});
     // Mainline QK4 keeps the two offset registers distinct. RO$ is used by
     // B SET RIT and by XIT when split routes TX to VFO B.
@@ -986,6 +986,7 @@ void RadioState::registerCommandHandlers() {
     m_commandHandlers.append({"FX", [this](const QString &c) { handleFX(c); }});
     m_commandHandlers.append({"DW", [this](const QString &c) { handleDW(c); }});
     m_commandHandlers.append({"RP", [this](const QString &c) { handleRP(c); }});
+    m_commandHandlers.append({"PL", [this](const QString &c) { handlePL(c, false); }});
     m_commandHandlers.append({"MD", [this](const QString &c) { handleMD(c); }});
     m_commandHandlers.append({"BL", [this](const QString &c) { handleBL(c); }});
     m_commandHandlers.append({"BW", [this](const QString &c) { handleBW(c); }});
@@ -2067,19 +2068,22 @@ void RadioState::handleVI(const QString &cmd) {
     }
 }
 
-void RadioState::handlePL(const QString &cmd) {
-    // PL$nnm: nn=Elecraft CTCSS table index 01-50, m=encode off/on.
-    if (cmd.length() < 6)
+void RadioState::handlePL(const QString &cmd, bool subRx) {
+    // PLnnm targets VFO A; PL$nnm targets VFO B/sub RX.
+    const int parameterStart = subRx ? 3 : 2;
+    if (cmd.length() < parameterStart + 3)
         return;
     bool ok = false;
-    const int index = cmd.mid(3, 2).toInt(&ok);
-    const bool enabled = cmd.at(5) == '1';
+    const int index = cmd.mid(parameterStart, 2).toInt(&ok);
+    const bool enabled = cmd.at(parameterStart + 2) == '1';
     if (!ok || index < 1 || index > 50)
         return;
-    if (index != m_plToneIndex || enabled != m_plToneEnabled) {
-        m_plToneIndex = index;
-        m_plToneEnabled = enabled;
-        emit plToneChanged(index, enabled);
+    int &storedIndex = subRx ? m_plToneIndexB : m_plToneIndex;
+    bool &storedEnabled = subRx ? m_plToneEnabledB : m_plToneEnabled;
+    if (index != storedIndex || enabled != storedEnabled) {
+        storedIndex = index;
+        storedEnabled = enabled;
+        emit plToneChanged(subRx, index, enabled);
     }
 }
 

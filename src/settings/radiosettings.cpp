@@ -1,4 +1,5 @@
 #include "radiosettings.h"
+#include <QRegularExpression>
 
 static const QByteArray obfuscationKey = "K4RemoteObfuscation";
 
@@ -351,6 +352,26 @@ void RadioSettings::setCwPaddlesReversed(bool reversed) {
     }
 }
 
+int RadioSettings::midiMappingProfile() const { return m_midiMappingProfile; }
+void RadioSettings::setMidiMappingProfile(int profile) {
+    profile = qBound(0, profile, 2);
+    if (m_midiMappingProfile == profile) return;
+    m_midiMappingProfile = profile;
+    save();
+}
+int RadioSettings::midiDitStatus() const { return m_midiDitStatus; }
+int RadioSettings::midiDitData1() const { return m_midiDitData1; }
+int RadioSettings::midiDahStatus() const { return m_midiDahStatus; }
+int RadioSettings::midiDahData1() const { return m_midiDahData1; }
+void RadioSettings::setMidiCustomMapping(int ditStatus, int ditData1, int dahStatus, int dahData1) {
+    m_midiDitStatus = ditStatus & 0xf0;
+    m_midiDitData1 = qBound(0, ditData1, 127);
+    m_midiDahStatus = dahStatus & 0xf0;
+    m_midiDahData1 = qBound(0, dahData1, 127);
+    m_midiMappingProfile = 2;
+    save();
+}
+
 void RadioSettings::setSidetoneVolume(int value) {
     value = qBound(0, value, 100);
     if (m_sidetoneVolume != value) {
@@ -445,6 +466,11 @@ void RadioSettings::load() {
     m_sidetoneVolume = m_settings.value("halikey/sidetoneVolume", 30).toInt();
     m_cwKeyerSpeed = qBound(8, m_settings.value("halikey/cwSpeed", 20).toInt(), 40);
     m_cwPaddlesReversed = m_settings.value("halikey/paddlesReversed", false).toBool();
+    m_midiMappingProfile = qBound(0, m_settings.value("halikey/midiProfile", 0).toInt(), 2);
+    m_midiDitStatus = m_settings.value("halikey/midiDitStatus", 0x90).toInt();
+    m_midiDitData1 = m_settings.value("halikey/midiDitData1", 20).toInt();
+    m_midiDahStatus = m_settings.value("halikey/midiDahStatus", 0x90).toInt();
+    m_midiDahData1 = m_settings.value("halikey/midiDahData1", 21).toInt();
 
     // Macro settings
     int macroCount = m_settings.beginReadArray("macros");
@@ -496,6 +522,9 @@ void RadioSettings::load() {
             }
         }
     }
+
+    for (int i = 0; i < 6; ++i)
+        m_dtmfCommands[i] = m_settings.value(QString("dtmf/cmd%1").arg(i + 1)).toString();
 }
 
 void RadioSettings::save() {
@@ -534,6 +563,11 @@ void RadioSettings::save() {
     m_settings.setValue("halikey/sidetoneVolume", m_sidetoneVolume);
     m_settings.setValue("halikey/cwSpeed", m_cwKeyerSpeed);
     m_settings.setValue("halikey/paddlesReversed", m_cwPaddlesReversed);
+    m_settings.setValue("halikey/midiProfile", m_midiMappingProfile);
+    m_settings.setValue("halikey/midiDitStatus", m_midiDitStatus);
+    m_settings.setValue("halikey/midiDitData1", m_midiDitData1);
+    m_settings.setValue("halikey/midiDahStatus", m_midiDahStatus);
+    m_settings.setValue("halikey/midiDahData1", m_midiDahData1);
 
     // Macro settings
     m_settings.beginWriteArray("macros");
@@ -558,6 +592,9 @@ void RadioSettings::save() {
         m_settings.setValue(prefix + "bands", bandsList.join(","));
     }
 
+    for (int j = 0; j < 6; ++j)
+        m_settings.setValue(QString("dtmf/cmd%1").arg(j + 1), m_dtmfCommands[j]);
+
     // TX EQ Presets (4 slots)
     for (int j = 0; j < 4; ++j) {
         QString prefix = QString("txEqPresets/%1/").arg(j);
@@ -571,4 +608,18 @@ void RadioSettings::save() {
     }
 
     m_settings.sync();
+}
+
+QString RadioSettings::dtmfCommand(int index) const {
+    return index >= 0 && index < 6 ? m_dtmfCommands[index] : QString();
+}
+
+void RadioSettings::setDtmfCommand(int index, const QString &sequence) {
+    if (index < 0 || index >= 6) return;
+    QString clean = sequence.toUpper();
+    clean.remove(QRegularExpression("[^0-9A-D*#]"));
+    clean = clean.left(32);
+    if (m_dtmfCommands[index] == clean) return;
+    m_dtmfCommands[index] = clean;
+    save();
 }

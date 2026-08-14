@@ -4,6 +4,8 @@ QK4 Android is a phone-focused Android client for Elecraft K4 transceivers. It p
 
 The application is under active development and is intended for testing with an Elecraft K4/K4D on the same network. Version 0.8.0 is the current ARM64 major-release source state.
 
+![QK4 Mobile v0.8.0 console](https://github.com/worldwidedx/QK4-Android/releases/download/v0.8.0/QK4-Mobile-v0.8.0-Screenshot.png)
+
 ## Project lineage
 
 QK4 Android is a derivative of [QK4](https://github.com/mikeg-dal/QK4), created by Mike Garcia, KF5O. Android development and phone UX adaptation are by [worldwideDX.com](https://worldwidedx.com/).

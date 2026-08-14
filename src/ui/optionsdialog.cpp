@@ -1392,8 +1392,8 @@ QWidget *OptionsDialog::createCwKeyerPage() {
                                          .arg(K4Styles::Dimensions::FontSizeTitle));
     layout->addWidget(androidTitleLabel);
 
-    auto *helpLabel = new QLabel("Connect a standard Bluetooth LE MIDI paddle interface. BLE MIDI devices are "
-                                 "discovered here rather than in Android's normal Bluetooth pairing list.", page);
+    auto *helpLabel = new QLabel("Connect a USB MIDI paddle interface or make a Bluetooth LE MIDI device "
+                                 "discoverable, then tap SCAN. USB and BLE MIDI devices appear together below.", page);
     helpLabel->setStyleSheet(QString("color: %1; font-size: %2px;")
                                  .arg(K4Styles::Colors::TextGray)
                                  .arg(K4Styles::Dimensions::FontSizeButton));
@@ -1401,7 +1401,7 @@ QWidget *OptionsDialog::createCwKeyerPage() {
     layout->addWidget(helpLabel);
 
     m_cwKeyerDeviceTypeCombo = new QComboBox(page);
-    m_cwKeyerDeviceTypeCombo->addItem("Bluetooth LE MIDI", 1);
+    m_cwKeyerDeviceTypeCombo->addItem("Android MIDI", 1);
     m_cwKeyerDeviceTypeCombo->hide();
 
     auto *androidStatusLayout = new QHBoxLayout();
@@ -1746,16 +1746,10 @@ QWidget *OptionsDialog::createCwKeyerPage() {
         label->setProperty("cwScrollSurface", true);
         label->installEventFilter(this);
     }
+    // Opening this page must not automatically start the eight-second BLE
+    // scan. SCAN refreshes attached USB MIDI immediately and BLE MIDI
+    // asynchronously; initial population retains the remembered selection.
     populateCwKeyerPorts();
-    // Do not run Android's eight-second low-latency BLE scan over an active
-    // MIDI connection. Besides being unnecessary for a remembered/connected
-    // device, it monopolizes Bluetooth/UI work and makes touch controls appear
-    // unresponsive for the duration of the scan.
-    if (!m_halikeyDevice || !m_halikeyDevice->isConnected()) {
-        HalikeyDevice::startMidiScan();
-        for (int delay : {1000, 3000, 6000})
-            QTimer::singleShot(delay, this, &OptionsDialog::populateCwKeyerPorts);
-    }
     updateCwKeyerStatus();
     controlsLayout->addStretch(1);
     return page;
@@ -1998,13 +1992,13 @@ void OptionsDialog::populateCwKeyerPorts() {
         for (int i = 0; i < midiDevices.size(); i++) {
 #ifdef Q_OS_ANDROID
             const QStringList fields = midiDevices[i].split('|');
-            const QString name = fields.value(0, "BLE MIDI");
-            const QString address = fields.value(1);
-            if (address.isEmpty())
+            const QString name = fields.value(0, "MIDI device");
+            const QString deviceKey = fields.value(1);
+            if (deviceKey.isEmpty())
                 continue;
-            m_cwKeyerPortCombo->addItem(name, address);
-            if (address == savedPort) {
-                selectedIndex = i;
+            m_cwKeyerPortCombo->addItem(name, deviceKey);
+            if (deviceKey == savedPort || (deviceKey.startsWith("ble:") && deviceKey.mid(4) == savedPort)) {
+                selectedIndex = m_cwKeyerPortCombo->count() - 1;
             }
 #else
             m_cwKeyerPortCombo->addItem(midiDevices[i], midiDevices[i]);
@@ -2015,7 +2009,10 @@ void OptionsDialog::populateCwKeyerPorts() {
         }
 #ifdef Q_OS_ANDROID
         if (selectedIndex < 0 && !savedPort.isEmpty()) {
-            m_cwKeyerPortCombo->addItem("Remembered MIDI device", savedPort);
+            const QString rememberedName = savedPort.startsWith("usb:")
+                ? "Remembered USB MIDI device (not attached)"
+                : "Remembered BLE MIDI device (not discovered)";
+            m_cwKeyerPortCombo->addItem(rememberedName, savedPort);
             selectedIndex = m_cwKeyerPortCombo->count() - 1;
         }
 #endif
@@ -2072,8 +2069,10 @@ void OptionsDialog::onCwKeyerRefreshClicked() {
 #ifdef Q_OS_ANDROID
     HalikeyDevice::startMidiScan();
     if (m_cwKeyerStatusLabel)
-        m_cwKeyerStatusLabel->setText(m_halikeyDevice ? m_halikeyDevice->statusMessage() : "Scanning…");
-    for (int delay : {1000, 3000, 6000})
+        m_cwKeyerStatusLabel->setText(m_halikeyDevice ? m_halikeyDevice->statusMessage()
+                                                      : "Scanning USB and BLE MIDI...");
+    populateCwKeyerPorts(); // USB enumeration is synchronous and available immediately.
+    for (int delay : {1000, 3000, 6000, 8500})
         QTimer::singleShot(delay, this, &OptionsDialog::populateCwKeyerPorts);
 #else
     populateCwKeyerPorts();

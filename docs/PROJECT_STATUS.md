@@ -1,8 +1,14 @@
 # Project status
 
-Last updated: 2026-08-12
+Last updated: 2026-08-14
 
 ## Released build
+
+**QK4 Mobile v0.8.1** adds combined USB and Bluetooth LE MIDI
+discovery for the CW Keyer setup. Opening the screen no longer starts a BLE
+scan; SCAN enumerates attached USB MIDI devices immediately while discovering
+BLE MIDI devices, labels both transports in one selector, and remembers the
+selected transport and USB identity for reconnecting.
 
 **QK4 Mobile v0.8.0** is the current major-release source state. It fixes
 the EQ preset-name editor so it appears above the graphic-EQ popup, enlarges

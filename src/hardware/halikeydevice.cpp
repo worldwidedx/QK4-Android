@@ -71,8 +71,8 @@ HalikeyDevice::HalikeyDevice(QObject *parent) : QObject(parent) {
     });
 
     // Eight milliseconds keeps paddle latency below one hundredth of a second
-    // while reducing main-thread JNI traffic. This timer runs only while the
-    // BLE MIDI endpoint is actually connected.
+    // while reducing main-thread JNI traffic. This timer runs only while a
+    // BLE or USB MIDI endpoint is actually connected.
     m_androidMidiPollTimer = new QTimer(this);
     m_androidMidiPollTimer->setInterval(8);
     connect(m_androidMidiPollTimer, &QTimer::timeout, this, [this]() {
@@ -103,7 +103,7 @@ HalikeyDevice::HalikeyDevice(QObject *parent) : QObject(parent) {
             else if (matchKind == dahStatus && note == dahData1)
                 onRawDah(pressed);
             else
-                qDebug() << "Android BLE MIDI note" << note << "pressed" << pressed;
+                qDebug() << "Android MIDI event" << note << "pressed" << pressed;
         }
     });
     m_androidConnectionPollTimer->start();
@@ -210,7 +210,7 @@ void HalikeyDevice::startMidiScan() {
 QString HalikeyDevice::statusMessage() const {
     const QJniObject message = QJniObject::callStaticObjectMethod(
             "com/ai5qk/qk4phone/AndroidBleMidi", "getStatusMessage", "()Ljava/lang/String;");
-    return message.isValid() ? message.toString() : QStringLiteral("BLE MIDI unavailable");
+    return message.isValid() ? message.toString() : QStringLiteral("Android MIDI unavailable");
 }
 
 bool HalikeyDevice::ditPressed() const {

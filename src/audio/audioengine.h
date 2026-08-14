@@ -98,6 +98,8 @@ private:
 
     // Apply MX routing + volume + balance to a raw [main, sub] interleaved packet
     void applyMixAndVolume(QByteArray &packet);
+    const QByteArray &resampleOutputPacket(const QByteArray &packet);
+    void resetOutputResampler();
 
     // Audio output format: 12kHz stereo Float32 (K4 RX audio, L=Main R=Sub)
     QAudioFormat m_outputFormat;
@@ -196,6 +198,9 @@ private:
     // Audio-thread-only (no mutex needed) — safety net for partial QIODevice::write()
     QByteArray m_writeBuffer;
     QByteArray m_outputResampleBuffer;
+    bool m_outputResamplerPrimed = false;
+    float m_outputResamplerPreviousLeft = 0.0f;
+    float m_outputResamplerPreviousRight = 0.0f;
     QList<QByteArray> m_feedBatch;
 
     // Jitter buffer constants (adapt to any SL level automatically)

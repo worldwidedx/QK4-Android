@@ -2,8 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.ai5qk.qk4phone"
     android:installLocation="auto"
-    android:versionCode="23"
-    android:versionName="0.8.1">
+    android:versionCode="24"
+    android:versionName="0.8.2">
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />

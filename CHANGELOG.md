@@ -11,6 +11,19 @@ but upstream QK4 history is intentionally not repeated here.
 - Use **Added**, **Changed**, **Fixed**, and **Known limitations** as needed.
 - Do not list unverified radio behavior as fixed.
 
+## [0.8.2] - 2026-08-14
+
+### Fixed: CW and digital RX audio quality
+
+- Eliminated the raspy or rough sound previously noticeable on steady CW and
+  digital receive audio through Android devices.
+- Made the K4's 12 kHz to Android's 48 kHz playback resampling continuous
+  across network-packet boundaries.
+- Preserved the unwritten portion of non-blocking Android audio writes instead
+  of dropping samples when the playback buffer accepts only part of a packet.
+- Kept later RX packets queued until the current packet has been fully accepted,
+  preserving sample order and audio continuity.
+
 ## [0.7.6.5] - 2026-08-11
 
 ### Fixed: K4-style EQ FLAT restore

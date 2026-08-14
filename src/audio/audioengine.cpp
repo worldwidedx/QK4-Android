@@ -235,6 +235,7 @@ void AudioEngine::stop() {
         m_prebuffering = true;
     }
     m_writeBuffer.clear();
+    resetOutputResampler();
 
     m_pttActive.store(false, std::memory_order_release);
     m_txSequence = 0;
@@ -455,6 +456,82 @@ void AudioEngine::flushQueue() {
     m_queueBytes = 0;
     m_prebuffering = true;
     m_writeBuffer.clear();
+    resetOutputResampler();
+}
+
+void AudioEngine::resetOutputResampler() {
+    m_outputResamplerPrimed = false;
+    m_outputResamplerPreviousLeft = 0.0f;
+    m_outputResamplerPreviousRight = 0.0f;
+    m_outputResampleBuffer.clear();
+}
+
+const QByteArray &AudioEngine::resampleOutputPacket(const QByteArray &packet) {
+    const int inputFrames = packet.size() / (2 * static_cast<int>(sizeof(float)));
+    if (inputFrames <= 0) {
+        m_outputResampleBuffer.clear();
+        return m_outputResampleBuffer;
+    }
+
+    // Android playback is a fixed, exact 4:1 conversion. Carry the previous
+    // stereo frame across K4 packets so interpolation never restarts at a
+    // packet boundary. Resetting interpolation independently for every packet
+    // creates a periodic click/rasp that is especially obvious on CW tones.
+    if (m_sinkSampleRate == 48000 && m_outputFormat.sampleRate() == 12000) {
+        constexpr int ratio = 4;
+        m_outputResampleBuffer.resize(inputFrames * ratio * 2 * static_cast<int>(sizeof(float)));
+        const float *input = reinterpret_cast<const float *>(packet.constData());
+        float *output = reinterpret_cast<float *>(m_outputResampleBuffer.data());
+        int outputFrame = 0;
+        int inputFrame = 0;
+
+        if (!m_outputResamplerPrimed) {
+            m_outputResamplerPreviousLeft = input[0];
+            m_outputResamplerPreviousRight = input[1];
+            m_outputResamplerPrimed = true;
+            for (int phase = 0; phase < ratio; ++phase) {
+                output[outputFrame * 2] = m_outputResamplerPreviousLeft;
+                output[outputFrame * 2 + 1] = m_outputResamplerPreviousRight;
+                ++outputFrame;
+            }
+            inputFrame = 1;
+        }
+
+        for (; inputFrame < inputFrames; ++inputFrame) {
+            const float currentLeft = input[inputFrame * 2];
+            const float currentRight = input[inputFrame * 2 + 1];
+            for (int phase = 0; phase < ratio; ++phase) {
+                const float fraction = static_cast<float>(phase) / ratio;
+                output[outputFrame * 2] = m_outputResamplerPreviousLeft
+                        + (currentLeft - m_outputResamplerPreviousLeft) * fraction;
+                output[outputFrame * 2 + 1] = m_outputResamplerPreviousRight
+                        + (currentRight - m_outputResamplerPreviousRight) * fraction;
+                ++outputFrame;
+            }
+            m_outputResamplerPreviousLeft = currentLeft;
+            m_outputResamplerPreviousRight = currentRight;
+        }
+        return m_outputResampleBuffer;
+    }
+
+    // Retain the established general-rate fallback for non-Android sinks.
+    const int outputFrames = qRound(static_cast<double>(inputFrames) * m_sinkSampleRate
+                                    / m_outputFormat.sampleRate());
+    m_outputResampleBuffer.resize(outputFrames * 2 * static_cast<int>(sizeof(float)));
+    const float *input = reinterpret_cast<const float *>(packet.constData());
+    float *output = reinterpret_cast<float *>(m_outputResampleBuffer.data());
+    for (int frame = 0; frame < outputFrames; ++frame) {
+        const double position = static_cast<double>(frame) * m_outputFormat.sampleRate()
+                                / m_sinkSampleRate;
+        const int before = qBound(0, static_cast<int>(position), inputFrames - 1);
+        const int after = qMin(before + 1, inputFrames - 1);
+        const float fraction = static_cast<float>(position - before);
+        output[frame * 2] = input[before * 2]
+                + (input[after * 2] - input[before * 2]) * fraction;
+        output[frame * 2 + 1] = input[before * 2 + 1]
+                + (input[after * 2 + 1] - input[before * 2 + 1]) * fraction;
+    }
+    return m_outputResampleBuffer;
 }
 
 void AudioEngine::feedAudioDevice() {
@@ -527,6 +604,14 @@ void AudioEngine::feedAudioDevice() {
             m_queueBytes -= pkt.size();
             bytesFree -= headSize;
             m_feedBatch.append(std::move(pkt));
+#ifdef Q_OS_ANDROID
+            // A non-blocking AudioTrack write can be partial. Keep later
+            // packets queued until this packet (including any staged tail)
+            // has been accepted, so returning on a partial write cannot drop
+            // already-dequeued audio. At 100 Hz this still drains four times
+            // faster than the observed 40 ms K4 packet cadence.
+            break;
+#endif
         }
     }
 
@@ -536,25 +621,8 @@ void AudioEngine::feedAudioDevice() {
     for (QByteArray &packet : m_feedBatch) {
         applyMixAndVolume(packet);
         const QByteArray *playbackPacket = &packet;
-        if (m_sinkSampleRate != m_outputFormat.sampleRate()) {
-            const int inputFrames = packet.size() / (2 * static_cast<int>(sizeof(float)));
-            const int outputFrames = qRound(static_cast<double>(inputFrames) * m_sinkSampleRate
-                                            / m_outputFormat.sampleRate());
-            m_outputResampleBuffer.resize(outputFrames * 2 * static_cast<int>(sizeof(float)));
-            const float *input = reinterpret_cast<const float *>(packet.constData());
-            float *output = reinterpret_cast<float *>(m_outputResampleBuffer.data());
-            for (int frame = 0; frame < outputFrames; ++frame) {
-                const double position = static_cast<double>(frame) * m_outputFormat.sampleRate()
-                                        / m_sinkSampleRate;
-                const int before = qBound(0, static_cast<int>(position), inputFrames - 1);
-                const int after = qMin(before + 1, inputFrames - 1);
-                const float fraction = static_cast<float>(position - before);
-                output[frame * 2] = input[before * 2] + (input[after * 2] - input[before * 2]) * fraction;
-                output[frame * 2 + 1] = input[before * 2 + 1]
-                        + (input[after * 2 + 1] - input[before * 2 + 1]) * fraction;
-            }
-            playbackPacket = &m_outputResampleBuffer;
-        }
+        if (m_sinkSampleRate != m_outputFormat.sampleRate())
+            playbackPacket = &resampleOutputPacket(packet);
 
         qint64 written = 0;
 #ifdef Q_OS_ANDROID
@@ -572,6 +640,14 @@ void AudioEngine::feedAudioDevice() {
 #ifdef Q_OS_ANDROID
         if (written < 0) {
             qWarning() << "AudioEngine: Android playback write failed";
+            return;
+        }
+        if (written < pcm16.size()) {
+            // WRITE_NON_BLOCKING may accept only part of a packet. Preserve
+            // every remaining byte and stop this batch so later audio cannot
+            // overtake it. Dropping this tail creates an audible discontinuity.
+            m_writeBuffer.append(pcm16.constData() + written,
+                                 pcm16.size() - static_cast<int>(written));
             return;
         }
 #else

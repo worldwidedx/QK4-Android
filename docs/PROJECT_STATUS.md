@@ -4,6 +4,13 @@ Last updated: 2026-08-14
 
 ## Released build
 
+**QK4 Mobile v0.8.2** corrects raspy Android receive audio that was most
+noticeable on steady CW and digital signals. RX resampling now remains
+continuous across K4 packet boundaries, partial non-blocking Android playback
+writes are preserved, and later packets remain queued until earlier audio has
+been accepted. The release-signed build was installed in place and the
+improvement was confirmed while receiving CW on the Samsung Galaxy S26 Ultra.
+
 **QK4 Mobile v0.8.1** adds combined USB and Bluetooth LE MIDI
 discovery for the CW Keyer setup. Opening the screen no longer starts a BLE
 scan; SCAN enumerates attached USB MIDI devices immediately while discovering

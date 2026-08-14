@@ -14,16 +14,26 @@ This repository retains the GNU General Public License v3 used by the upstream p
 
 ## Current capabilities
 
+QK4 Mobile supports every known operator-facing capability that the K4 exposes
+for remote operation through its documented command, control, display, and
+streaming interfaces. Functions that Elecraft has not implemented or exposed
+to remote clients, such as BAND/MEM, remain outside the application's control.
+
 - K4 profile management and TCP/TLS connection
 - RX audio streaming for the main and sub receivers
 - Microphone audio and PTT transmission
+- Remote CW keying from Bluetooth LE MIDI paddle interfaces, including
+  TinyMIDI and HaliKey presets plus learnable custom MIDI mappings
+- K4-synchronized paddle orientation, Iambic mode, keying weight, CW speed,
+  local sidetone, and paddle testing
 - USB-C headset RX/TX hot-swap, plus Bluetooth/USB mixed-route support where Android provides it
 - Android hearing-aid RX routing when the operating system exposes a dedicated hearing-aid output
 - VFO A/B display, tuning, direct frequency entry, and selectable tuning steps
 - GEN shortwave-listening band bank with persistent per-band frequency recall
 - Touch tuning from the panadapter
 - Spectrum and waterfall display, including mini-pan
-- Main, sub, radio-control, display, function, and message controls
+- Mode-aware Main RX, Sub RX, TX, radio-control, display, function, and message controls
+- FM repeater shift/offset, PL tone, and programmable DTMF controls
 - RIT/XIT jog control
 - CW text decoding
 - F1-F8 macro editing and execution

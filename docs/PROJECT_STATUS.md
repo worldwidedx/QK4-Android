@@ -1,8 +1,17 @@
 # Project status
 
-Last updated: 2026-08-14
+Last updated: 2026-08-15
 
 ## Released build
+
+**QK4 Mobile v0.8.3** corrects transverter frequency rendering so leading
+digits are retained at VHF, UHF, and higher displayed frequencies. Direct
+frequency entry for VFO A and VFO B now accepts ordinary radio-style MHz
+shorthand: `7.2`, `7.215`, and `144.2` imply the omitted trailing zeros, while
+fully grouped values and raw-Hz input remain supported. The release-signed
+candidate was installed in place on the Samsung Galaxy S26 Ultra; automated
+parser and display-format tests passed. Final K4/XVTR operating validation is
+still pending.
 
 **QK4 Mobile v0.8.2** corrects raspy Android receive audio that was most
 noticeable on steady CW and digital signals. RX resampling now remains

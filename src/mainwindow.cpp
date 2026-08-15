@@ -34,6 +34,7 @@
 #include "ui/softwarelistpopup.h"
 #include "ui/textdecodewindow.h"
 #include "ui/frequencydisplaywidget.h"
+#include "ui/frequencyentryparser.h"
 #include "models/menumodel.h"
 #include "dsp/panadapter_rhi.h"
 #include "dsp/minipan_rhi.h"
@@ -6327,7 +6328,7 @@ void MainWindow::showFrequencyEntry(bool vfoB) {
     layout->setContentsMargins(8, 6, 8, 8);
     layout->setSpacing(5);
 
-    auto *hint = new QLabel("Enter frequency: 7.123.123 or 7123123 Hz", panel);
+    auto *hint = new QLabel("MHz: 7.2, 7.215, or 7.215.000 (trailing zeros implied)", panel);
     hint->setAlignment(Qt::AlignCenter);
     hint->setStyleSheet(QString("color: %1; font-size: 14px;").arg(K4Styles::Colors::TextGray));
     layout->addWidget(hint);
@@ -6388,13 +6389,15 @@ void MainWindow::showFrequencyEntry(bool vfoB) {
     if (dialog.exec() != InWindowDialog::Accepted || !m_tcpClient->isConnected())
         return;
 
-    bool ok = false;
-    QString normalized = entry->text();
-    normalized.remove('.');
-    const quint64 hertz = normalized.toULongLong(&ok);
-    if (!ok || hertz < 100000 || hertz > 60000000) {
+    quint64 hertz = 0;
+    constexpr quint64 minimumFrequencyHz = 100000ULL;
+    constexpr quint64 maximumFrequencyHz = 9999999999ULL;
+    if (!FrequencyEntryParser::parse(entry->text(), &hertz) ||
+        hertz < minimumFrequencyHz || hertz > maximumFrequencyHz) {
         showInWindowMessage(centralWidget(), "Invalid frequency",
-                            "Enter a frequency from 100000 to 60000000 Hz.");
+                            "Enter MHz with at least one period (7.2 or 7.215), "
+                            "a full grouped value (7.215.000), or raw Hz. "
+                            "Trailing zeros are implied.");
         return;
     }
 

@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
-project(QK4 VERSION 0.8.2 LANGUAGES CXX)
+project(QK4 VERSION 0.8.3 LANGUAGES CXX)
+include(CTest)
 
 # Optional override paths for Opus when cross-compiling (primarily Android)
 set(QK4_OPUS_INCLUDE_DIR "" CACHE PATH "Directory containing opus/opus.h for the target platform")
@@ -175,6 +176,7 @@ set(SOURCES
     src/ui/micmeterwidget.cpp
     src/ui/vfowidget.cpp
     src/ui/frequencydisplaywidget.cpp
+    src/ui/frequencyentryparser.cpp
     src/ui/vforowwidget.cpp
     src/ui/filterindicatorwidget.cpp
     src/ui/bandpopupwidget.cpp
@@ -253,6 +255,7 @@ set(HEADERS
     src/ui/menuoverlay.h
     src/ui/micmeterwidget.h
     src/ui/vfowidget.h
+    src/ui/frequencyentryparser.h
     src/ui/frequencydisplaywidget.h
     src/ui/vforowwidget.h
     src/ui/filterindicatorwidget.h
@@ -583,4 +586,16 @@ endif()
 
 if(ANDROID)
     qt_finalize_executable(${PROJECT_NAME})
+endif()
+
+if(BUILD_TESTING AND NOT ANDROID)
+    find_package(Qt6 REQUIRED COMPONENTS Test)
+    qt_add_executable(test_frequencyentryparser
+        tests/test_frequencyentryparser.cpp
+        src/ui/frequencyentryparser.cpp
+        src/ui/frequencyentryparser.h
+    )
+    target_include_directories(test_frequencyentryparser PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(test_frequencyentryparser PRIVATE Qt6::Core Qt6::Test)
+    add_test(NAME frequencyentryparser COMMAND test_frequencyentryparser)
 endif()

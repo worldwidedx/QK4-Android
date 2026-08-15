@@ -7,7 +7,7 @@
 #include <QFontMetrics>
 
 FrequencyDisplayWidget::FrequencyDisplayWidget(QWidget *parent)
-    : QWidget(parent), m_digits("00000000"), m_normalColor(K4Styles::Colors::TextWhite),
+    : QWidget(parent), m_digits(QString(kDigits, '0')), m_normalColor(K4Styles::Colors::TextWhite),
       m_editColor(K4Styles::Colors::VfoACyan) {
 
     // Set up font with tabular figures for consistent digit widths
@@ -23,8 +23,8 @@ FrequencyDisplayWidget::FrequencyDisplayWidget(QWidget *parent)
     setCursor(Qt::PointingHandCursor);
     setAttribute(Qt::WA_Hover);
 
-    // Size hint based on max display width (XX.XXX.XXX = 8 digits + 2 dots)
-    int width = m_charWidth * 8 + m_dotWidth * 2 + 4; // +4 for padding
+    // Size hint based on max display width (X.XXX.XXX.XXX = 10 digits + 3 dots).
+    int width = m_charWidth * kDigits + m_dotWidth * 3 + 4; // +4 for padding
     setMinimumWidth(width);
     setFixedHeight(K4Styles::Dimensions::MenuItemHeight);
 }
@@ -76,47 +76,58 @@ void FrequencyDisplayWidget::parseFrequency(const QString &freq) {
         }
     }
 
-    // Pad left with zeros to 8 digits, or truncate if too long
-    while (digits.length() < 8) {
+    // Pad left with zeros to kDigits, or retain the rightmost kDigits if the
+    // radio ever reports a value beyond the supported display capacity.
+    while (digits.length() < kDigits) {
         digits.prepend('0');
     }
-    if (digits.length() > 8) {
-        digits = digits.right(8);
+    if (digits.length() > kDigits) {
+        digits = digits.right(kDigits);
     }
 
     m_digits = digits;
 }
 
+int FrequencyDisplayWidget::displayStartIndex() const {
+    // Preserve the established compact HF presentation by normally showing
+    // the rightmost eight digits. Reveal additional non-zero leading digits
+    // for VHF/UHF/XVTR frequencies. Editing exposes all positions.
+    if (m_cursorPosition >= 0)
+        return 0;
+
+    constexpr int baseVisibleDigits = 8;
+    constexpr int baseStart = kDigits - baseVisibleDigits;
+    int start = 0;
+    while (start < baseStart && m_digits[start] == '0')
+        ++start;
+
+    // Match the prior <10 MHz behavior: 7 MHz is "7.024.980", not
+    // "07.024.980".
+    if (start == baseStart && m_digits[start] == '0')
+        ++start;
+    return start;
+}
+
 QString FrequencyDisplayWidget::formatWithDots() const {
-    // Format: X.XXX.XXX or XX.XXX.XXX
-    // Input: "07024980" -> Output: "7.024.980"
-    // Input: "14024980" -> Output: "14.024.980"
+    // Group digits in threes from the right:
+    // 7.024.980, 144.200.000, 1.296.000.000.
 
     QString result;
-    int startIdx = 0;
+    const int startIdx = displayStartIndex();
 
-    // Skip leading zero for <10MHz frequencies
-    if (m_digits[0] == '0') {
-        startIdx = 1;
-    }
-
-    for (int i = startIdx; i < 8; ++i) {
+    for (int i = startIdx; i < kDigits; ++i) {
         result.append(m_digits[i]);
 
-        // Insert dots after positions 1 (or 0 if started at 1) and 4
-        int posFromRight = 7 - i;
-        if (posFromRight == 6 || posFromRight == 3) {
-            if (i < 7) { // Don't add trailing dot
-                result.append('.');
-            }
-        }
+        const int posFromRight = kMaxDigitIndex - i;
+        if (posFromRight > 0 && posFromRight % 3 == 0)
+            result.append('.');
     }
 
     return result;
 }
 
 int FrequencyDisplayWidget::digitIndexFromCharIndex(int charIndex) const {
-    // Map character index in display string to digit index (0-7)
+    // Map character index in display string to the stored digit index.
     QString display = formatWithDots();
     if (charIndex < 0 || charIndex >= display.length()) {
         return -1;
@@ -135,8 +146,7 @@ int FrequencyDisplayWidget::digitIndexFromCharIndex(int charIndex) const {
         return -1;
     }
 
-    // Adjust for leading zero skip
-    int offset = (m_digits[0] == '0') ? 1 : 0;
+    const int offset = displayStartIndex();
     return offset + digitCount;
 }
 
@@ -188,11 +198,11 @@ int FrequencyDisplayWidget::digitPositionFromX(int x) const {
     }
 
     // Click beyond display - select last digit
-    return 7;
+    return kMaxDigitIndex;
 }
 
 void FrequencyDisplayWidget::enterEditMode(int digitPosition) {
-    if (digitPosition < 0 || digitPosition > 7) {
+    if (digitPosition < 0 || digitPosition > kMaxDigitIndex) {
         return;
     }
 
@@ -237,7 +247,7 @@ void FrequencyDisplayWidget::paintEvent(QPaintEvent *) {
 
     // Draw each character
     int x = 0;
-    int digitIdx = (m_digits[0] == '0') ? 1 : 0; // Start digit index
+    int digitIdx = displayStartIndex();
 
     for (int i = 0; i < display.length(); ++i) {
         QChar c = display[i];
@@ -253,8 +263,7 @@ void FrequencyDisplayWidget::paintEvent(QPaintEvent *) {
             charColor = m_normalColor;
         } else {
             // Normal mode: check if this digit should be grayed (tuning rate indicator)
-            // digitIdx is 0-7 from left, convert to position from right: 7 - digitIdx
-            int posFromRight = 7 - digitIdx;
+            const int posFromRight = kMaxDigitIndex - digitIdx;
             if (m_tuningRateDigit >= 0 && posFromRight <= m_tuningRateDigit) {
                 // This digit is at or below tuning rate - show in gray
                 charColor = QColor(K4Styles::Colors::TextGray);
@@ -303,7 +312,7 @@ void FrequencyDisplayWidget::mousePressEvent(QMouseEvent *event) {
                 // A phone has no physical keyboard. Keep the digit visibly
                 // selected and let the dedicated touch controls step it.
                 m_touchStepPosition = digitPos;
-                emit tuningDigitSelected(7 - digitPos);
+                emit tuningDigitSelected(kMaxDigitIndex - digitPos);
                 update();
 #else
                 if (m_cursorPosition < 0) {
@@ -334,7 +343,7 @@ void FrequencyDisplayWidget::keyPressEvent(QKeyEvent *event) {
         m_digits[m_cursorPosition] = QChar('0' + (key - Qt::Key_0));
 
         // Advance cursor (stop at end)
-        if (m_cursorPosition < 7) {
+        if (m_cursorPosition < kMaxDigitIndex) {
             m_cursorPosition++;
         }
         update();
@@ -344,7 +353,7 @@ void FrequencyDisplayWidget::keyPressEvent(QKeyEvent *event) {
             update();
         }
     } else if (key == Qt::Key_Right) {
-        if (m_cursorPosition < 7) {
+        if (m_cursorPosition < kMaxDigitIndex) {
             m_cursorPosition++;
             update();
         }
@@ -352,7 +361,7 @@ void FrequencyDisplayWidget::keyPressEvent(QKeyEvent *event) {
         m_cursorPosition = 0;
         update();
     } else if (key == Qt::Key_End) {
-        m_cursorPosition = 7;
+        m_cursorPosition = kMaxDigitIndex;
         update();
     } else if (key == Qt::Key_Return || key == Qt::Key_Enter) {
         exitEditMode(true); // Send frequency

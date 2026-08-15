@@ -27,6 +27,11 @@ class FrequencyDisplayWidget : public QWidget {
     Q_OBJECT
 
 public:
+    // Ten digits covers frequencies through 9.999 GHz, including VHF/UHF
+    // transverter dial frequencies such as 144.200.000 and 1.296.000.000.
+    static constexpr int kDigits = 10;
+    static constexpr int kMaxDigitIndex = kDigits - 1;
+
     explicit FrequencyDisplayWidget(QWidget *parent = nullptr);
 
     // Set the displayed frequency (with or without dots)
@@ -76,33 +81,37 @@ protected:
     void wheelEvent(QWheelEvent *event) override;
 
 private:
-    // Enter edit mode with cursor at the specified digit position (0-7)
+    // Enter edit mode with cursor at the specified digit position.
     void enterEditMode(int digitPosition);
 
     // Exit edit mode, optionally sending the frequency
     void exitEditMode(bool send);
 
-    // Convert mouse X coordinate to digit position (0-7), or -1 if not on a digit
+    // Convert mouse X coordinate to a digit position, or -1 if not on a digit.
     int digitPositionFromX(int x) const;
 
     // Get the bounding rectangle for a character at the given index
     QRect charRectAt(int charIndex) const;
 
-    // Convert character index in display string to digit index (0-7)
+    // Convert character index in display string to a digit index.
     // Returns -1 for dot characters
     int digitIndexFromCharIndex(int charIndex) const;
+
+    // Index of the first stored digit currently visible. Normal HF display
+    // retains its compact width; higher-frequency leading digits are revealed.
+    int displayStartIndex() const;
 
     // Format m_digits as display string with dots (e.g., "7.024.980")
     QString formatWithDots() const;
 
-    // Parse frequency string and normalize to 8 digits
+    // Parse frequency string and normalize to kDigits.
     void parseFrequency(const QString &freq);
 
     // Member variables
-    QString m_digits;          // 8-digit string, left-padded with zeros
+    QString m_digits;          // kDigits-wide string, left-padded with zeros
     QString m_originalDigits;  // Backup for cancel operation
-    int m_cursorPosition = -1; // -1 = not editing, 0-7 = digit position
-    int m_touchStepPosition = -1; // Android touch-step selection, 0-7 = digit position
+    int m_cursorPosition = -1; // -1 = not editing
+    int m_touchStepPosition = -1; // Android touch-step selection
 
     QColor m_normalColor; // White - normal display color
     QColor m_editColor;   // Cyan/Green - edit mode color

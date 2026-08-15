@@ -11,6 +11,23 @@ but upstream QK4 history is intentionally not repeated here.
 - Use **Added**, **Changed**, **Fixed**, and **Known limitations** as needed.
 - Do not list unverified radio behavior as fixed.
 
+## [0.8.3] - 2026-08-15
+
+### Fixed: transverter frequency display
+
+- Retained leading digits in VHF, UHF, and higher transverter frequencies.
+  For example, `144.200.000` is no longer truncated to `44.200.000`.
+- Expanded the VFO display capacity through 9.999 GHz, including frequencies
+  such as `1.296.000.000`, while retaining the compact HF presentation.
+
+### Changed: direct frequency entry
+
+- VFO A and VFO B frequency entry now accept radio-style MHz shorthand and
+  imply omitted trailing zeros: `7.2` becomes `7.200.000`, `7.215` becomes
+  `7.215.000`, and `144.2` becomes `144.200.000`.
+- Fully grouped input such as `7.215.000` and raw-Hz input remain supported.
+- Updated the entry instructions and validation feedback.
+
 ## [0.8.2] - 2026-08-14
 
 ### Fixed: CW and digital RX audio quality

@@ -51,7 +51,9 @@ to remote clients, such as BAND/MEM, remain outside the application's control.
 - Local non-decaying Peak Hold and local WTR CLRS waterfall brightness control
 - Release-signed APK distribution support
 
-See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for the verified state and next work.
+See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for the verified
+state and next work. Contributors changing screen rotation or device-class
+layouts must also follow the [screen orientation policy](docs/ORIENTATION_POLICY.md).
 
 The `codex/ft8-ft4-portrait` branch adds an initial portrait FT8/FT4 receiver
 and practice workspace, reached by tapping the former SSTV Fn button (hold

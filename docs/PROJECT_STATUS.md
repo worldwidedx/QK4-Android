@@ -274,7 +274,10 @@ RX CALL or TO CALL respectively before Save/Cancel. RX history supplies the
 received image's frequency/time; TX uses the transmit VFO. Both pages can open
 the logbook, whose Add form supports arbitrary modes, reports, dates, band or
 frequency, station details, notes and extra ADIF fields. DXLIST retains its tap
-action and offers Log on long press. FT8/FT4 stays portrait-only; SSTV logging
+action and offers Log on long press. FT8/FT4 stays portrait-only on phones;
+tablet-specific landscape support is an accepted contribution direction under
+the device-class rules in [Screen orientation policy](ORIENTATION_POLICY.md).
+SSTV logging
 follows either sensor orientation. The radio log opens in landscape, enables
 both orientations after a phone turn, and restores landscape on exit. Shared
 storage refreshes before writes so separately opened screens preserve each

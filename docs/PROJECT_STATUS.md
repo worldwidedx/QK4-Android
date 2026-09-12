@@ -11,9 +11,9 @@ reports any other mode or DATA submode. It retains the mode saved on entry and
 restores that original mode only when leaving FT8/FT4. A pending-readback guard
 prevents repeated mode commands. The focused FT8 suite passes and covers
 voice-mode and alternate-DATA recalls, request suppression, rearming after
-DATA-A readback, and original-mode restoration. Physical verification of the
-corrected build is pending; the user reported that the other current phone
-checks pass.
+DATA-A readback, and original-mode restoration. The release-signed build was
+installed on the Samsung, and the user confirmed that FT8 band changes retain
+DATA-A, the original mode restores on exit, and the other current phone tests pass.
 
 ## Macro radio-state refresh (GitHub issue #2)
 

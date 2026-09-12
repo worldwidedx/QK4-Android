@@ -319,6 +319,11 @@ private slots:
             QCOMPARE(mode.update(true, original, 2, false), "MD6;DT0;MD;DT;LI;MG;CP;TE;");
             mode.enter(); // Reopening/selecting RX or TX must not replace the saved mode.
             QVERIFY(mode.update(true, 6, 0, false).isEmpty());
+            QCOMPARE(mode.update(true, 2, 0, false), "MD6;DT0;MD;DT;LI;MG;CP;TE;");
+            QVERIFY(mode.update(true, 2, 0, false).isEmpty()); // Do not flood while readback is pending.
+            QVERIFY(mode.update(true, 6, 0, false).isEmpty()); // DATA-A readback rearms enforcement.
+            QCOMPARE(mode.update(true, 6, 2, false), "MD6;DT0;MD;DT;LI;MG;CP;TE;");
+            QVERIFY(mode.update(true, 6, 2, false).isEmpty());
             mode.leave();
             QVERIFY(mode.update(true, 6, 0, true).isEmpty()); // Wait for TX/cancellation to finish.
             QCOMPARE(mode.update(true, 6, 0, false), QString("MD%1;DT2;MD;DT;LI;MG;CP;TE;").arg(original));

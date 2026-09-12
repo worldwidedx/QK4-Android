@@ -2,6 +2,19 @@
 
 Last updated: 2026-09-11
 
+## FT8/FT4 band-change DATA-A retention
+
+Phone testing found that selecting another band inside FT8 could leave the K4
+in that band's previously recalled radio mode. While the digital screen is
+active, its mode-session controller now reasserts DATA-A when radio readback
+reports any other mode or DATA submode. It retains the mode saved on entry and
+restores that original mode only when leaving FT8/FT4. A pending-readback guard
+prevents repeated mode commands. The focused FT8 suite passes and covers
+voice-mode and alternate-DATA recalls, request suppression, rearming after
+DATA-A readback, and original-mode restoration. Physical verification of the
+corrected build is pending; the user reported that the other current phone
+checks pass.
+
 ## Macro radio-state refresh (GitHub issue #2)
 
 Fn/app macros and CTR2 macros now use a shared I/O-thread dispatch that sends

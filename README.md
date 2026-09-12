@@ -4,7 +4,11 @@ QK4 Android is a phone-focused Android client for Elecraft K4 transceivers. It p
 
 The application is under active development and is intended for testing with an Elecraft K4/K4D on the same network. Version 1.0.5 is the current ARM64 test build.
 
-![QK4 Mobile v0.8.0 console](https://github.com/worldwidedx/QK4-Android/releases/download/v0.8.0/QK4-Mobile-v0.8.0-Screenshot.png)
+<p align="center">
+  <img src="docs/images/QK4-Mobile-v1.0.5-FT4-Confirmed-QSO.png" width="380" alt="QK4 Mobile v1.0.5 showing a confirmed FT4 QSO with DJ6OI">
+</p>
+
+<p align="center"><em>QK4 Mobile v1.0.5 completing an FT4 QSO with DJ6OI at 14.080 MHz, including measured reports, RR73, live spectrum/waterfall, TX protection, and integrated logging.</em></p>
 
 ## Project lineage
 
@@ -51,12 +55,13 @@ to remote clients, such as BAND/MEM, remain outside the application's control.
 - Local non-decaying Peak Hold and local WTR CLRS waterfall brightness control
 - Release-signed APK distribution support
 
-See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for the verified
-state and next work. Contributors changing screen rotation or device-class
-layouts must also follow the [screen orientation policy](docs/ORIENTATION_POLICY.md).
+See the [v1.0.5 release notes](docs/RELEASE_NOTES_v1.0.5.md) and
+[project status](docs/PROJECT_STATUS.md) for the verified state and next work.
+Contributors changing screen rotation or device-class layouts must also follow
+the [screen orientation policy](docs/ORIENTATION_POLICY.md).
 
-The `codex/ft8-ft4-portrait` branch adds an initial portrait FT8/FT4 receiver
-and practice workspace, reached by tapping the former SSTV Fn button (hold
+Version 1.0.5 adds a portrait FT8/FT4 receiver
+and operating workspace, reached by tapping the former SSTV Fn button (hold
 for SSTV). Its 3 kHz view uses QK4's main waterfall renderer: tap for RX,
 hold to set TX, pinch or use +/− to zoom. Station colors retain their WSJT-X
 meanings. Hide waterfall to expand the station list; Rows offers Comfortable,

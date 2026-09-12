@@ -36,8 +36,9 @@ existing GETs, empty/disconnected execution, filter width/shift, mode, power,
 RIT, display freeze, tuning rates and repeated menu definitions. Actual reply
 values drive the model and UI signals. All 16 Windows suites pass (98.49 s),
 and the Android ARM64 application library builds successfully.
-Device/K4 acceptance of post-macro refresh remains pending;
-this change has not yet been installed or used to close the GitHub issue.
+The release-signed phone build includes this correction. During the current
+phone acceptance run, the user reported that the macro refresh and all other
+checks outside the separately reported FT8 band-mode issue pass.
 
 ## One FT8/FT4 tone adjustment workflow
 
@@ -471,6 +472,12 @@ See [FT8_FT4_SCOPE.md](FT8_FT4_SCOPE.md) for
 implementation boundaries, sources, and the remaining engineering work.
 
 ## Released build
+
+![QK4 Mobile v1.0.5 confirmed FT4 QSO](images/QK4-Mobile-v1.0.5-FT4-Confirmed-QSO.png)
+
+The September 11 device capture shows a confirmed FT4 QSO with DJ6OI at
+14.080 MHz, including sent −05 and received −14 reports, RR73, calibrated TX
+protection, live spectrum/waterfall activity, and the integrated Log QSO action.
 
 **QK4 Mobile v1.0.5 test build** integrates the FT8/FT4 portrait preview with
 the existing CTR2-MIDI implementation. It uses Android version code 32. The

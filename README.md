@@ -18,12 +18,6 @@ This repository retains the GNU General Public License v3 used by the upstream p
 
 ## Current capabilities
 
-The shared ADIF logbook supports manual Add/Edit, import/export, and contacts
-from FT8/FT4 and SSTV. SSTV Log QSO reviews RX CALL or TO CALL before saving.
-Long-press DXLIST → Log opens the same logbook from the radio console.
-Logbook Setup supports automatic QRZ uploads using a securely stored logbook
-API key, plus manual sending and locked upload-status checkboxes. Standard
-QRZ ADIF upload fields are preserved in exports. See [QRZ setup](docs/QRZ_LOGBOOK.md).
 
 QK4 Mobile supports every known operator-facing capability that the K4 exposes
 for remote operation through its documented command, control, display, and
@@ -60,36 +54,54 @@ See the [v1.0.5 release notes](docs/RELEASE_NOTES_v1.0.5.md) and
 Contributors changing screen rotation or device-class layouts must also follow
 the [screen orientation policy](docs/ORIENTATION_POLICY.md).
 
-Version 1.0.5 adds a portrait FT8/FT4 receiver
-and operating workspace, reached by tapping the former SSTV Fn button (hold
-for SSTV). Its 3 kHz view uses QK4's main waterfall renderer: tap for RX,
-hold to set TX, pinch or use +/− to zoom. Station colors retain their WSJT-X
-meanings. Hide waterfall to expand the station list; Rows offers Comfortable,
-Compact, and Dense text layouts for busy bands. Existing CTR2-MIDI support is
-included: one assigned button switches between the RX and TX audio tuning targets;
-tapping a main-frequency digit explicitly selects RF tuning at that step.
-Assignable **FT8/FT4: Switch RX/TX tone** and **FT8/FT4: Set tone frequency**
-actions provide one workflow: short press chooses the
-tone, the dial moves a dashed preview, and long press sets that frequency.
-Setting TX
-enables Hold TX; setting RX focuses My QSO near that frequency while All keeps
-the full band. See [CTR2 controls](docs/CTR2_UI_ACTIONS.md) and the
-[rollback marker](docs/FT8_CTR2_ROLLBACK.md).
-The current dial target remains visible with the waterfall hidden.
-The compact QSO panel hides unused exchange rows, and smaller activity-filter
-buttons leave more vertical space for received stations.
-A compact RF power slider sits directly below the frequency and follows the
-K4 power setting. Both modules now offer remembered TEST-mode audio calibration,
-with shared automatic drive reduction and transmit-stop protection. SSTV
-requires a matching calibration. See [digital transmit levels](docs/DIGITAL_TX_LEVEL.md)
-for the implemented behavior and pending K4 hardware acceptance.
-Live FT8/FT4 transmission is now available through Call/CQ, using the saved
-calibrated drive and timed program audio. Halt TX cancels queued and active
-transmissions. This device-test build supports standard exchanges in DATA-A
-with split and TEST off. Signal reports are measured automatically using
-WSJT-X's FT8/FT4 methods and the 2500 Hz reference bandwidth. See
-[docs/FT8_FT4_SCOPE.md](docs/FT8_FT4_SCOPE.md) for the implemented scope,
-logging format, and the remaining RF validation work.
+## FT8 and FT4
+
+QK4 Mobile receives and decodes FT8 and FT4 from the K4 Main RX audio stream
+and supports standard timed Call and CQ exchanges. Signal reports are measured
+automatically using the WSJT-X method. The phone interface provides a live
+spectrum and waterfall, independent RX and TX audio-frequency selection,
+received-traffic and My QSO views, common working frequencies, custom frequency
+entry, RF power control, and CTR2-MIDI tone adjustment.
+
+Opening FT8/FT4 selects DATA-A. The module keeps DATA-A active while changing
+bands and restores the operator's previous radio mode when returning to the
+main console. FT8/FT4 uses portrait orientation on phones.
+
+For CTR2-MIDI control, assign one user-selected button to **FT8/FT4: Switch
+RX/TX tone** for short press and **FT8/FT4: Set tone frequency** for long press.
+Assign the wheel to **Selected adjustment (button)**. Short press selects the RX
+or TX tone, the wheel moves its dashed preview marker, and long press sets the
+frequency. Setting RX focuses **My QSO**; setting TX enables **Hold TX**. See
+[FT8/FT4 scope](docs/FT8_FT4_SCOPE.md) and
+[CTR2 controls](docs/CTR2_UI_ACTIONS.md).
+
+## Logbook and QRZ
+
+The shared ADIF logbook is available throughout QK4 Mobile:
+
+- Completed FT8/FT4 contacts can be reviewed and logged from the digital-mode
+  screen.
+- SSTV Receive and Transmit provide **Log QSO** with an editable callsign review.
+- Long-press **DXLIST** to open the logbook from the main radio console.
+- Add and edit contacts manually, search the log, and import or export ADIF.
+- Configure automatic QRZ Logbook uploads or manually send an unsent contact.
+
+QRZ credentials are stored in Android Keystore-encrypted storage. Each contact
+shows whether QRZ confirmed its upload, and exported ADIF includes the standard
+QRZ upload status and date fields. See [QRZ Logbook](docs/QRZ_LOGBOOK.md).
+
+## Digital-mode TX calibration
+
+FT8 and FT4 share one TX audio calibration for a given radio and audio-input
+setup. SSTV uses its own calibration. Calibration runs with the K4 in TEST mode,
+adjusts the program-audio drive to an appropriate ALC level, and remembers the
+result for later transmissions.
+
+During digital transmission, QK4 Mobile monitors K4 metering and audio headroom.
+It can reduce drive or stop transmission when the measured conditions are not
+safe or required feedback is unavailable. See
+[digital transmit levels](docs/DIGITAL_TX_LEVEL.md).
+
 
 ## Supported target
 

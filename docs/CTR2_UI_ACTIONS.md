@@ -14,9 +14,10 @@ the appropriate control surface. When a knob mode is mapped to **Selected
 adjustment**, pressing an **Adjust:** button opens and selects the surface,
 displays `CTR2 KNOB: ...`, and assigns the knob to it.
 
-## FT8 / FT4 dial
+## FT8 / FT4 tone control
 
-Choose any surrounding button in CTR2 setup and assign:
+Choose any surrounding button in CTR2 setup. The recommended mapping uses one
+physical button and the wheel:
 
 | Input | Action |
 |---|---|
@@ -24,49 +25,33 @@ Choose any surrounding button in CTR2 setup and assign:
 | Long press | **FT8/FT4: Set tone frequency** (`set_ft8_frequency`) |
 | Dial | **Selected adjustment (button)** (`selected_adjustment`) |
 
-Short press toggles the adjustment target. On entry RX is the current target,
-so the first short press selects TX. Turn the dial to position its dashed red
-preview marker. Long press commits TX and enables Hold TX. Another short press
-selects RX; turn to position the dashed green marker and long press to set RX.
-My QSO opens automatically, showing decoded audio offsets within ±25 Hz (FT8)
-or ±45 Hz (FT4) of the locked RX frequency plus your TX messages. All continues
-to show the full band. Neither RX preview nor RX commit changes TX.
+The button number is user-selectable, and the actions work in both FT8 and FT4.
 
-The solid markers remain at committed frequencies during adjustment. After
-commit, dial movement does nothing until adjustment is selected again. Changing
-target discards its uncommitted preview. TX startup, disconnect, mode/band
-changes and module exit cancel previews. RX frequency focus resets on a band,
-mode or connection change. Selecting a decoded row within the focused window
-keeps that focus; choosing a station outside it returns My QSO to callsign focus.
+1. Short-press the assigned button to choose the RX or TX tone. RX is selected
+   when the module opens, so the first short press selects TX.
+2. Turn the wheel to move the dashed preview marker for the selected tone.
+3. Long-press the assigned button to set that frequency and finish the
+   adjustment.
 
-These are the only two FT8/FT4 button actions. One physical button can provide
-both through short and long press. The separate FT8 RX and FT8 TX actions are
-removed. Saved CTR2 assignments using either retired action are converted to
-Switch RX/TX tone for short press and Set tone frequency for long press;
-other assignments remain unchanged.
-Touch waterfall selection and RF digit
-tuning also remain available. Rate, KHZ, VFO-selection and band-step
-actions are blocked until the user explicitly taps a radio-frequency digit.
-Selecting RX or TX tone disarms those RF actions again. Blocked actions leave
-the tone target, preview, committed frequencies and tone step unchanged.
-Wheel mappings for Selected adjustment, Active VFO frequency and Other VFO
-frequency all follow the module's selected RX/TX tone or explicitly tapped RF
-digit. The RF button guards do not block wheel movement on a selected tone.
-The RX/TX readout opens **FT8/FT4 tone tuning**:
-choose **Select RX tone** or **Select TX tone**, or choose a **Tone step** to
-resume the last tone target. The sheet also provides **Set tone frequency**.
-Tone steps are 1, 5, 10, 25 and 50 Hz, changed deliberately through this sheet.
-Rate and KHZ never change a tone step. Saved 100/1,000 Hz tone steps
-recover to 5 Hz. Explicit RF tuning retains its separate Rate/KHZ behavior.
-No physical button number is hardcoded.
-The actions apply to both FT8 and FT4.
+Setting TX enables **Hold TX**. Setting RX focuses **My QSO** on decoded signals
+near that audio frequency while **All** continues to show the full band. The
+solid markers show the currently set frequencies while a dashed marker shows the
+pending adjustment. After a frequency is set, the wheel remains inactive until
+the operator selects RX or TX adjustment again.
+
+The RX/TX readout opens the **FT8/FT4 tone tuning** panel. It provides **Select
+RX tone**, **Select TX tone**, **Set tone frequency**, and tone steps of 1, 5,
+10, 25, and 50 Hz. Touch selection on the waterfall remains available.
+
+While a digital tone is selected, **Rate**, **KHZ**, VFO selection, and band-step
+actions cannot change the radio frequency. Tap a radio-frequency digit first to
+select deliberate RF tuning. Selecting an RX or TX tone returns the wheel to
+tone control.
 
 The optional [FT8 sample mapping](QK4-CTR2-FT8-Sample.qk4ctr2map) demonstrates
-Button 6 in Normal mode (notes 6/16) and the Home Wheel A dial. Import replaces
-the entire mapping; edit only the desired assignments to preserve your custom
-map. In Extended mode, each knob mode has separate button assignments.
-
-See [the rollback marker](FT8_CTR2_ROLLBACK.md) for the pre-change checkpoint.
+Button 6 in Normal mode and the Home Wheel A dial. Importing a mapping replaces
+the current mapping, so copy these assignments into an existing custom map when
+other controls must be preserved.
 
 ## Understanding CTR2 modes
 

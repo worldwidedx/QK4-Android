@@ -102,6 +102,15 @@ private:
     std::unique_ptr<QRhiBuffer> m_notchUniformBuffer;
     std::unique_ptr<QRhiShaderResourceBindings> m_notchSrb;
 
+    // Separator and border lines each need dedicated buffers so both line
+    // draws can be recorded into the single pre-pass batch without colliding.
+    std::unique_ptr<QRhiBuffer> m_separatorVbo;
+    std::unique_ptr<QRhiBuffer> m_separatorUniformBuffer;
+    std::unique_ptr<QRhiShaderResourceBindings> m_separatorSrb;
+    std::unique_ptr<QRhiBuffer> m_borderVbo;
+    std::unique_ptr<QRhiBuffer> m_borderUniformBuffer;
+    std::unique_ptr<QRhiShaderResourceBindings> m_borderSrb;
+
     QRhiRenderPassDescriptor *m_rpDesc = nullptr;
 
     bool m_rhiInitialized = false;

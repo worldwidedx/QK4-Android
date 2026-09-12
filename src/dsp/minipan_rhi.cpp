@@ -1,4 +1,6 @@
 #include "minipan_rhi.h"
+#include <functional>
+#include <vector>
 #include "rhi_utils.h"
 #include "ui/k4styles.h"
 #include <QFile>
@@ -188,6 +190,15 @@ void MiniPanRhiWidget::initialize(QRhiCommandBuffer *cb) {
     m_notchUniformBuffer.reset(m_rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 32));
     m_notchUniformBuffer->create();
 
+    m_separatorVbo.reset(m_rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::VertexBuffer, 64 * sizeof(float)));
+    m_separatorVbo->create();
+    m_separatorUniformBuffer.reset(m_rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 32));
+    m_separatorUniformBuffer->create();
+    m_borderVbo.reset(m_rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::VertexBuffer, 64 * sizeof(float)));
+    m_borderVbo->create();
+    m_borderUniformBuffer.reset(m_rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 32));
+    m_borderUniformBuffer->create();
+
     cb->resourceUpdate(rub);
 
     m_rhiInitialized = true;
@@ -306,6 +317,18 @@ void MiniPanRhiWidget::createPipelines() {
             0, QRhiShaderResourceBinding::VertexStage | QRhiShaderResourceBinding::FragmentStage,
             m_passbandUniformBuffer.get())});
         m_passbandSrb->create();
+
+        m_separatorSrb.reset(m_rhi->newShaderResourceBindings());
+        m_separatorSrb->setBindings({QRhiShaderResourceBinding::uniformBuffer(
+            0, QRhiShaderResourceBinding::VertexStage | QRhiShaderResourceBinding::FragmentStage,
+            m_separatorUniformBuffer.get())});
+        m_separatorSrb->create();
+
+        m_borderSrb.reset(m_rhi->newShaderResourceBindings());
+        m_borderSrb->setBindings({QRhiShaderResourceBinding::uniformBuffer(
+            0, QRhiShaderResourceBinding::VertexStage | QRhiShaderResourceBinding::FragmentStage,
+            m_borderUniformBuffer.get())});
+        m_borderSrb->create();
     }
 
     // Dedicated passband edge SRB
@@ -497,91 +520,38 @@ void MiniPanRhiWidget::render(QRhiCommandBuffer *cb) {
 
     cb->resourceUpdate(rub);
 
-    // Begin render pass
-    cb->beginPass(renderTarget(), QColor::fromRgbF(0.04f, 0.04f, 0.04f, 1.0f), {1.0f, 0}, nullptr);
+    // Qt RHI forbids cb->resourceUpdate() inside a render pass. Record every
+    // remaining dynamic-buffer update into one batch handed to beginPass, and
+    // defer the draw calls into a list replayed inside the pass.
+    QRhiResourceUpdateBatch *overlayRub = m_rhi->nextResourceUpdateBatch();
+    std::vector<std::function<void()>> draws;
 
     // Draw waterfall (bottom portion)
     if (m_waterfallPipeline) {
-        cb->setViewport({0, 0, w, waterfallHeight});
-        cb->setGraphicsPipeline(m_waterfallPipeline.get());
-        cb->setShaderResources(m_waterfallSrb.get());
-        const QRhiCommandBuffer::VertexInput waterfallVbufBinding(m_waterfallVbo.get(), 0);
-        cb->setVertexInput(0, 1, &waterfallVbufBinding);
-        cb->draw(6);
+        draws.push_back([=]() {
+            cb->setViewport({0, 0, w, waterfallHeight});
+            cb->setGraphicsPipeline(m_waterfallPipeline.get());
+            cb->setShaderResources(m_waterfallSrb.get());
+            const QRhiCommandBuffer::VertexInput waterfallVbufBinding(m_waterfallVbo.get(), 0);
+            cb->setVertexInput(0, 1, &waterfallVbufBinding);
+            cb->draw(6);
+        });
     }
 
     // Draw spectrum fill (top portion)
     if (m_spectrumPipeline && !m_smoothedSpectrum.isEmpty()) {
-        cb->setViewport({0, waterfallHeight, w, spectrumHeight});
-        cb->setGraphicsPipeline(m_spectrumPipeline.get());
-        cb->setShaderResources(m_spectrumSrb.get());
-        const QRhiCommandBuffer::VertexInput spectrumVbufBinding(m_spectrumVbo.get(), 0);
-        cb->setVertexInput(0, 1, &spectrumVbufBinding);
-        cb->draw(static_cast<int>(w) * 2);
+        draws.push_back([=]() {
+            cb->setViewport({0, waterfallHeight, w, spectrumHeight});
+            cb->setGraphicsPipeline(m_spectrumPipeline.get());
+            cb->setShaderResources(m_spectrumSrb.get());
+            const QRhiCommandBuffer::VertexInput spectrumVbufBinding(m_spectrumVbo.get(), 0);
+            cb->setVertexInput(0, 1, &spectrumVbufBinding);
+            cb->draw(static_cast<int>(w) * 2);
+        });
     }
-
-    // Draw overlays (full viewport)
-    cb->setViewport({0, 0, w, h});
 
     // Draw separator line, passband, center marker, notch, and border using overlay pipeline
     if (m_overlayLinePipeline && m_overlayTrianglePipeline) {
-        // Helper lambda to draw filled quad
-        auto drawFilledQuad = [&](float x1, float y1, float x2, float y2, const QColor &color) {
-            QVector<float> quadVerts = {x1, y1, x2, y1, x2, y2, x1, y1, x2, y2, x1, y2};
-
-            QRhiResourceUpdateBatch *rub2 = m_rhi->nextResourceUpdateBatch();
-            rub2->updateDynamicBuffer(m_overlayVbo.get(), 0, quadVerts.size() * sizeof(float), quadVerts.constData());
-
-            struct {
-                float viewportWidth;
-                float viewportHeight;
-                float pad0, pad1; // std140: padding BEFORE color
-                float r, g, b, a;
-            } overlayUniforms = {w,
-                                 h,
-                                 0,
-                                 0,
-                                 static_cast<float>(color.redF()),
-                                 static_cast<float>(color.greenF()),
-                                 static_cast<float>(color.blueF()),
-                                 static_cast<float>(color.alphaF())};
-            rub2->updateDynamicBuffer(m_overlayUniformBuffer.get(), 0, sizeof(overlayUniforms), &overlayUniforms);
-
-            cb->resourceUpdate(rub2);
-            cb->setGraphicsPipeline(m_overlayTrianglePipeline.get());
-            cb->setShaderResources(m_overlaySrb.get());
-            const QRhiCommandBuffer::VertexInput overlayVbufBinding(m_overlayVbo.get(), 0);
-            cb->setVertexInput(0, 1, &overlayVbufBinding);
-            cb->draw(6);
-        };
-
-        // Helper lambda to draw lines
-        auto drawLines = [&](const QVector<float> &lineVerts, const QColor &color) {
-            QRhiResourceUpdateBatch *rub2 = m_rhi->nextResourceUpdateBatch();
-            rub2->updateDynamicBuffer(m_overlayVbo.get(), 0, lineVerts.size() * sizeof(float), lineVerts.constData());
-
-            struct {
-                float viewportWidth;
-                float viewportHeight;
-                float pad0, pad1; // std140: padding BEFORE color
-                float r, g, b, a;
-            } overlayUniforms = {w,
-                                 h,
-                                 0,
-                                 0,
-                                 static_cast<float>(color.redF()),
-                                 static_cast<float>(color.greenF()),
-                                 static_cast<float>(color.blueF()),
-                                 static_cast<float>(color.alphaF())};
-            rub2->updateDynamicBuffer(m_overlayUniformBuffer.get(), 0, sizeof(overlayUniforms), &overlayUniforms);
-
-            cb->resourceUpdate(rub2);
-            cb->setGraphicsPipeline(m_overlayLinePipeline.get());
-            cb->setShaderResources(m_overlaySrb.get());
-            const QRhiCommandBuffer::VertexInput overlayVbufBinding(m_overlayVbo.get(), 0);
-            cb->setVertexInput(0, 1, &overlayVbufBinding);
-            cb->draw(lineVerts.size() / 2);
-        };
 
         // Draw filter passband using DEDICATED buffers (full height)
         float centerX = w / 2;
@@ -629,8 +599,7 @@ void MiniPanRhiWidget::render(QRhiCommandBuffer *cb) {
                 passbandX, 0, passbandX + bwPixels, 0, passbandX + bwPixels, h, passbandX, 0, passbandX + bwPixels, h,
                 passbandX, h};
 
-            QRhiResourceUpdateBatch *pbRub = m_rhi->nextResourceUpdateBatch();
-            pbRub->updateDynamicBuffer(m_passbandVbo.get(), 0, pbQuadVerts.size() * sizeof(float),
+            overlayRub->updateDynamicBuffer(m_passbandVbo.get(), 0, pbQuadVerts.size() * sizeof(float),
                                        pbQuadVerts.constData());
 
             struct {
@@ -646,14 +615,16 @@ void MiniPanRhiWidget::render(QRhiCommandBuffer *cb) {
                             static_cast<float>(fillColor.greenF()),
                             static_cast<float>(fillColor.blueF()),
                             static_cast<float>(fillColor.alphaF())};
-            pbRub->updateDynamicBuffer(m_passbandUniformBuffer.get(), 0, sizeof(pbUniforms), &pbUniforms);
+            overlayRub->updateDynamicBuffer(m_passbandUniformBuffer.get(), 0, sizeof(pbUniforms), &pbUniforms);
 
-            cb->resourceUpdate(pbRub);
-            cb->setGraphicsPipeline(m_overlayTrianglePipeline.get());
-            cb->setShaderResources(m_passbandSrb.get());
-            const QRhiCommandBuffer::VertexInput pbVbufBinding(m_passbandVbo.get(), 0);
-            cb->setVertexInput(0, 1, &pbVbufBinding);
-            cb->draw(6);
+            draws.push_back([=]() {
+                cb->setViewport({0, 0, w, h});
+                cb->setGraphicsPipeline(m_overlayTrianglePipeline.get());
+                cb->setShaderResources(m_passbandSrb.get());
+                const QRhiCommandBuffer::VertexInput pbVbufBinding(m_passbandVbo.get(), 0);
+                cb->setVertexInput(0, 1, &pbVbufBinding);
+                cb->draw(6);
+            });
 
             // Draw passband edge rectangles using DEDICATED buffers (2px wide for robust Metal rendering)
             if (m_passbandEdgeSrb) {
@@ -669,8 +640,7 @@ void MiniPanRhiWidget::render(QRhiCommandBuffer *cb) {
                                                 passbandX + bwPixels + edgeWidth, h, passbandX + bwPixels, 0,
                                                 passbandX + bwPixels + edgeWidth, h, passbandX + bwPixels, h};
 
-                QRhiResourceUpdateBatch *edgeRub = m_rhi->nextResourceUpdateBatch();
-                edgeRub->updateDynamicBuffer(m_passbandEdgeVbo.get(), 0, passbandEdges.size() * sizeof(float),
+                overlayRub->updateDynamicBuffer(m_passbandEdgeVbo.get(), 0, passbandEdges.size() * sizeof(float),
                                              passbandEdges.constData());
 
                 struct {
@@ -686,14 +656,16 @@ void MiniPanRhiWidget::render(QRhiCommandBuffer *cb) {
                                   static_cast<float>(edgeColor.greenF()),
                                   static_cast<float>(edgeColor.blueF()),
                                   static_cast<float>(edgeColor.alphaF())};
-                edgeRub->updateDynamicBuffer(m_passbandEdgeUniformBuffer.get(), 0, sizeof(edgeUniforms), &edgeUniforms);
+                overlayRub->updateDynamicBuffer(m_passbandEdgeUniformBuffer.get(), 0, sizeof(edgeUniforms), &edgeUniforms);
 
-                cb->resourceUpdate(edgeRub);
-                cb->setGraphicsPipeline(m_overlayTrianglePipeline.get());
-                cb->setShaderResources(m_passbandEdgeSrb.get());
-                const QRhiCommandBuffer::VertexInput edgeVbufBinding(m_passbandEdgeVbo.get(), 0);
-                cb->setVertexInput(0, 1, &edgeVbufBinding);
-                cb->draw(12);
+                draws.push_back([=]() {
+                    cb->setViewport({0, 0, w, h});
+                    cb->setGraphicsPipeline(m_overlayTrianglePipeline.get());
+                    cb->setShaderResources(m_passbandEdgeSrb.get());
+                    const QRhiCommandBuffer::VertexInput edgeVbufBinding(m_passbandEdgeVbo.get(), 0);
+                    cb->setVertexInput(0, 1, &edgeVbufBinding);
+                    cb->draw(12);
+                });
             }
         }
 
@@ -706,8 +678,7 @@ void MiniPanRhiWidget::render(QRhiCommandBuffer *cb) {
                 centerX, 0, centerX + markerWidth, 0, centerX + markerWidth, h, centerX, 0, centerX + markerWidth, h,
                 centerX, h};
 
-            QRhiResourceUpdateBatch *clRub = m_rhi->nextResourceUpdateBatch();
-            clRub->updateDynamicBuffer(m_centerLineVbo.get(), 0, centerLineVerts.size() * sizeof(float),
+            overlayRub->updateDynamicBuffer(m_centerLineVbo.get(), 0, centerLineVerts.size() * sizeof(float),
                                        centerLineVerts.constData());
 
             struct {
@@ -723,14 +694,16 @@ void MiniPanRhiWidget::render(QRhiCommandBuffer *cb) {
                             static_cast<float>(markerColor.greenF()),
                             static_cast<float>(markerColor.blueF()),
                             static_cast<float>(markerColor.alphaF())};
-            clRub->updateDynamicBuffer(m_centerLineUniformBuffer.get(), 0, sizeof(clUniforms), &clUniforms);
+            overlayRub->updateDynamicBuffer(m_centerLineUniformBuffer.get(), 0, sizeof(clUniforms), &clUniforms);
 
-            cb->resourceUpdate(clRub);
-            cb->setGraphicsPipeline(m_overlayTrianglePipeline.get());
-            cb->setShaderResources(m_centerLineSrb.get());
-            const QRhiCommandBuffer::VertexInput clVbufBinding(m_centerLineVbo.get(), 0);
-            cb->setVertexInput(0, 1, &clVbufBinding);
-            cb->draw(6);
+            draws.push_back([=]() {
+                cb->setViewport({0, 0, w, h});
+                cb->setGraphicsPipeline(m_overlayTrianglePipeline.get());
+                cb->setShaderResources(m_centerLineSrb.get());
+                const QRhiCommandBuffer::VertexInput clVbufBinding(m_centerLineVbo.get(), 0);
+                cb->setVertexInput(0, 1, &clVbufBinding);
+                cb->draw(6);
+            });
         }
 
         // Draw notch filter marker using DEDICATED buffers
@@ -764,8 +737,7 @@ void MiniPanRhiWidget::render(QRhiCommandBuffer *cb) {
                     notchX, 0, notchX + notchWidth, 0, notchX + notchWidth, h, notchX, 0, notchX + notchWidth, h,
                     notchX, h};
 
-                QRhiResourceUpdateBatch *notchRub = m_rhi->nextResourceUpdateBatch();
-                notchRub->updateDynamicBuffer(m_notchVbo.get(), 0, notchVerts.size() * sizeof(float),
+                overlayRub->updateDynamicBuffer(m_notchVbo.get(), 0, notchVerts.size() * sizeof(float),
                                               notchVerts.constData());
 
                 struct {
@@ -781,26 +753,68 @@ void MiniPanRhiWidget::render(QRhiCommandBuffer *cb) {
                                    static_cast<float>(notchColor.greenF()),
                                    static_cast<float>(notchColor.blueF()),
                                    static_cast<float>(notchColor.alphaF())};
-                notchRub->updateDynamicBuffer(m_notchUniformBuffer.get(), 0, sizeof(notchUniforms), &notchUniforms);
+                overlayRub->updateDynamicBuffer(m_notchUniformBuffer.get(), 0, sizeof(notchUniforms), &notchUniforms);
 
-                cb->resourceUpdate(notchRub);
-                cb->setGraphicsPipeline(m_overlayTrianglePipeline.get()); // Use triangles not lines
-                cb->setShaderResources(m_notchSrb.get());
-                const QRhiCommandBuffer::VertexInput notchVbufBinding(m_notchVbo.get(), 0);
-                cb->setVertexInput(0, 1, &notchVbufBinding);
-                cb->draw(6); // 2 triangles = 6 vertices
+                draws.push_back([=]() {
+                    cb->setViewport({0, 0, w, h});
+                    cb->setGraphicsPipeline(m_overlayTrianglePipeline.get()); // Use triangles not lines
+                    cb->setShaderResources(m_notchSrb.get());
+                    const QRhiCommandBuffer::VertexInput notchVbufBinding(m_notchVbo.get(), 0);
+                    cb->setVertexInput(0, 1, &notchVbufBinding);
+                    cb->draw(6); // 2 triangles = 6 vertices
+                });
             }
         }
 
-        // Draw separator line
-        QVector<float> separatorLine = {0, spectrumHeight, w, spectrumHeight};
-        drawLines(separatorLine, QColor(51, 51, 51)); // #333333
+        // Draw separator line (own buffers so it doesn't collide with border)
+        {
+            QVector<float> separatorLine = {0, spectrumHeight, w, spectrumHeight};
+            overlayRub->updateDynamicBuffer(m_separatorVbo.get(), 0, separatorLine.size() * sizeof(float),
+                                            separatorLine.constData());
+            struct {
+                float viewportWidth;
+                float viewportHeight;
+                float pad0, pad1;
+                float r, g, b, a;
+            } sepUniforms = {w, h, 0, 0, 51 / 255.0f, 51 / 255.0f, 51 / 255.0f, 1.0f}; // #333333
+            overlayRub->updateDynamicBuffer(m_separatorUniformBuffer.get(), 0, sizeof(sepUniforms), &sepUniforms);
+            const int sepCount = separatorLine.size() / 2;
+            draws.push_back([=]() {
+                cb->setViewport({0, 0, w, h});
+                cb->setGraphicsPipeline(m_overlayLinePipeline.get());
+                cb->setShaderResources(m_separatorSrb.get());
+                const QRhiCommandBuffer::VertexInput sepVbufBinding(m_separatorVbo.get(), 0);
+                cb->setVertexInput(0, 1, &sepVbufBinding);
+                cb->draw(sepCount);
+            });
+        }
 
-        // Draw border
-        QVector<float> border = {0, 0, w - 1, 0, w - 1, 0, w - 1, h - 1, w - 1, h - 1, 0, h - 1, 0, h - 1, 0, 0};
-        drawLines(border, QColor(68, 68, 68)); // #444444
+        // Draw border (own buffers)
+        {
+            QVector<float> border = {0, 0, w - 1, 0, w - 1, 0, w - 1, h - 1, w - 1, h - 1, 0, h - 1, 0, h - 1, 0, 0};
+            overlayRub->updateDynamicBuffer(m_borderVbo.get(), 0, border.size() * sizeof(float), border.constData());
+            struct {
+                float viewportWidth;
+                float viewportHeight;
+                float pad0, pad1;
+                float r, g, b, a;
+            } borderUniforms = {w, h, 0, 0, 68 / 255.0f, 68 / 255.0f, 68 / 255.0f, 1.0f}; // #444444
+            overlayRub->updateDynamicBuffer(m_borderUniformBuffer.get(), 0, sizeof(borderUniforms), &borderUniforms);
+            const int borderCount = border.size() / 2;
+            draws.push_back([=]() {
+                cb->setViewport({0, 0, w, h});
+                cb->setGraphicsPipeline(m_overlayLinePipeline.get());
+                cb->setShaderResources(m_borderSrb.get());
+                const QRhiCommandBuffer::VertexInput borderVbufBinding(m_borderVbo.get(), 0);
+                cb->setVertexInput(0, 1, &borderVbufBinding);
+                cb->draw(borderCount);
+            });
+        }
     }
 
+    cb->beginPass(renderTarget(), QColor::fromRgbF(0.04f, 0.04f, 0.04f, 1.0f), {1.0f, 0}, overlayRub);
+    for (auto &d : draws)
+        d();
     cb->endPass();
 }
 

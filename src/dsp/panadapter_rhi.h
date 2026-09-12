@@ -134,6 +134,8 @@ private:
     std::unique_ptr<QRhiBuffer> m_waterfallUniformBuffer;
     std::unique_ptr<QRhiBuffer> m_overlayVbo;
     std::unique_ptr<QRhiBuffer> m_overlayUniformBuffer;
+    std::unique_ptr<QRhiBuffer> m_peakVbo;
+    std::unique_ptr<QRhiBuffer> m_peakUniformBuffer;
     std::unique_ptr<QRhiBuffer> m_passbandVbo;
     std::unique_ptr<QRhiBuffer> m_passbandUniformBuffer;
     std::unique_ptr<QRhiBuffer> m_markerVbo;
@@ -158,6 +160,7 @@ private:
     std::unique_ptr<QRhiTexture> m_spectrumColorLutTexture; // 256-entry color LUT
     std::unique_ptr<QRhiShaderResourceBindings> m_waterfallSrb;
     std::unique_ptr<QRhiShaderResourceBindings> m_overlaySrb;
+    std::unique_ptr<QRhiShaderResourceBindings> m_peakSrb;
     std::unique_ptr<QRhiShaderResourceBindings> m_passbandSrb;
     std::unique_ptr<QRhiShaderResourceBindings> m_markerSrb;
     std::unique_ptr<QRhiShaderResourceBindings> m_notchSrb;

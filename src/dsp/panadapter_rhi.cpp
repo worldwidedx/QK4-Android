@@ -9,6 +9,8 @@
 #include <cmath>
 #include <cstring>
 #include <algorithm>
+#include <functional>
+#include <vector>
 
 // Transparent overlay widget for dBm/S-unit scale labels
 class DbmScaleOverlay : public QWidget {
@@ -586,6 +588,13 @@ void PanadapterRhiWidget::initialize(QRhiCommandBuffer *cb) {
     m_overlayUniformBuffer.reset(m_rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 32));
     m_overlayUniformBuffer->create();
 
+    // Peak hold needs its own buffers so grid and peak updates can both be
+    // recorded into the single pre-pass batch without colliding on one buffer.
+    m_peakVbo.reset(m_rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::VertexBuffer, 4096 * 2 * sizeof(float)));
+    m_peakVbo->create();
+    m_peakUniformBuffer.reset(m_rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 32));
+    m_peakUniformBuffer->create();
+
     // Fullscreen quad (shared by all fragment-shader spectrum styles)
     // Position (x, y) + texCoord (s, t) - covers normalized -1 to 1 range
     float fullscreenQuad[] = {
@@ -725,6 +734,12 @@ void PanadapterRhiWidget::createPipelines() {
             m_overlayUniformBuffer.get())});
         m_overlaySrb->create();
 
+        m_peakSrb.reset(m_rhi->newShaderResourceBindings());
+        m_peakSrb->setBindings({QRhiShaderResourceBinding::uniformBuffer(
+            0, QRhiShaderResourceBinding::VertexStage | QRhiShaderResourceBinding::FragmentStage,
+            m_peakUniformBuffer.get())});
+        m_peakSrb->create();
+
         // Separate SRB for passband to avoid buffer conflicts
         m_passbandSrb.reset(m_rhi->newShaderResourceBindings());
         m_passbandSrb->setBindings({QRhiShaderResourceBinding::uniformBuffer(
@@ -785,7 +800,7 @@ void PanadapterRhiWidget::createPipelines() {
             {{QRhiShaderStage::Vertex, m_overlayVert}, {QRhiShaderStage::Fragment, m_overlayFrag}});
         m_peakLinePipeline->setVertexInputLayout(inputLayout);
         m_peakLinePipeline->setTopology(QRhiGraphicsPipeline::LineStrip);
-        m_peakLinePipeline->setShaderResourceBindings(m_overlaySrb.get());
+        m_peakLinePipeline->setShaderResourceBindings(m_peakSrb.get());
         m_peakLinePipeline->setRenderPassDescriptor(m_rpDesc);
         m_peakLinePipeline->setTargetBlends({blend});
         m_peakLinePipeline->setLineWidth(2.0f);
@@ -943,23 +958,26 @@ void PanadapterRhiWidget::render(QRhiCommandBuffer *cb) {
 
     cb->resourceUpdate(rub);
 
-    // Begin render pass
-    cb->beginPass(renderTarget(), QColor::fromRgbF(0.08f, 0.08f, 0.08f, 1.0f), {1.0f, 0}, nullptr);
+    // Qt RHI forbids cb->resourceUpdate() inside a render pass. Record every
+    // remaining dynamic-buffer update into one batch handed to beginPass, and
+    // defer the draw calls into a list replayed inside the pass.
+    QRhiResourceUpdateBatch *overlayRub = m_rhi->nextResourceUpdateBatch();
+    std::vector<std::function<void()>> draws;
 
     // Draw waterfall (bottom portion)
     if (m_waterfallPipeline) {
-        cb->setViewport({0, 0, w, waterfallHeight});
-        cb->setGraphicsPipeline(m_waterfallPipeline.get());
-        cb->setShaderResources(m_waterfallSrb.get());
-        const QRhiCommandBuffer::VertexInput waterfallVbufBinding(m_waterfallVbo.get(), 0);
-        cb->setVertexInput(0, 1, &waterfallVbufBinding);
-        cb->draw(6);
+        draws.push_back([=]() {
+            cb->setViewport({0, 0, w, waterfallHeight});
+            cb->setGraphicsPipeline(m_waterfallPipeline.get());
+            cb->setShaderResources(m_waterfallSrb.get());
+            const QRhiCommandBuffer::VertexInput waterfallVbufBinding(m_waterfallVbo.get(), 0);
+            cb->setVertexInput(0, 1, &waterfallVbufBinding);
+            cb->draw(6);
+        });
     }
 
     // Draw grid BEHIND spectrum (in spectrum area)
     if (m_gridEnabled && m_overlayLinePipeline) {
-        cb->setViewport({0, waterfallHeight, w, spectrumHeight});
-
         QVector<float> gridVerts;
 
         // Horizontal lines (dB scale) - 8 divisions in spectrum area
@@ -974,8 +992,7 @@ void PanadapterRhiWidget::render(QRhiCommandBuffer *cb) {
             gridVerts << x << 0.0f << x << spectrumHeight;
         }
 
-        QRhiResourceUpdateBatch *gridRub = m_rhi->nextResourceUpdateBatch();
-        gridRub->updateDynamicBuffer(m_overlayVbo.get(), 0, gridVerts.size() * sizeof(float), gridVerts.constData());
+        overlayRub->updateDynamicBuffer(m_overlayVbo.get(), 0, gridVerts.size() * sizeof(float), gridVerts.constData());
 
         struct {
             float viewportWidth;
@@ -990,25 +1007,29 @@ void PanadapterRhiWidget::render(QRhiCommandBuffer *cb) {
                           static_cast<float>(m_gridColor.greenF()),
                           static_cast<float>(m_gridColor.blueF()),
                           static_cast<float>(m_gridColor.alphaF())};
-        gridRub->updateDynamicBuffer(m_overlayUniformBuffer.get(), 0, sizeof(gridUniforms), &gridUniforms);
+        overlayRub->updateDynamicBuffer(m_overlayUniformBuffer.get(), 0, sizeof(gridUniforms), &gridUniforms);
 
-        cb->resourceUpdate(gridRub);
-        cb->setGraphicsPipeline(m_overlayLinePipeline.get());
-        cb->setShaderResources(m_overlaySrb.get());
-        const QRhiCommandBuffer::VertexInput gridVbufBinding(m_overlayVbo.get(), 0);
-        cb->setVertexInput(0, 1, &gridVbufBinding);
-        cb->draw(gridVerts.size() / 2);
+        const int gridCount = gridVerts.size() / 2;
+        draws.push_back([=]() {
+            cb->setViewport({0, waterfallHeight, w, spectrumHeight});
+            cb->setGraphicsPipeline(m_overlayLinePipeline.get());
+            cb->setShaderResources(m_overlaySrb.get());
+            const QRhiCommandBuffer::VertexInput gridVbufBinding(m_overlayVbo.get(), 0);
+            cb->setVertexInput(0, 1, &gridVbufBinding);
+            cb->draw(gridCount);
+        });
     }
 
     // Draw spectrum fill ON TOP of grid (shader-based fullscreen quad)
     if (!m_currentSpectrum.isEmpty() && m_spectrumBlueAmpPipeline) {
-        cb->setViewport({0, waterfallHeight, w, spectrumHeight});
-        cb->setGraphicsPipeline(m_spectrumBlueAmpPipeline.get());
-        cb->setShaderResources(m_spectrumBlueAmpSrb.get());
-
-        const QRhiCommandBuffer::VertexInput quadVbufBinding(m_fullscreenQuadVbo.get(), 0);
-        cb->setVertexInput(0, 1, &quadVbufBinding);
-        cb->draw(6); // Fullscreen quad (2 triangles)
+        draws.push_back([=]() {
+            cb->setViewport({0, waterfallHeight, w, spectrumHeight});
+            cb->setGraphicsPipeline(m_spectrumBlueAmpPipeline.get());
+            cb->setShaderResources(m_spectrumBlueAmpSrb.get());
+            const QRhiCommandBuffer::VertexInput quadVbufBinding(m_fullscreenQuadVbo.get(), 0);
+            cb->setVertexInput(0, 1, &quadVbufBinding);
+            cb->draw(6); // Fullscreen quad (2 triangles)
+        });
     }
 
     // Peak hold is a separate trace, not part of the spectrum-fill shader.
@@ -1023,8 +1044,7 @@ void PanadapterRhiWidget::render(QRhiCommandBuffer *cb) {
             const float adjusted = qMax(0.0f, normalized - m_smoothedBaseline) * 0.95f;
             peakVerts << (w * static_cast<float>(i) / denom) << (spectrumHeight * (1.0f - adjusted));
         }
-        QRhiResourceUpdateBatch *peakRub = m_rhi->nextResourceUpdateBatch();
-        peakRub->updateDynamicBuffer(m_overlayVbo.get(), 0, peakVerts.size() * sizeof(float), peakVerts.constData());
+        overlayRub->updateDynamicBuffer(m_peakVbo.get(), 0, peakVerts.size() * sizeof(float), peakVerts.constData());
         struct {
             float viewportWidth;
             float viewportHeight;
@@ -1033,82 +1053,21 @@ void PanadapterRhiWidget::render(QRhiCommandBuffer *cb) {
         } peakUniforms = {w, spectrumHeight, 0, 0, static_cast<float>(m_peakHoldColor.redF()),
                           static_cast<float>(m_peakHoldColor.greenF()), static_cast<float>(m_peakHoldColor.blueF()),
                           static_cast<float>(m_peakHoldColor.alphaF())};
-        peakRub->updateDynamicBuffer(m_overlayUniformBuffer.get(), 0, sizeof(peakUniforms), &peakUniforms);
-        cb->resourceUpdate(peakRub);
-        cb->setViewport({0, waterfallHeight, w, spectrumHeight});
-        cb->setGraphicsPipeline(m_peakLinePipeline.get());
-        cb->setShaderResources(m_overlaySrb.get());
-        const QRhiCommandBuffer::VertexInput peakVbufBinding(m_overlayVbo.get(), 0);
-        cb->setVertexInput(0, 1, &peakVbufBinding);
-        cb->draw(peakVerts.size() / 2);
+        overlayRub->updateDynamicBuffer(m_peakUniformBuffer.get(), 0, sizeof(peakUniforms), &peakUniforms);
+        const int peakCount = peakVerts.size() / 2;
+        draws.push_back([=]() {
+            cb->setViewport({0, waterfallHeight, w, spectrumHeight});
+            cb->setGraphicsPipeline(m_peakLinePipeline.get());
+            cb->setShaderResources(m_peakSrb.get());
+            const QRhiCommandBuffer::VertexInput peakVbufBinding(m_peakVbo.get(), 0);
+            cb->setVertexInput(0, 1, &peakVbufBinding);
+            cb->draw(peakCount);
+        });
     }
 
-    // Draw overlays (full viewport for grid, markers, passband)
-    cb->setViewport({0, 0, w, h});
-
+    // Draw overlays (markers, passband) at full viewport. Each records its
+    // buffer update into overlayRub and defers its draw into `draws`.
     if (m_overlayLinePipeline && m_overlayTrianglePipeline) {
-        // Helper lambda to draw filled quad
-        auto drawFilledQuad = [&](float x1, float y1, float x2, float y2, const QColor &color) {
-            QVector<float> quadVerts = {x1, y1, x2, y1, x2, y2, x1, y1, x2, y2, x1, y2};
-
-            QRhiResourceUpdateBatch *rub2 = m_rhi->nextResourceUpdateBatch();
-            rub2->updateDynamicBuffer(m_overlayVbo.get(), 0, quadVerts.size() * sizeof(float), quadVerts.constData());
-
-            struct {
-                float viewportWidth;
-                float viewportHeight;
-                float pad0, pad1; // Matches shader's vec2 padding (std140 layout)
-                float r, g, b, a; // Matches shader's vec4 color at offset 16
-            } overlayUniforms = {w,
-                                 h,
-                                 0,
-                                 0,
-                                 static_cast<float>(color.redF()),
-                                 static_cast<float>(color.greenF()),
-                                 static_cast<float>(color.blueF()),
-                                 static_cast<float>(color.alphaF())};
-            rub2->updateDynamicBuffer(m_overlayUniformBuffer.get(), 0, sizeof(overlayUniforms), &overlayUniforms);
-
-            cb->resourceUpdate(rub2);
-            cb->setGraphicsPipeline(m_overlayTrianglePipeline.get());
-            cb->setShaderResources(m_overlaySrb.get());
-            const QRhiCommandBuffer::VertexInput overlayVbufBinding(m_overlayVbo.get(), 0);
-            cb->setVertexInput(0, 1, &overlayVbufBinding);
-            cb->draw(6);
-        };
-
-        // Helper lambda to draw lines
-        auto drawLines = [&](const QVector<float> &lineVerts, const QColor &color) {
-            if (lineVerts.isEmpty())
-                return;
-            QRhiResourceUpdateBatch *rub2 = m_rhi->nextResourceUpdateBatch();
-            rub2->updateDynamicBuffer(m_overlayVbo.get(), 0, lineVerts.size() * sizeof(float), lineVerts.constData());
-
-            struct {
-                float viewportWidth;
-                float viewportHeight;
-                float pad0, pad1; // Matches shader's vec2 padding (std140 layout)
-                float r, g, b, a; // Matches shader's vec4 color at offset 16
-            } overlayUniforms = {w,
-                                 h,
-                                 0,
-                                 0,
-                                 static_cast<float>(color.redF()),
-                                 static_cast<float>(color.greenF()),
-                                 static_cast<float>(color.blueF()),
-                                 static_cast<float>(color.alphaF())};
-            rub2->updateDynamicBuffer(m_overlayUniformBuffer.get(), 0, sizeof(overlayUniforms), &overlayUniforms);
-
-            cb->resourceUpdate(rub2);
-            cb->setGraphicsPipeline(m_overlayLinePipeline.get());
-            cb->setShaderResources(m_overlaySrb.get());
-            const QRhiCommandBuffer::VertexInput overlayVbufBinding(m_overlayVbo.get(), 0);
-            cb->setVertexInput(0, 1, &overlayVbufBinding);
-            cb->draw(lineVerts.size() / 2);
-        };
-
-        // Grid is now drawn BEFORE spectrum fill (see above)
-
         // Draw secondary VFO passband first (so it renders behind primary when overlapping)
         if (m_secondaryVisible && m_secondaryFilterBw > 0 && m_secondaryTunedFreq > 0) {
             qint64 secLowFreq, secHighFreq;
@@ -1142,8 +1101,7 @@ void PanadapterRhiWidget::render(QRhiCommandBuffer *cb) {
                 QVector<float> secQuadVerts = {
                     secX1, 0, secX2, 0, secX2, spectrumHeight, secX1, 0, secX2, spectrumHeight, secX1, spectrumHeight};
 
-                QRhiResourceUpdateBatch *secPbRub = m_rhi->nextResourceUpdateBatch();
-                secPbRub->updateDynamicBuffer(m_secondaryPassbandVbo.get(), 0, secQuadVerts.size() * sizeof(float),
+                overlayRub->updateDynamicBuffer(m_secondaryPassbandVbo.get(), 0, secQuadVerts.size() * sizeof(float),
                                               secQuadVerts.constData());
 
                 struct {
@@ -1159,15 +1117,17 @@ void PanadapterRhiWidget::render(QRhiCommandBuffer *cb) {
                                    static_cast<float>(m_secondaryPassbandColor.greenF()),
                                    static_cast<float>(m_secondaryPassbandColor.blueF()),
                                    static_cast<float>(m_secondaryPassbandColor.alphaF())};
-                secPbRub->updateDynamicBuffer(m_secondaryPassbandUniformBuffer.get(), 0, sizeof(secPbUniforms),
+                overlayRub->updateDynamicBuffer(m_secondaryPassbandUniformBuffer.get(), 0, sizeof(secPbUniforms),
                                               &secPbUniforms);
 
-                cb->resourceUpdate(secPbRub);
-                cb->setGraphicsPipeline(m_overlayTrianglePipeline.get());
-                cb->setShaderResources(m_secondaryPassbandSrb.get());
-                const QRhiCommandBuffer::VertexInput secPbVbufBinding(m_secondaryPassbandVbo.get(), 0);
-                cb->setVertexInput(0, 1, &secPbVbufBinding);
-                cb->draw(6);
+                draws.push_back([=]() {
+                    cb->setViewport({0, 0, w, h});
+                    cb->setGraphicsPipeline(m_overlayTrianglePipeline.get());
+                    cb->setShaderResources(m_secondaryPassbandSrb.get());
+                    const QRhiCommandBuffer::VertexInput secPbVbufBinding(m_secondaryPassbandVbo.get(), 0);
+                    cb->setVertexInput(0, 1, &secPbVbufBinding);
+                    cb->draw(6);
+                });
             }
 
             // Secondary VFO marker
@@ -1193,8 +1153,7 @@ void PanadapterRhiWidget::render(QRhiCommandBuffer *cb) {
                                                  secMarkerX,
                                                  spectrumHeight};
 
-                QRhiResourceUpdateBatch *secMkRub = m_rhi->nextResourceUpdateBatch();
-                secMkRub->updateDynamicBuffer(m_secondaryMarkerVbo.get(), 0, secMarkerVerts.size() * sizeof(float),
+                overlayRub->updateDynamicBuffer(m_secondaryMarkerVbo.get(), 0, secMarkerVerts.size() * sizeof(float),
                                               secMarkerVerts.constData());
 
                 struct {
@@ -1210,15 +1169,17 @@ void PanadapterRhiWidget::render(QRhiCommandBuffer *cb) {
                                    static_cast<float>(m_secondaryMarkerColor.greenF()),
                                    static_cast<float>(m_secondaryMarkerColor.blueF()),
                                    static_cast<float>(m_secondaryMarkerColor.alphaF())};
-                secMkRub->updateDynamicBuffer(m_secondaryMarkerUniformBuffer.get(), 0, sizeof(secMkUniforms),
+                overlayRub->updateDynamicBuffer(m_secondaryMarkerUniformBuffer.get(), 0, sizeof(secMkUniforms),
                                               &secMkUniforms);
 
-                cb->resourceUpdate(secMkRub);
-                cb->setGraphicsPipeline(m_overlayTrianglePipeline.get());
-                cb->setShaderResources(m_secondaryMarkerSrb.get());
-                const QRhiCommandBuffer::VertexInput secMkVbufBinding(m_secondaryMarkerVbo.get(), 0);
-                cb->setVertexInput(0, 1, &secMkVbufBinding);
-                cb->draw(6);
+                draws.push_back([=]() {
+                    cb->setViewport({0, 0, w, h});
+                    cb->setGraphicsPipeline(m_overlayTrianglePipeline.get());
+                    cb->setShaderResources(m_secondaryMarkerSrb.get());
+                    const QRhiCommandBuffer::VertexInput secMkVbufBinding(m_secondaryMarkerVbo.get(), 0);
+                    cb->setVertexInput(0, 1, &secMkVbufBinding);
+                    cb->draw(6);
+                });
             }
         }
 
@@ -1269,8 +1230,7 @@ void PanadapterRhiWidget::render(QRhiCommandBuffer *cb) {
                 QVector<float> quadVerts = {
                     x1, 0, x2, 0, x2, spectrumHeight, x1, 0, x2, spectrumHeight, x1, spectrumHeight};
 
-                QRhiResourceUpdateBatch *pbRub = m_rhi->nextResourceUpdateBatch();
-                pbRub->updateDynamicBuffer(m_passbandVbo.get(), 0, quadVerts.size() * sizeof(float),
+                overlayRub->updateDynamicBuffer(m_passbandVbo.get(), 0, quadVerts.size() * sizeof(float),
                                            quadVerts.constData());
 
                 struct {
@@ -1286,14 +1246,16 @@ void PanadapterRhiWidget::render(QRhiCommandBuffer *cb) {
                                 static_cast<float>(m_passbandColor.greenF()),
                                 static_cast<float>(m_passbandColor.blueF()),
                                 static_cast<float>(m_passbandColor.alphaF())};
-                pbRub->updateDynamicBuffer(m_passbandUniformBuffer.get(), 0, sizeof(pbUniforms), &pbUniforms);
+                overlayRub->updateDynamicBuffer(m_passbandUniformBuffer.get(), 0, sizeof(pbUniforms), &pbUniforms);
 
-                cb->resourceUpdate(pbRub);
-                cb->setGraphicsPipeline(m_overlayTrianglePipeline.get());
-                cb->setShaderResources(m_passbandSrb.get());
-                const QRhiCommandBuffer::VertexInput pbVbufBinding(m_passbandVbo.get(), 0);
-                cb->setVertexInput(0, 1, &pbVbufBinding);
-                cb->draw(6);
+                draws.push_back([=]() {
+                    cb->setViewport({0, 0, w, h});
+                    cb->setGraphicsPipeline(m_overlayTrianglePipeline.get());
+                    cb->setShaderResources(m_passbandSrb.get());
+                    const QRhiCommandBuffer::VertexInput pbVbufBinding(m_passbandVbo.get(), 0);
+                    cb->setVertexInput(0, 1, &pbVbufBinding);
+                    cb->draw(6);
+                });
             }
 
             // Draw frequency marker - use dedicated VBO, uniform buffer, and SRB
@@ -1326,8 +1288,7 @@ void PanadapterRhiWidget::render(QRhiCommandBuffer *cb) {
                                               markerX,
                                               spectrumHeight};
 
-                QRhiResourceUpdateBatch *mkRub = m_rhi->nextResourceUpdateBatch();
-                mkRub->updateDynamicBuffer(m_markerVbo.get(), 0, markerVerts.size() * sizeof(float),
+                overlayRub->updateDynamicBuffer(m_markerVbo.get(), 0, markerVerts.size() * sizeof(float),
                                            markerVerts.constData());
 
                 struct {
@@ -1343,14 +1304,16 @@ void PanadapterRhiWidget::render(QRhiCommandBuffer *cb) {
                                 static_cast<float>(m_frequencyMarkerColor.greenF()),
                                 static_cast<float>(m_frequencyMarkerColor.blueF()),
                                 static_cast<float>(m_frequencyMarkerColor.alphaF())};
-                mkRub->updateDynamicBuffer(m_markerUniformBuffer.get(), 0, sizeof(mkUniforms), &mkUniforms);
+                overlayRub->updateDynamicBuffer(m_markerUniformBuffer.get(), 0, sizeof(mkUniforms), &mkUniforms);
 
-                cb->resourceUpdate(mkRub);
-                cb->setGraphicsPipeline(m_overlayTrianglePipeline.get());
-                cb->setShaderResources(m_markerSrb.get());
-                const QRhiCommandBuffer::VertexInput mkVbufBinding(m_markerVbo.get(), 0);
-                cb->setVertexInput(0, 1, &mkVbufBinding);
-                cb->draw(6);
+                draws.push_back([=]() {
+                    cb->setViewport({0, 0, w, h});
+                    cb->setGraphicsPipeline(m_overlayTrianglePipeline.get());
+                    cb->setShaderResources(m_markerSrb.get());
+                    const QRhiCommandBuffer::VertexInput mkVbufBinding(m_markerVbo.get(), 0);
+                    cb->setVertexInput(0, 1, &mkVbufBinding);
+                    cb->draw(6);
+                });
             }
 
             // Draw notch filter marker (dotted line) - uses dedicated notch buffers
@@ -1386,8 +1349,7 @@ void PanadapterRhiWidget::render(QRhiCommandBuffer *cb) {
                                    << y << notchX + notchWidth << yEnd << notchX << yEnd;
                     }
 
-                    QRhiResourceUpdateBatch *notchRub = m_rhi->nextResourceUpdateBatch();
-                    notchRub->updateDynamicBuffer(m_notchVbo.get(), 0, notchVerts.size() * sizeof(float),
+                    overlayRub->updateDynamicBuffer(m_notchVbo.get(), 0, notchVerts.size() * sizeof(float),
                                                   notchVerts.constData());
 
                     struct {
@@ -1403,19 +1365,24 @@ void PanadapterRhiWidget::render(QRhiCommandBuffer *cb) {
                                        static_cast<float>(m_notchColor.greenF()),
                                        static_cast<float>(m_notchColor.blueF()),
                                        static_cast<float>(m_notchColor.alphaF())};
-                    notchRub->updateDynamicBuffer(m_notchUniformBuffer.get(), 0, sizeof(notchUniforms), &notchUniforms);
+                    overlayRub->updateDynamicBuffer(m_notchUniformBuffer.get(), 0, sizeof(notchUniforms), &notchUniforms);
 
-                    cb->resourceUpdate(notchRub);
-                    cb->setGraphicsPipeline(m_overlayTrianglePipeline.get());
-                    cb->setShaderResources(m_notchSrb.get());
-                    const QRhiCommandBuffer::VertexInput notchVbufBinding(m_notchVbo.get(), 0);
-                    cb->setVertexInput(0, 1, &notchVbufBinding);
-                    cb->draw(notchVerts.size() / 2); // 2 floats per vertex
+                    draws.push_back([=]() {
+                        cb->setViewport({0, 0, w, h});
+                        cb->setGraphicsPipeline(m_overlayTrianglePipeline.get());
+                        cb->setShaderResources(m_notchSrb.get());
+                        const QRhiCommandBuffer::VertexInput notchVbufBinding(m_notchVbo.get(), 0);
+                        cb->setVertexInput(0, 1, &notchVbufBinding);
+                        cb->draw(notchVerts.size() / 2); // 2 floats per vertex
+                    });
                 }
             }
         }
     }
 
+    cb->beginPass(renderTarget(), QColor::fromRgbF(0.08f, 0.08f, 0.08f, 1.0f), {1.0f, 0}, overlayRub);
+    for (auto &d : draws)
+        d();
     cb->endPass();
 }
 

@@ -5048,8 +5048,12 @@ void MainWindow::setupSpectrumPlaceholder(QWidget *parent) {
         // Guard: only send if connected and frequency is valid
         if (!m_tcpClient->isConnected() || freq <= 0)
             return;
-        // L=A R=B mode: left-click on Pan B tunes VFO A
+        // Touch input on Pan B always tunes VFO B. Desktop mouse behavior follows the radio setting.
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS)
+        QString vfo = QStringLiteral("FB");
+#else
         QString vfo = (m_mouseQsyMode == 1) ? "FA" : "FB";
+#endif
         QString cmd = QString("%1%2;").arg(vfo).arg(freq, 11, 10, QChar('0'));
         m_tcpClient->sendCAT(cmd);
         m_tcpClient->sendCAT(vfo + ";");
@@ -5061,8 +5065,12 @@ void MainWindow::setupSpectrumPlaceholder(QWidget *parent) {
         // Guard: only send if connected and frequency is valid
         if (!m_tcpClient->isConnected() || freq <= 0)
             return;
-        // L=A R=B mode: left-drag on Pan B tunes VFO A
+        // Touch input on Pan B always tunes VFO B. Desktop mouse behavior follows the radio setting.
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS)
+        bool tuneA = false;
+#else
         bool tuneA = (m_mouseQsyMode == 1);
+#endif
         QString vfo = tuneA ? "FA" : "FB";
         int stepHz = tuneA ? (m_phoneTuneStepAHz > 0 ? m_phoneTuneStepAHz : tuningStepToHz(m_radioState->tuningStep()))
                            : (m_phoneTuneStepBHz > 0 ? m_phoneTuneStepBHz : tuningStepToHz(m_radioState->tuningStepB()));

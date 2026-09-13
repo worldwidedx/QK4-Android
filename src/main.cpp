@@ -15,6 +15,9 @@
 #endif
 #include "mainwindow.h"
 #include "ui/k4styles.h"
+#if defined(Q_OS_IOS)
+#include "ios/ioskeyboard.h"
+#endif
 
 // Filter out known benign Qt warnings on macOS
 // QSocketNotifier::Exception is not supported by kqueue (macOS's event system)
@@ -117,6 +120,12 @@ int main(int argc, char *argv[]) {
     app.setApplicationVersion(QK4_VERSION);
     app.setOrganizationName("AI5QK");
     app.setOrganizationDomain("ai5qk.com");
+
+#if defined(Q_OS_IOS)
+    // Start tracking hardware-keyboard connect/disconnect so FREQ ENT can pick
+    // the inline edit field (keyboard present) vs the on-screen keypad (absent).
+    iosStartKeyboardMonitoring();
+#endif
 
     if (QScreen *screen = app.primaryScreen()) {
         qreal diagonalInches = 0.0;

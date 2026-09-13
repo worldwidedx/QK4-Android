@@ -287,9 +287,11 @@ if(IOS)
     list(APPEND SOURCES
         src/ios/iosaudiosession.mm src/ios/iosaudiosession.h
         src/ios/iosorientation.mm src/ios/iosorientation.h
-        src/ios/iossecurecredentials.mm src/ios/iossecurecredentials.h)
+        src/ios/iossecurecredentials.mm src/ios/iossecurecredentials.h
+        src/ios/ioskeyboard.mm src/ios/ioskeyboard.h)
     set_source_files_properties(
         src/ios/iosaudiosession.mm src/ios/iosorientation.mm src/ios/iossecurecredentials.mm
+        src/ios/ioskeyboard.mm
         PROPERTIES COMPILE_FLAGS "-fobjc-arc")
 endif()
 
@@ -442,7 +444,9 @@ elseif(IOS)
         XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon"
     )
     # AVAudioSession (src/ios/iosaudiosession.mm) lives in AVFoundation.
-    target_link_libraries(${PROJECT_NAME} PRIVATE "-framework AVFoundation" "-framework Foundation" "-framework Security" "-framework UIKit")
+    # GameController provides GCKeyboard (src/ios/ioskeyboard.mm) for detecting an
+    # attached hardware keyboard.
+    target_link_libraries(${PROJECT_NAME} PRIVATE "-framework AVFoundation" "-framework Foundation" "-framework Security" "-framework UIKit" "-framework GameController")
     # Static Qt auto-imports every Multimedia plugin. QK4 only uses
     # QAudioSink/QAudioSource/QMediaDevices, which live in QtMultimedia itself,
     # so drop the FFmpeg plugin and its five xcframeworks.

@@ -52,7 +52,11 @@
     </array>
     <key>NSMicrophoneUsageDescription</key>
     <string>QK4 needs microphone access for transmit audio.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>QK4 does not use the camera. This entry is required because the bundled media framework links camera APIs.</string>
     <key>NSLocalNetworkUsageDescription</key>
     <string>QK4 needs local network access to connect to your Elecraft K4 radio.</string>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
 </dict>
 </plist>

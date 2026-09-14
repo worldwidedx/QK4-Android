@@ -430,16 +430,24 @@ elseif(IOS)
     set(MACOSX_BUNDLE_BUNDLE_NAME ${PROJECT_NAME})
     set(MACOSX_BUNDLE_BUNDLE_VERSION ${QK4_VERSION_FULL})
     set(MACOSX_BUNDLE_SHORT_VERSION_STRING ${QK4_VERSION_FULL})
-    set(MACOSX_BUNDLE_GUI_IDENTIFIER "com.w9wdx.qk4phone")
+    # Bundle identifier. Defaults to the worldwideDX id used for the primary
+    # App Store listing; forks and TestFlight builds signed by a different
+    # Apple team override with -DQK4_IOS_BUNDLE_ID=your.reverse.dns.id
+    set(QK4_IOS_BUNDLE_ID "com.w9wdx.qk4phone" CACHE STRING "iOS bundle identifier")
+    set(MACOSX_BUNDLE_GUI_IDENTIFIER "${QK4_IOS_BUNDLE_ID}")
     # App icon: compile the iOS asset catalog (AppIcon) into the bundle.
     set(QK4_IOS_ASSETS "${CMAKE_SOURCE_DIR}/resources/ios/Assets.xcassets")
     set_source_files_properties(${QK4_IOS_ASSETS} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
     qt_add_executable(${PROJECT_NAME} MANUAL_FINALIZATION MACOSX_BUNDLE ${SOURCES} ${HEADERS} ${QK4_IOS_ASSETS})
     set_target_properties(${PROJECT_NAME} PROPERTIES
         MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/resources/Info.plist.ios.in"
-        XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "com.w9wdx.qk4phone"
+        XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "${QK4_IOS_BUNDLE_ID}"
         XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
         XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon"
+        # Emit a dSYM so App Store Connect can symbolicate crash reports; the
+        # CMake Xcode generator otherwise defaults to plain DWARF and archives
+        # ship without one (ITMS "Upload Symbols Failed" warning).
+        XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT "dwarf-with-dsym"
     )
     # AVAudioSession (src/ios/iosaudiosession.mm) lives in AVFoundation.
     target_link_libraries(${PROJECT_NAME} PRIVATE "-framework AVFoundation" "-framework Foundation" "-framework Security" "-framework UIKit")

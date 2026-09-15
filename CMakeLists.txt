@@ -226,6 +226,7 @@ set(SOURCES
     src/ui/notificationwidget.cpp
     src/ui/k4styles.cpp
     src/ui/k4popupbase.cpp
+    src/ui/adjustoverlay.cpp
     src/ui/kpa1500panel.cpp
     src/ui/kpa1500window.cpp
     src/ui/sidecontroloverlay.cpp
@@ -318,6 +319,7 @@ set(HEADERS
     src/ui/notificationwidget.h
     src/ui/k4styles.h
     src/ui/k4popupbase.h
+    src/ui/adjustoverlay.h
     src/ui/inwindowpopup.h
     src/ui/inwindowdialog.h
     src/ui/kpa1500panel.h

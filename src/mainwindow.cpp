@@ -63,6 +63,12 @@
 #include "ui/kpa1500panel.h"
 #include "network/catserver.h"
 #include "settings/radiosettings.h"
+#if defined(Q_OS_ANDROID)
+// Defined alongside androidSetKeepScreenOn below. True when a usable hardware
+// (USB or Bluetooth) keyboard is attached, so FREQ ENT can use the inline edit
+// field instead of the on-screen numeric keypad.
+static bool androidHasHardwareKeyboard();
+#endif
 #include <QVBoxLayout>
 #include <QDialogButtonBox>
 #include <QLineEdit>
@@ -4174,9 +4180,26 @@ void MainWindow::setupUi() {
     // field, matching the radio (a dedicated key enters edit mode rather than
     // tapping the frequency, which selects the tuning rate).
     connect(m_rightSidePanel, &RightSidePanel::freqEntClicked, this, [this]() {
-        auto *fd = m_vfoA->frequencyDisplay();
-        // Toggle: FREQ ENT opens the blue field, and pressing it again commits
-        // (sends the entered frequency), so the whole entry is touch-only.
+        // Respect B SET: when the Sub RX is targeted, FREQ ENT acts on VFO B.
+        const bool useB = m_radioState->bSetEnabled();
+
+        // Use the on-screen numeric keypad only when there is no hardware
+        // keyboard to type into the inline blue edit field. Android reports a
+        // usable USB/BT keyboard live; iOS is treated as touch-only. Desktop
+        // always uses the inline field (physical keyboard assumed).
+        bool useKeypadDialog = false;
+#if defined(Q_OS_ANDROID)
+        useKeypadDialog = !androidHasHardwareKeyboard();
+#elif defined(Q_OS_IOS)
+        useKeypadDialog = true;
+#endif
+        if (useKeypadDialog) {
+            showFrequencyEntry(useB);
+            return;
+        }
+        // Inline blue edit field: toggle open, and pressing FREQ ENT again
+        // commits (sends the entered frequency).
+        auto *fd = (useB ? m_vfoB : m_vfoA)->frequencyDisplay();
         if (fd->isEditing())
             fd->commitEdit();
         else
@@ -5890,6 +5913,28 @@ static void androidSetKeepScreenOn(bool on) {
         else
             win.callMethod<void>("clearFlags", "(I)V", 128);
     });
+}
+
+// True when a usable hardware keyboard (USB or Bluetooth) is attached. Reads
+// android.content.res.Configuration: `keyboard` is KEYBOARD_NOKEYS (1) when no
+// physical keyboard exists, and `hardKeyboardHidden` is HARDKEYBOARDHIDDEN_NO
+// (1) when the keyboard is present and usable. Both flip live as a USB/BT
+// keyboard is attached or removed.
+static bool androidHasHardwareKeyboard() {
+    QJniObject context = QNativeInterface::QAndroidApplication::context();
+    if (!context.isValid())
+        return false;
+    QJniObject resources =
+        context.callObjectMethod("getResources", "()Landroid/content/res/Resources;");
+    if (!resources.isValid())
+        return false;
+    QJniObject config =
+        resources.callObjectMethod("getConfiguration", "()Landroid/content/res/Configuration;");
+    if (!config.isValid())
+        return false;
+    const jint keyboard = config.getField<jint>("keyboard");               // NOKEYS = 1
+    const jint hardKeyboardHidden = config.getField<jint>("hardKeyboardHidden"); // NO = 1
+    return keyboard != 1 && hardKeyboardHidden == 1;
 }
 #endif
 

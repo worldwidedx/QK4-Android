@@ -88,3 +88,7 @@ Release/
 x64/
 x86/
 out/
+
+# iOS build trees and Qt installer logs
+/build-ios*/
+aqtinstall.log

@@ -14,6 +14,9 @@
 #include <QJniEnvironment>
 #include <qcoreapplication_platform.h>
 #endif
+#ifdef Q_OS_IOS
+#include "ios/iosaudiosession.h"
+#endif
 
 #ifdef Q_OS_ANDROID
 namespace {
@@ -206,6 +209,12 @@ AudioEngine::~AudioEngine() {
 }
 
 bool AudioEngine::start() {
+#ifdef Q_OS_IOS
+    // Put the session in playAndRecord and activate it before any audio object
+    // is created, so RX plays and the mic can later be captured for TX.
+    IosAudioSession::configureForVoice();
+    IosAudioSession::activate();
+#endif
     bool outputOk = setupAudioOutput();
 
     if (outputOk) {
@@ -270,6 +279,10 @@ void AudioEngine::stop() {
 
     m_micBuffer.clear();
     m_micReadOffset = 0;
+
+#ifdef Q_OS_IOS
+    IosAudioSession::deactivate();
+#endif
 }
 
 bool AudioEngine::setupAudioOutput(bool resetPlayback) {

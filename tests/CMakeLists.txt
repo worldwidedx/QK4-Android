@@ -54,6 +54,8 @@ qt_add_executable(test_logbook test_logbook.cpp
     ../src/ui/inwindowdialog.cpp ../src/ui/k4styles.cpp)
 target_link_libraries(test_logbook PRIVATE qk4_ft8 Qt6::Test)
 add_test(NAME logbook COMMAND test_logbook -o logbook-results.txt,txt -o -,txt)
+# This test asserts native focus restoration; parallel Qt GUI tests can steal OS focus.
+set_tests_properties(logbook PROPERTIES RUN_SERIAL TRUE)
 qt_add_executable(test_qrzlogbook test_qrzlogbook.cpp)
 target_link_libraries(test_qrzlogbook PRIVATE qk4_ft8 Qt6::Test Qt6::Network)
 add_test(NAME qrzlogbook COMMAND test_qrzlogbook -o qrzlogbook-results.txt,txt -o -,txt)
@@ -72,6 +74,7 @@ endif()
 qt_add_executable(test_digitaltx test_digitaltx.cpp
     ../src/audio/digitaltxguard.cpp ../src/audio/digitaltxguard.h
     ../src/network/tcpclient.cpp ../src/network/tcpclient.h
+    ../src/network/psktlssocket_qssl.cpp ../src/network/psktlssocket.h
     ../src/network/protocol.cpp ../src/network/protocol.h)
 target_include_directories(test_digitaltx PRIVATE ../src)
 target_link_libraries(test_digitaltx PRIVATE Qt6::Core Qt6::Network Qt6::Test)
@@ -99,6 +102,7 @@ add_test(NAME radiostate COMMAND test_radiostate)
 
 qt_add_executable(test_macros test_macros.cpp
     ../src/network/tcpclient.cpp ../src/network/tcpclient.h
+    ../src/network/psktlssocket_qssl.cpp ../src/network/psktlssocket.h
     ../src/network/protocol.cpp ../src/network/protocol.h
     ../src/audio/digitaltxguard.cpp ../src/audio/digitaltxguard.h
     ../src/models/radiostate.cpp ../src/models/radiostate.h

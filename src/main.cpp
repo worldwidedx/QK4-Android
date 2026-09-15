@@ -134,7 +134,11 @@ int main(int argc, char *argv[]) {
     setupFonts();
 
     MainWindow window;
+#if defined(Q_OS_IOS)
+    window.showFullScreen();
+#else
     window.show();
+#endif
 
     return app.exec();
 }

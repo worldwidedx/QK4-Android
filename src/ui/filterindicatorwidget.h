@@ -2,6 +2,7 @@
 #define FILTERINDICATORWIDGET_H
 
 #include <QColor>
+#include <QHash>
 #include <QWidget>
 
 // Compact filter indicator widget showing filter position,
@@ -35,11 +36,20 @@ public:
     // Shape color (for VFO A/B color coding)
     void setShapeColor(const QColor &fill, const QColor &outline);
 
+    // Record the current mode's nominal (NORM) passband width in Hz, learned
+    // when the operator presses NORM. The down-turned edge ticks then show
+    // only when the live bandwidth returns to this learned width.
+    void setNormBandwidth(int hz);
+
 protected:
     void paintEvent(QPaintEvent *event) override;
 
 private:
     void drawBandwidthShape(QPainter &painter, int lineY, int lineWidth);
+    // Mode's nominal (NORM) bandwidth in Hz, or 0 if unknown.
+    int normBandwidthHz() const;
+    // Down-turned yellow ticks at the shape's base edges when at NORM.
+    void drawFilterBaseline(QPainter &painter, float leftX, float rightX, float lineY);
 
     int m_filterPosition = 2;
     int m_bandwidthHz = 2400;    // Current bandwidth in Hz
@@ -47,6 +57,10 @@ private:
     QString m_mode = "USB";      // Mode for shift center calculation
     int m_minBandwidthHz = 50;   // Minimum bandwidth (triangle)
     int m_maxBandwidthHz = 5000; // Maximum bandwidth (full trapezoid)
+
+    // Learned NORM width per mode string, shared across both VFO indicators
+    // (nominal is a property of the mode, not the receiver).
+    static QHash<QString, int> s_normByMode;
 
     QColor m_lineColor{0xFF, 0xD0, 0x40};       // Gold #FFD040
     QColor m_textColor{0xFF, 0xD0, 0x40};       // Gold #FFD040

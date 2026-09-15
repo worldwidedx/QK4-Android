@@ -1,6 +1,6 @@
-# Security Policy
+# QK4 Mobile Security Policy
 
-QK4-Android (QK4 Mobile) is a touch-first client for Elecraft K4 transceivers.
+QK4 Mobile is a touch-first client for Elecraft K4 transceivers.
 It connects to a K4 over TLS-PSK, stores connection credentials on-device, and
 parses control, display, and audio data received from the radio and the
 network. We take the security of that path seriously and welcome reports from
@@ -12,20 +12,19 @@ Security fixes are applied to the **latest released version** only. Please
 update to the current release before reporting an issue, and expect fixes to
 ship in a new release rather than as a patch to an older one.
 
-| Version            | Supported          |
-| ------------------ | ------------------ |
-| Latest release (current 1.0.x) | :white_check_mark: |
-| Any older release  | :x:                |
+| Version              | Supported          |
+| -------------------- | ------------------ |
+| Latest release       | :white_check_mark: |
+| All earlier releases | :x:                |
 
 ## Reporting a Vulnerability
 
 **Please do not open a public issue, pull request, or discussion for a
 security vulnerability.** Report it privately using either channel:
 
-1. **GitHub private vulnerability reporting (preferred).** Go to the
-   repository's **Security** tab → **Report a vulnerability**, or
-   <https://github.com/worldwidedx/QK4-Android/security/advisories/new>. This
-   keeps the report private and tracked until a fix is released.
+1. **GitHub private vulnerability reporting (preferred).** Go to this
+   repository's **Security** tab → **Report a vulnerability**. This keeps the
+   report private and tracked until a fix is released.
 2. **Email:** `tcpreplay.dev@gmail.com`. Use this if GitHub private reporting
    is unavailable to you. You may encrypt sensitive details; ask in an initial
    message and we will arrange a key.
@@ -73,8 +72,8 @@ you. Good faith means, among other things:
 **In scope** (this repository's code):
 
 - The TLS-PSK network client and connection/credential handling.
-- On-device storage of connection profiles and credentials (Android Keystore /
-  iOS secure storage).
+- On-device storage of K4 connection profiles and passwords.
+- QRZ API credentials protected by Android Keystore or iOS secure storage.
 - Parsing and handling of CAT/control, display, panadapter, and audio data
   received from the radio or network.
 - The MIDI/keyer, logbook/QRZ, and file import/export paths.

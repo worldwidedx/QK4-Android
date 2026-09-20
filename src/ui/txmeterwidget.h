@@ -3,6 +3,8 @@
 
 #include <QWidget>
 #include <QTimer>
+#include <QColor>
+#include "k4styles.h"
 
 /**
  * TxMeterWidget - Multi-function TX meter display (IC-7760 style)
@@ -37,6 +39,9 @@ public:
     // S-meter mode (for dual S/Po meter)
     void setSMeter(double sValue);   // S-units (0-9 for S1-S9, 9+ for +dB over S9)
     void setTransmitting(bool isTx); // Switch between RX (S-meter) and TX (Po) mode
+
+    // Fill colour for the RX S-meter bar (per VFO: A cyan, B green).
+    void setSMeterColor(const QColor &color);
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -90,7 +95,10 @@ private:
     static constexpr int PeakHoldTicks = 10;      // 500ms hold time (10 × 50ms)
 
     // Meter types for color selection
-    enum class MeterType { Gradient, Red };
+    enum class MeterType { Gradient, Red, SMeter };
+
+    // RX S-meter fill colour (VFO A cyan, VFO B green). Default green.
+    QColor m_sMeterColor = QColor(K4Styles::Colors::VfoBGreen);
 
     // Drawing helpers
     void drawMeterRow(QPainter &painter, int y, int rowHeight, const QString &label, double fillRatio, double peakRatio,

@@ -4,6 +4,8 @@
 #include <QPolygonF>
 #include <algorithm>
 
+QHash<QString, int> FilterIndicatorWidget::s_normByMode;
+
 FilterIndicatorWidget::FilterIndicatorWidget(QWidget *parent) : QWidget(parent) {
     setFixedSize(62, 62); // 50 * 1.25 = 62
 }
@@ -48,6 +50,13 @@ void FilterIndicatorWidget::setBandwidthRange(int minHz, int maxHz) {
 void FilterIndicatorWidget::setShapeColor(const QColor &fill, const QColor &outline) {
     m_shapeColor = fill;
     m_shapeOutline = outline;
+    update();
+}
+
+void FilterIndicatorWidget::setNormBandwidth(int hz) {
+    if (hz <= 0)
+        return;
+    s_normByMode.insert(m_mode, hz);
     update();
 }
 
@@ -140,6 +149,34 @@ void FilterIndicatorWidget::drawBandwidthShape(QPainter &painter, int lineY, int
     float bottomY = lineY - gapAboveLine;
     float topY = bottomY - shapeHeight;
 
+    // FSK/AFSK: the K4 draws the same passband trapezoid as other modes but
+    // with a notch in the top edge, so the mark/space tones show as two peaks
+    // at the top corners. At the narrow end it collapses to a single triangle;
+    // as BW widens the top spreads into a plateau with two corner peaks. Drawn
+    // centred (the pair straddles the passband centre), matching the radio.
+    if (m_mode.startsWith(QLatin1String("FSK")) || m_mode.startsWith(QLatin1String("AFSK"))) {
+        const float fcx = width() / 2.0f;
+        // FSK always resolves two tone peaks; their separation scales with the
+        // filter bandwidth. Map the FSK working range (~150-800 Hz) to a peak
+        // spacing that starts clearly apart and grows, capped so the widest
+        // setting still fits the 62px widget instead of clipping.
+        const float bwMin = 150.0f, bwMax = 800.0f;
+        const float t = std::clamp((static_cast<float>(m_bandwidthHz) - bwMin) / (bwMax - bwMin), 0.0f, 1.0f);
+        const float halfTop = 9.0f + t * 12.0f;   // peaks: ~18px..42px apart
+        const float halfBase = halfTop + 5.0f;    // sides slope outward below the peaks
+        const float tl = fcx - halfTop, tr = fcx + halfTop;
+        const float bl = fcx - halfBase, br = fcx + halfBase;
+        const float valleyY = topY + shapeHeight * 0.30f;
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(m_shapeColor);
+        QPolygonF shape;
+        shape << QPointF(bl, bottomY) << QPointF(tl, topY) << QPointF(fcx, valleyY) << QPointF(tr, topY)
+              << QPointF(br, bottomY);
+        painter.drawPolygon(shape);
+        drawFilterBaseline(painter, bl, br, lineY);
+        return;
+    }
+
     float bottomLeft = centerX - baseWidth / 2.0f;
     float bottomRight = centerX + baseWidth / 2.0f;
     float topLeft = centerX - topWidth / 2.0f;
@@ -160,6 +197,62 @@ void FilterIndicatorWidget::drawBandwidthShape(QPainter &painter, int lineY, int
     painter.setPen(Qt::NoPen);
     painter.setBrush(m_shapeColor);
     painter.drawPolygon(shape);
+
+    drawFilterBaseline(painter, bottomLeft, bottomRight, lineY);
+}
+
+int FilterIndicatorWidget::normBandwidthHz() const {
+    // The nominal width learned when the operator last pressed NORM in this
+    // mode is authoritative; the per-mode guesses below are only a fallback
+    // for a mode NORM has not been pressed in yet this session.
+    auto it = s_normByMode.constFind(m_mode);
+    if (it != s_normByMode.constEnd())
+        return it.value();
+    if (m_mode == "FM" || m_mode.startsWith(QLatin1String("PSK")))
+        return 0; // no NORM marker
+    if (m_mode.startsWith(QLatin1String("FSK")) || m_mode.startsWith(QLatin1String("AFSK")))
+        return 300;
+    if (m_mode == "CW" || m_mode == "CW-R")
+        return 400;
+    if (m_mode == "AM")
+        return 6000;
+    return 2700; // SSB / DATA nominal
+}
+
+void FilterIndicatorWidget::drawFilterBaseline(QPainter &painter, float leftX, float rightX, float lineY) {
+    // The K4 draws a fixed-length yellow reference line, the same for every
+    // mode (the coloured filter shape varies, this line does not). Centre it
+    // under the current shape and give it a constant half-width.
+    const float cx = (leftX + rightX) / 2.0f;
+    const float half = 22.0f; // fixed: CW and LSB lines are identical length
+    const float lx = cx - half;
+    const float rx = cx + half;
+
+    painter.setBrush(Qt::NoBrush);
+    QPen pen(m_lineColor, 2);
+    pen.setJoinStyle(Qt::RoundJoin); // clean corner, no miter spike above the flat
+    painter.setPen(pen);
+
+    // When the passband is at (near) the mode's NORM width, the two ends turn
+    // downward. A tolerance (~10%, min 40 Hz) absorbs small differences between
+    // the radio's actual nominal and our per-mode fallback so both VFOs show
+    // the ends at their default width. Drawn as one polyline so the corners
+    // join cleanly and the legs never rise above the flat line.
+    const int norm = normBandwidthHz();
+    const int tol = qMax(40, norm / 10);
+    if (norm > 0 && qAbs(m_bandwidthHz - norm) <= tol) {
+        const float len = 5.0f;
+        const float out = 2.0f;
+        const QPointF pts[4] = {
+            QPointF(lx - out, lineY + len),
+            QPointF(lx, lineY),
+            QPointF(rx, lineY),
+            QPointF(rx + out, lineY + len),
+        };
+        painter.drawPolyline(pts, 4);
+    } else {
+        painter.drawLine(QPointF(lx, lineY), QPointF(rx, lineY));
+    }
 }
 
 void FilterIndicatorWidget::paintEvent(QPaintEvent *) {
@@ -172,18 +265,11 @@ void FilterIndicatorWidget::paintEvent(QPaintEvent *) {
     // Line parameters
     // Preserve breathing room above the phone's always-visible antenna row.
     int lineY = K4Styles::isCompactLayout() ? 36 : 40;
-    int lineHeight = 3;
     int lineWidth = 58; // 38 + 20 (10px wider on each side)
-    int lineX = (w - lineWidth) / 2;
 
-    // Draw bandwidth shape above the line
+    // Draw bandwidth shape; the yellow passband line (and NORM ends) are drawn
+    // with it so the line width matches the current filter.
     drawBandwidthShape(painter, lineY, lineWidth);
-
-    // Draw horizontal line
-    QRectF lineRect(lineX, lineY, lineWidth, lineHeight);
-    painter.setPen(Qt::NoPen);
-    painter.setBrush(m_lineColor);
-    painter.drawRect(lineRect);
 
     // FIL text below line
     QFont textFont = font();
@@ -193,7 +279,7 @@ void FilterIndicatorWidget::paintEvent(QPaintEvent *) {
     painter.setPen(m_textColor);
 
     QString text = QString("FIL%1").arg(m_filterPosition);
-    int textY = lineY + lineHeight + 2;
+    int textY = lineY + 3 + 2; // 3 = passband line thickness (see drawFilterBaseline)
     QRectF textRect(0, textY, w, h - textY);
     painter.drawText(textRect, Qt::AlignHCenter | Qt::AlignTop, text);
 }

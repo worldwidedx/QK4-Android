@@ -1,5 +1,10 @@
 # QK4 Android
 
+> [!IMPORTANT]
+> Development has moved to [QK4-Mobile](https://github.com/worldwidedx/QK4-Mobile),
+> an official fork of the original QK4 project. This repository is retained as
+> the public read-only archive for QK4 Mobile releases v0.7.0 through v1.0.5.
+
 QK4 Android is a phone-focused Android client for Elecraft K4 transceivers. It preserves the proven radio-control, TCP/TLS, panadapter-stream, and TX/RX audio architecture of QK4 while replacing its desktop-oriented interaction model with a landscape touch interface.
 
 The application is under active development and is intended for use with an

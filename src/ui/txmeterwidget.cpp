@@ -8,7 +8,7 @@ TxMeterWidget::TxMeterWidget(QWidget *parent) : QWidget(parent) {
     // phone it is a compact status meter; leaving the desktop 130px minimum
     // here forces the entire operating dock below the visible viewport.
     const bool compact = K4Styles::isCompactLayout();
-    setFixedHeight(compact ? 56 : 130);
+    setFixedHeight(compact ? 56 : K4Styles::Dimensions::VfoMeterHeight);
     setMinimumWidth(compact ? 130 : 200);
     setMaximumWidth(compact ? 150 : 380);
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
@@ -151,6 +151,14 @@ void TxMeterWidget::setSMeter(double sValue) {
     update();
 }
 
+void TxMeterWidget::setSMeterColor(const QColor &color) {
+    if (m_sMeterColor != color) {
+        m_sMeterColor = color;
+        if (!m_isTransmitting)
+            update();
+    }
+}
+
 void TxMeterWidget::setTransmitting(bool isTx) {
     if (m_isTransmitting != isTx) {
         m_isTransmitting = isTx;
@@ -259,8 +267,10 @@ void TxMeterWidget::paintEvent(QPaintEvent *event) {
             peakValue = m_powerPeak;
         }
 
+        // RX S-meter uses the VFO colour (A cyan, B green); TX Po uses the
+        // standard power gradient.
         drawMeterRow(painter, y, rowHeight, compact ? "S" : "S/Po", displayValue, peakValue, labels, scaleFont, barStartX, barWidth,
-                     barHeight, MeterType::Gradient);
+                     barHeight, m_isTransmitting ? MeterType::Gradient : MeterType::SMeter);
         y += rowHeight + spacing;
     }
 
@@ -324,18 +334,23 @@ void TxMeterWidget::drawMeterRow(QPainter &painter, int y, int rowHeight, const 
     // Filled meter bar
     if (fillRatio > 0.001) {
         int fillWidth = static_cast<int>(barWidth * fillRatio);
-        QLinearGradient gradient(barStartX, 0, barStartX + barWidth, 0);
 
-        if (type == MeterType::Gradient) {
-            // Standard meter gradient: green → yellow → orange → red
-            gradient = K4Styles::meterGradient(barStartX, 0, barStartX + barWidth, 0);
+        if (type == MeterType::SMeter) {
+            // RX S-meter: solid VFO colour (A cyan, B green), matching the radio.
+            painter.fillRect(barStartX + 1, barY + 1, fillWidth - 2, barHeight - 2, m_sMeterColor);
         } else {
-            // Red style for Id meter (PA drain current)
-            gradient.setColorAt(0.0, QColor(K4Styles::Colors::MeterIdDark));
-            gradient.setColorAt(0.7, QColor(K4Styles::Colors::MeterIdDark));
-            gradient.setColorAt(1.0, QColor(K4Styles::Colors::MeterIdLight));
+            QLinearGradient gradient(barStartX, 0, barStartX + barWidth, 0);
+            if (type == MeterType::Gradient) {
+                // Standard meter gradient: green → yellow → orange → red
+                gradient = K4Styles::meterGradient(barStartX, 0, barStartX + barWidth, 0);
+            } else {
+                // Red style for Id meter (PA drain current)
+                gradient.setColorAt(0.0, QColor(K4Styles::Colors::MeterIdDark));
+                gradient.setColorAt(0.7, QColor(K4Styles::Colors::MeterIdDark));
+                gradient.setColorAt(1.0, QColor(K4Styles::Colors::MeterIdLight));
+            }
+            painter.fillRect(barStartX + 1, barY + 1, fillWidth - 2, barHeight - 2, gradient);
         }
-        painter.fillRect(barStartX + 1, barY + 1, fillWidth - 2, barHeight - 2, gradient);
     }
 
     // Draw peak indicator
